@@ -128,6 +128,10 @@ export async function updateDoc(
   return resp.data;
 }
 
+export async function deleteDoc(id: number): Promise<void> {
+  await axios.delete(`${API_BASE_URL}/docs/${id}`);
+}
+
 // ---- Knowledge Base Query ----
 
 export interface Citation {

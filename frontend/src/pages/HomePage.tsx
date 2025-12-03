@@ -11,24 +11,23 @@ import {
   Card,
   Message,
   Divider,
+  Popconfirm,
 } from "@arco-design/web-react";
 import {
   listDocs,
   createDoc,
+  deleteDoc,
   MarkdownDocItem,
   queryKnowledgeBase,
   QueryResponse,
 } from "../api";
 
 const { Sider, Content, Header } = Layout;
-const { Search } = Input;
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const [docs, setDocs] = useState<MarkdownDocItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [searchValue, setSearchValue] = useState("");
-  const [filteredDocs, setFilteredDocs] = useState<MarkdownDocItem[]>([]);
 
   // 知识库搜索相关
   const [query, setQuery] = useState("");
@@ -40,7 +39,6 @@ const HomePage: React.FC = () => {
     try {
       const data = await listDocs();
       setDocs(data);
-      setFilteredDocs(data);
     } catch (e) {
       console.error(e);
     } finally {
@@ -51,19 +49,6 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     loadDocs();
   }, []);
-
-  useEffect(() => {
-    if (!searchValue.trim()) {
-      setFilteredDocs(docs);
-      return;
-    }
-    const filtered = docs.filter(
-      (doc) =>
-        doc.title.toLowerCase().includes(searchValue.toLowerCase()) ||
-        doc.topic.toLowerCase().includes(searchValue.toLowerCase())
-    );
-    setFilteredDocs(filtered);
-  }, [searchValue, docs]);
 
   const handleCreate = async () => {
     try {
@@ -80,6 +65,18 @@ const HomePage: React.FC = () => {
 
   const handleDocClick = (id: number) => {
     navigate(`/doc/${id}`);
+  };
+
+  const handleDelete = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation(); // 阻止事件冒泡，避免触发文档点击
+    try {
+      await deleteDoc(id);
+      Message.success("文档已删除");
+      await loadDocs(); // 重新加载文档列表
+    } catch (e: any) {
+      console.error(e);
+      Message.error(e?.message || "删除失败");
+    }
   };
 
   const handleQuery = async () => {
@@ -116,14 +113,6 @@ const HomePage: React.FC = () => {
       </Header>
       <Layout className="flex-1">
         <Sider width={300} className="border-r p-4">
-          <div className="mb-4">
-            <Search
-              placeholder="搜索文档..."
-              value={searchValue}
-              onChange={setSearchValue}
-              allowClear
-            />
-          </div>
           <div className="mb-3">
             <Button type="primary" long onClick={handleCreate}>
               新建文档
@@ -132,34 +121,53 @@ const HomePage: React.FC = () => {
           <div className="text-sm font-semibold mb-2">知识库列表</div>
           <div
             className="overflow-y-auto"
-            style={{ height: "calc(100% - 120px)" }}
+            style={{ height: "calc(100% - 80px)" }}
           >
             <Spin loading={loading} className="w-full">
-              {filteredDocs.length === 0 ? (
+              {docs.length === 0 ? (
                 <Empty description="暂无文档" className="mt-8" />
               ) : (
                 <List
-                  dataSource={filteredDocs}
+                  dataSource={docs}
                   render={(item) => (
                     <List.Item
                       key={item.id}
-                      className="cursor-pointer hover:bg-gray-50"
+                      className="cursor-pointer hover:bg-gray-50 group"
                       onClick={() => handleDocClick(item.id)}
                     >
-                      <div>
-                        <div className="font-medium truncate">{item.title}</div>
-                        <div className="flex justify-between mt-1 text-xs text-gray-400">
-                          <span>{item.topic}</span>
-                          <span>
-                            {new Date(item.updated_at).toLocaleDateString(
-                              "zh-CN",
-                              {
-                                month: "2-digit",
-                                day: "2-digit",
-                              }
-                            )}
-                          </span>
+                      <div className="flex items-center justify-between w-full">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">
+                            {item.title}
+                          </div>
+                          <div className="flex justify-between mt-1 text-xs text-gray-400">
+                            <span>{item.topic}</span>
+                            <span>
+                              {new Date(item.updated_at).toLocaleDateString(
+                                "zh-CN",
+                                {
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                }
+                              )}
+                            </span>
+                          </div>
                         </div>
+                        <Popconfirm
+                          title="确定要删除这个文档吗？"
+                          onOk={(e) => handleDelete(item.id, e as any)}
+                          onCancel={(e) => e?.stopPropagation()}
+                        >
+                          <Button
+                            type="text"
+                            size="mini"
+                            status="danger"
+                            className="opacity-0 group-hover:opacity-100 ml-2"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            删除
+                          </Button>
+                        </Popconfirm>
                       </div>
                     </List.Item>
                   )}

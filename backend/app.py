@@ -408,6 +408,26 @@ def update_markdown_doc(
     return doc
 
 
+@app.delete("/docs/{doc_id}")
+def delete_markdown_doc(doc_id: int, db: Session = Depends(get_db)):
+    doc = db.query(MarkdownDoc).get(doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="文档不存在")
+
+    # 从向量库中删除
+    try:
+        vectordb.delete(where={"doc_id": str(doc_id)})
+    except Exception:
+        # 某些版本不支持 where 删除，可以忽略
+        pass
+
+    # 从数据库中删除
+    db.delete(doc)
+    db.commit()
+
+    return {"message": "文档已删除", "id": doc_id}
+
+
 @app.get("/health")
 def health():
     return {"status": "ok"}

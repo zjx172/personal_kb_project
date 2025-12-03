@@ -9,8 +9,9 @@ import {
   Message,
   Spin,
   Empty,
+  Popconfirm,
 } from "@arco-design/web-react";
-import { getDoc, updateDoc, MarkdownDocDetail } from "../api";
+import { getDoc, updateDoc, deleteDoc, MarkdownDocDetail } from "../api";
 
 const { Sider, Content, Header } = Layout;
 
@@ -22,7 +23,9 @@ const DocPage: React.FC = () => {
   const [currentDoc, setCurrentDoc] = useState<MarkdownDocDetail | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const saveTimerRef = useRef<number | null>(null);
 
   const [titleDraft, setTitleDraft] = useState("");
   const [topicDraft, setTopicDraft] = useState("general");
@@ -94,6 +97,8 @@ const DocPage: React.FC = () => {
         value: contentDraft,
         input: (value: string) => {
           setContentDraft(value);
+          // 触发自动保存
+          triggerAutoSave(value);
         },
       });
     };
@@ -120,8 +125,79 @@ const DocPage: React.FC = () => {
     }
   }, [contentDraft, currentDoc]);
 
-  const handleSave = async () => {
+  // 自动保存函数（防抖）
+  const triggerAutoSave = (content: string) => {
     if (!docId) return;
+
+    // 清除之前的定时器
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    // 设置新的定时器，2秒后自动保存
+    saveTimerRef.current = window.setTimeout(async () => {
+      setSaving(true);
+      try {
+        const detail = await updateDoc(docId, {
+          title: titleDraft,
+          topic: topicDraft,
+          content: content,
+        });
+        setCurrentDoc(detail);
+        setLastSaved(new Date());
+        // 静默保存，不显示成功消息
+      } catch (e: any) {
+        console.error(e);
+        Message.error("自动保存失败");
+      } finally {
+        setSaving(false);
+      }
+    }, 2000); // 2秒延迟
+  };
+
+  // 监听标题和主题变化，也触发自动保存
+  useEffect(() => {
+    if (
+      currentDoc &&
+      docId &&
+      (titleDraft !== currentDoc.title || topicDraft !== currentDoc.topic)
+    ) {
+      // 清除之前的定时器
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+
+      // 设置新的定时器，2秒后自动保存
+      saveTimerRef.current = window.setTimeout(async () => {
+        setSaving(true);
+        try {
+          const currentContent = vditorRef.current?.getValue() || contentDraft;
+          const detail = await updateDoc(docId, {
+            title: titleDraft,
+            topic: topicDraft,
+            content: currentContent,
+          });
+          setCurrentDoc(detail);
+          setLastSaved(new Date());
+        } catch (e: any) {
+          console.error(e);
+          Message.error("自动保存失败");
+        } finally {
+          setSaving(false);
+        }
+      }, 2000);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [titleDraft, topicDraft]);
+
+  const handleManualSave = async () => {
+    if (!docId) return;
+
+    // 清除自动保存定时器
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
     setSaving(true);
     setError(null);
     try {
@@ -134,6 +210,7 @@ const DocPage: React.FC = () => {
       });
       setCurrentDoc(detail);
       setContentDraft(currentContent);
+      setLastSaved(new Date());
       Message.success("保存成功");
     } catch (e: any) {
       console.error(e);
@@ -141,6 +218,27 @@ const DocPage: React.FC = () => {
       Message.error(e?.message || "保存失败");
     } finally {
       setSaving(false);
+    }
+  };
+
+  // 组件卸载时清理定时器
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleDelete = async () => {
+    if (!docId) return;
+    try {
+      await deleteDoc(docId);
+      Message.success("文档已删除");
+      navigate("/"); // 删除后返回主页
+    } catch (e: any) {
+      console.error(e);
+      Message.error(e?.message || "删除失败");
     }
   };
 
@@ -177,7 +275,13 @@ const DocPage: React.FC = () => {
           />
         </div>
         <div className="flex items-center gap-3">
-          {currentDoc && (
+          {saving && <span className="text-xs text-gray-400">保存中...</span>}
+          {lastSaved && !saving && (
+            <span className="text-xs text-gray-400">
+              已保存：{lastSaved.toLocaleTimeString()}
+            </span>
+          )}
+          {!lastSaved && currentDoc && !saving && (
             <span className="text-xs text-gray-400">
               最后保存：
               {new Date(currentDoc.updated_at).toLocaleString()}
@@ -186,11 +290,20 @@ const DocPage: React.FC = () => {
           <Button
             type="primary"
             size="small"
-            onClick={handleSave}
+            onClick={handleManualSave}
             loading={saving}
           >
-            保存
+            手动保存
           </Button>
+          <Popconfirm
+            title="确定要删除这个文档吗？"
+            onOk={handleDelete}
+            okButtonProps={{ status: "danger" }}
+          >
+            <Button type="outline" size="small" status="danger">
+              删除
+            </Button>
+          </Popconfirm>
         </div>
       </Header>
 
