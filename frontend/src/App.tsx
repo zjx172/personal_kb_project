@@ -1,6 +1,6 @@
 import React, { useState } from "react";
-import KnowledgeBase from "./KnowledgeBase";
-import DocEditor from "./DocEditor";
+import KnowledgeBase from "./components/knowledge-base";
+import DocEditor from "./components/doc-editor";
 
 type MainTab = "docs-edit" | "kb-view";
 
@@ -11,7 +11,7 @@ const App: React.FC = () => {
     <div className="h-screen w-screen flex flex-col">
       <header className="h-10 flex items-center justify-between px-4 border-b bg-white">
         <div className="text-sm font-semibold text-gray-800">
-          Personal KB · 学习助手
+          个人学习助手
         </div>
         <div className="flex gap-2 text-xs">
           <button
@@ -38,8 +38,7 @@ const App: React.FC = () => {
       </header>
 
       <div className="flex-1">
-        {/* {tab === "docs-edit" ? <DocEditor /> : <KnowledgeBase />} */}
-        {<DocEditor /> }
+        {tab === "docs-edit" ? <DocEditor /> : <KnowledgeBase />}
       </div>
     </div>
   );

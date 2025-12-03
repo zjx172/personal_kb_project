@@ -7,7 +7,7 @@ import {
   updateDoc,
   MarkdownDocItem,
   MarkdownDocDetail,
-} from "./api";
+} from "../../api";
 
 const DocEditor: React.FC = () => {
   const [docs, setDocs] = useState<MarkdownDocItem[]>([]);
@@ -25,7 +25,6 @@ const DocEditor: React.FC = () => {
     setLoadingList(true);
     try {
       const data = await listDocs();
-      console.log("data", data);
       setDocs(data);
       if (!selectedId && data?.length > 0) {
         await openDoc(data?.[0]?.id);

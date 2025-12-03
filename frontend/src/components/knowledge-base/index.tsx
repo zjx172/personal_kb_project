@@ -1,14 +1,14 @@
 import React, { useEffect, useState, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import {
-  listKbDocs,
   getKbDoc,
   listHighlights,
   createHighlight,
   KbDocItem,
   KbDocDetail,
   Highlight,
-} from "./api";
+  listDocs,
+} from "../../api";
 
 type SelectionInfo = {
   text: string;
@@ -33,7 +33,7 @@ const KnowledgeBase: React.FC = () => {
     const load = async () => {
       setLoadingDocs(true);
       try {
-        const data = await listKbDocs();
+        const data = await listDocs();
         setDocs(data);
         if (data.length > 0) {
           await openDoc(data[0].source);
@@ -155,7 +155,7 @@ const KnowledgeBase: React.FC = () => {
           </div>
         ) : docs.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-xs text-gray-400">
-            backend/docs/ 下暂时没有 .md 文件
+            暂无文档，点右上角“新建”～
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto space-y-1">
