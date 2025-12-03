@@ -9,15 +9,6 @@ from langchain_openai import OpenAIEmbeddings
 from config import DOCS_DIR, VECTOR_STORE_DIR, COLLECTION_NAME, OPENAI_API_KEY, OPENAI_BASE_URL
 
 
-def detect_topic_from_path(path: Path) -> str:
-    parts = path.parts
-    if "docs" in parts:
-        idx = parts.index("docs")
-        if idx + 1 < len(parts) - 1:
-            return parts[idx + 1]
-    return "general"
-
-
 def load_documents():
     docs = []
     root = Path(DOCS_DIR)
@@ -26,8 +17,7 @@ def load_documents():
         if suf not in [".pdf", ".html", ".htm", ".md"]:
             continue
 
-        topic = detect_topic_from_path(path)
-        print(f"[*] 加载文档: {path} | topic={topic}")
+        print(f"[*] 加载文档: {path}")
 
         if suf == ".pdf":
             loader = PyPDFLoader(str(path))
@@ -39,7 +29,6 @@ def load_documents():
         file_docs = loader.load()
         for d in file_docs:
             d.metadata.setdefault("source", str(path))
-            d.metadata.setdefault("topic", topic)
         docs.extend(file_docs)
     return docs
 

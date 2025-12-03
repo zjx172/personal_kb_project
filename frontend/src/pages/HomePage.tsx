@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import ReactMarkdown from "react-markdown";
 import {
   Layout,
   Input,
@@ -18,8 +19,9 @@ import {
   createDoc,
   deleteDoc,
   MarkdownDocItem,
-  queryKnowledgeBase,
+  queryKnowledgeBaseStream,
   QueryResponse,
+  extractWebContent,
 } from "../api";
 
 const { Sider, Content, Header } = Layout;
@@ -29,10 +31,18 @@ const HomePage: React.FC = () => {
   const [docs, setDocs] = useState<MarkdownDocItem[]>([]);
   const [loading, setLoading] = useState(false);
 
+  // 网页提取相关
+  const [webUrl, setWebUrl] = useState("");
+  const [extracting, setExtracting] = useState(false);
+
   // 知识库搜索相关
   const [query, setQuery] = useState("");
   const [queryResult, setQueryResult] = useState<QueryResponse | null>(null);
   const [querying, setQuerying] = useState(false);
+  const [streamingAnswer, setStreamingAnswer] = useState("");
+  const [streamingCitations, setStreamingCitations] = useState<
+    QueryResponse["citations"]
+  >([]);
 
   const loadDocs = async () => {
     setLoading(true);
@@ -54,10 +64,10 @@ const HomePage: React.FC = () => {
     try {
       const newDoc = await createDoc({
         title: "未命名文档",
-        topic: "general",
         content: "",
       });
-      navigate(`/doc/${newDoc.id}`);
+      // 在新标签页中打开文档编辑页面
+      window.open(`/doc/${newDoc.id}`, "_blank");
     } catch (e) {
       console.error(e);
     }
@@ -79,6 +89,38 @@ const HomePage: React.FC = () => {
     }
   };
 
+  const handleExtractWeb = async () => {
+    if (!webUrl.trim()) {
+      Message.warning("请输入网页 URL");
+      return;
+    }
+
+    // 验证 URL 格式
+    try {
+      new URL(webUrl);
+    } catch {
+      Message.error("请输入有效的 URL");
+      return;
+    }
+
+    setExtracting(true);
+    try {
+      const newDoc = await extractWebContent({
+        url: webUrl,
+      });
+      Message.success("网页内容已提取并保存");
+      setWebUrl("");
+      await loadDocs(); // 重新加载文档列表
+      // 打开新创建的文档
+      window.open(`/doc/${newDoc.id}`, "_blank");
+    } catch (e: any) {
+      console.error(e);
+      Message.error(e?.response?.data?.detail || e?.message || "提取失败");
+    } finally {
+      setExtracting(false);
+    }
+  };
+
   const handleQuery = async () => {
     if (!query.trim()) {
       Message.warning("请输入问题");
@@ -86,9 +128,24 @@ const HomePage: React.FC = () => {
     }
     setQuerying(true);
     setQueryResult(null);
+    setStreamingAnswer("");
+    setStreamingCitations([]);
+
     try {
-      const result = await queryKnowledgeBase(query);
-      setQueryResult(result);
+      await queryKnowledgeBaseStream(query, (chunk) => {
+        if (chunk.type === "chunk" && chunk.chunk) {
+          setStreamingAnswer((prev) => prev + chunk.chunk);
+        } else if (chunk.type === "citations" && chunk.citations) {
+          setStreamingCitations(chunk.citations);
+        } else if (chunk.type === "final") {
+          setQueryResult({
+            answer: chunk.answer || streamingAnswer,
+            citations: chunk.citations || streamingCitations,
+          });
+          setStreamingAnswer("");
+          setStreamingCitations([]);
+        }
+      });
     } catch (e: any) {
       console.error(e);
       Message.error(e?.message || "搜索失败");
@@ -118,6 +175,28 @@ const HomePage: React.FC = () => {
               新建文档
             </Button>
           </div>
+          <div className="mb-3">
+            <Input
+              placeholder="输入网页 URL..."
+              value={webUrl}
+              onChange={setWebUrl}
+              size="small"
+              style={{ marginBottom: 8 }}
+              onKeyPress={(e) => {
+                if (e.key === "Enter") {
+                  handleExtractWeb();
+                }
+              }}
+            />
+            <Button
+              type="outline"
+              long
+              onClick={handleExtractWeb}
+              loading={extracting}
+            >
+              提取网页内容
+            </Button>
+          </div>
           <div className="text-sm font-semibold mb-2">知识库列表</div>
           <div
             className="overflow-y-auto"
@@ -140,8 +219,7 @@ const HomePage: React.FC = () => {
                           <div className="font-medium truncate">
                             {item.title}
                           </div>
-                          <div className="flex justify-between mt-1 text-xs text-gray-400">
-                            <span>{item.topic}</span>
+                          <div className="flex justify-end mt-1 text-xs text-gray-400">
                             <span>
                               {new Date(item.updated_at).toLocaleDateString(
                                 "zh-CN",
@@ -211,18 +289,24 @@ const HomePage: React.FC = () => {
               />
             </div>
 
-            {queryResult && (
+            {(queryResult || streamingAnswer || querying) && (
               <Card className="mt-6">
                 <div className="mb-4">
                   <Typography.Text className="text-base font-semibold">
                     答案：
                   </Typography.Text>
                 </div>
-                <div className="mb-4 text-gray-700 whitespace-pre-wrap">
-                  {queryResult.answer}
+                <div className="mb-4 text-gray-700 prose prose-sm max-w-none">
+                  <ReactMarkdown>
+                    {queryResult?.answer || streamingAnswer || ""}
+                  </ReactMarkdown>
+                  {querying && !streamingAnswer && (
+                    <span className="inline-block w-2 h-4 bg-gray-400 animate-pulse ml-1" />
+                  )}
                 </div>
 
-                {queryResult.citations.length > 0 && (
+                {(queryResult?.citations.length || streamingCitations.length) >
+                  0 && (
                   <>
                     <Divider />
                     <div className="mb-2">
@@ -231,27 +315,56 @@ const HomePage: React.FC = () => {
                       </Typography.Text>
                     </div>
                     <div className="space-y-2">
-                      {queryResult.citations.map((citation) => (
-                        <Card
-                          key={citation.index}
-                          size="small"
-                          className="bg-gray-50"
-                        >
-                          <div className="text-xs text-gray-500 mb-1">
-                            [{citation.index}] {citation.source}
-                          </div>
-                          <div className="text-sm text-gray-700">
-                            {citation.snippet}...
-                          </div>
-                        </Card>
-                      ))}
+                      {(queryResult?.citations || streamingCitations).map(
+                        (citation) => {
+                          // 检查是否是 Markdown 文档（格式：markdown_doc:{id}）
+                          const isMarkdownDoc =
+                            citation.source.startsWith("markdown_doc:");
+                          const docId = isMarkdownDoc
+                            ? citation.source.replace("markdown_doc:", "")
+                            : null;
+
+                          const handleCitationClick = () => {
+                            if (docId) {
+                              navigate(`/doc/${docId}`);
+                            }
+                          };
+
+                          return (
+                            <Card
+                              key={citation.index}
+                              size="small"
+                              className={`bg-gray-50 ${
+                                isMarkdownDoc
+                                  ? "cursor-pointer hover:bg-gray-100 transition-colors"
+                                  : ""
+                              }`}
+                              onClick={
+                                isMarkdownDoc ? handleCitationClick : undefined
+                              }
+                            >
+                              <div className="text-xs text-gray-500 mb-1">
+                                [{citation.index}] {citation.source}
+                                {isMarkdownDoc && (
+                                  <span className="ml-2 text-blue-500">
+                                    (点击打开)
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-sm text-gray-700">
+                                {citation.snippet}...
+                              </div>
+                            </Card>
+                          );
+                        }
+                      )}
                     </div>
                   </>
                 )}
               </Card>
             )}
 
-            {!queryResult && !querying && (
+            {!queryResult && !streamingAnswer && !querying && (
               <div className="text-center text-gray-400 mt-8">
                 <Typography.Text>
                   在知识库中搜索您的问题，或选择左侧文档进行编辑

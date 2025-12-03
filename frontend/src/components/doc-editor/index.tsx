@@ -30,7 +30,6 @@ const DocEditor: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [titleDraft, setTitleDraft] = useState("");
-  const [topicDraft, setTopicDraft] = useState("general");
   const [contentDraft, setContentDraft] = useState("");
 
   const loadList = async () => {
@@ -56,7 +55,6 @@ const DocEditor: React.FC = () => {
       setSelectedId(id);
       setCurrentDoc(detail);
       setTitleDraft(detail.title);
-      setTopicDraft(detail.topic);
       setContentDraft(detail.content);
     } catch (e: any) {
       console.error(e);
@@ -69,7 +67,6 @@ const DocEditor: React.FC = () => {
     try {
       const detail = await createDoc({
         title: "未命名文档",
-        topic: "general",
         content: "",
       });
       await loadList();
@@ -87,7 +84,6 @@ const DocEditor: React.FC = () => {
     try {
       const detail = await updateDoc(selectedId, {
         title: titleDraft,
-        topic: topicDraft,
         content: contentDraft,
       });
       setCurrentDoc(detail);
@@ -134,8 +130,7 @@ const DocEditor: React.FC = () => {
                   >
                     <div>
                       <div className="font-medium truncate">{item.title}</div>
-                      <div className="flex justify-between mt-1 text-xs text-gray-400">
-                        <span>{item.topic}</span>
+                      <div className="flex justify-end mt-1 text-xs text-gray-400">
                         <span>
                           {new Date(item.updated_at).toLocaleDateString(
                             "zh-CN",
@@ -163,13 +158,6 @@ const DocEditor: React.FC = () => {
               value={titleDraft}
               onChange={setTitleDraft}
               style={{ width: 200 }}
-              size="small"
-            />
-            <Input
-              placeholder="topic（例如 nlp / backend）"
-              value={topicDraft}
-              onChange={setTopicDraft}
-              style={{ width: 180 }}
               size="small"
             />
           </div>

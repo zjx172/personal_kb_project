@@ -28,7 +28,6 @@ const DocPage: React.FC = () => {
   const saveTimerRef = useRef<number | null>(null);
 
   const [titleDraft, setTitleDraft] = useState("");
-  const [topicDraft, setTopicDraft] = useState("general");
   const [contentDraft, setContentDraft] = useState("");
   const vditorRef = useRef<Vditor | null>(null);
   const editorContainerRef = useRef<HTMLDivElement>(null);
@@ -41,7 +40,6 @@ const DocPage: React.FC = () => {
       const detail = await getDoc(docId);
       setCurrentDoc(detail);
       setTitleDraft(detail.title);
-      setTopicDraft(detail.topic);
       setContentDraft(detail.content);
     } catch (e: any) {
       console.error(e);
@@ -140,7 +138,6 @@ const DocPage: React.FC = () => {
       try {
         const detail = await updateDoc(docId, {
           title: titleDraft,
-          topic: topicDraft,
           content: content,
         });
         setCurrentDoc(detail);
@@ -155,13 +152,9 @@ const DocPage: React.FC = () => {
     }, 2000); // 2秒延迟
   };
 
-  // 监听标题和主题变化，也触发自动保存
+  // 监听标题变化，也触发自动保存
   useEffect(() => {
-    if (
-      currentDoc &&
-      docId &&
-      (titleDraft !== currentDoc.title || topicDraft !== currentDoc.topic)
-    ) {
+    if (currentDoc && docId && titleDraft !== currentDoc.title) {
       // 清除之前的定时器
       if (saveTimerRef.current) {
         clearTimeout(saveTimerRef.current);
@@ -174,7 +167,6 @@ const DocPage: React.FC = () => {
           const currentContent = vditorRef.current?.getValue() || contentDraft;
           const detail = await updateDoc(docId, {
             title: titleDraft,
-            topic: topicDraft,
             content: currentContent,
           });
           setCurrentDoc(detail);
@@ -188,7 +180,7 @@ const DocPage: React.FC = () => {
       }, 2000);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [titleDraft, topicDraft]);
+  }, [titleDraft]);
 
   const handleManualSave = async () => {
     if (!docId) return;
@@ -205,7 +197,6 @@ const DocPage: React.FC = () => {
       const currentContent = vditorRef.current?.getValue() || contentDraft;
       const detail = await updateDoc(docId, {
         title: titleDraft,
-        topic: topicDraft,
         content: currentContent,
       });
       setCurrentDoc(detail);
@@ -264,13 +255,6 @@ const DocPage: React.FC = () => {
             value={titleDraft}
             onChange={setTitleDraft}
             style={{ width: 200 }}
-            size="small"
-          />
-          <Input
-            placeholder="topic（例如 nlp / backend）"
-            value={topicDraft}
-            onChange={setTopicDraft}
-            style={{ width: 180 }}
             size="small"
           />
         </div>

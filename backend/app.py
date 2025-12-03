@@ -1,10 +1,15 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional, List
 from pathlib import Path
 from datetime import datetime
 import uuid
+import json
+import requests
+from readability import Document
+import html2text
 
 from sqlalchemy.orm import Session
 
@@ -82,60 +87,90 @@ class QueryResponse(BaseModel):
     citations: List[Citation]
 
 
-@app.post("/query", response_model=QueryResponse)
+@app.post("/query")
 def query_kb(req: QueryRequest):
     # 使用向量库检索相关文档
     retriever = vectordb.as_retriever(search_kwargs={"k": 5})
     # 检索相关文档
     docs = retriever.get_relevant_documents(req.question)
 
-    if not docs:
-        return QueryResponse(
-            answer="知识库中没有相关内容。",
-            citations=[],
-        )
+    def generate():
+        if not docs:
+            # 发送最终结果
+            result = {
+                "type": "final",
+                "answer": "知识库中没有相关内容。",
+                "citations": [],
+            }
+            yield f"data: {json.dumps(result, ensure_ascii=False)}\n\n"
+            return
 
-    context_parts = []
-    citations: List[Citation] = []
-    for i, d in enumerate(docs, start=1):
-        context_parts.append(f"[{i}] {d.page_content}")
-        citations.append(
-            Citation(
-                index=i,
-                source=str(d.metadata.get("source", "unknown")),
-                snippet=d.page_content[:200],
+        context_parts = []
+        citations: List[Citation] = []
+        for i, d in enumerate(docs, start=1):
+            context_parts.append(f"[{i}] {d.page_content}")
+            citations.append(
+                Citation(
+                    index=i,
+                    source=str(d.metadata.get("source", "unknown")),
+                    snippet=d.page_content[:200],
+                )
             )
-        )
 
-    context = "\n\n".join(context_parts)
-    chain = answer_prompt | llm
-    resp = chain.invoke({"question": req.question, "context": context})
+        context = "\n\n".join(context_parts)
+        
+        # 先发送 citations
+        citations_data = {
+            "type": "citations",
+            "citations": [c.dict() for c in citations],
+        }
+        yield f"data: {json.dumps(citations_data, ensure_ascii=False)}\n\n"
 
-    return QueryResponse(answer=resp.content, citations=citations)
+        # 流式生成答案
+        chain = answer_prompt | llm
+        answer_chunks = []
+        for chunk in chain.stream({"question": req.question, "context": context}):
+            if hasattr(chunk, "content") and chunk.content:
+                content = chunk.content
+                answer_chunks.append(content)
+                # 发送增量内容
+                chunk_data = {
+                    "type": "chunk",
+                    "chunk": content,
+                }
+                yield f"data: {json.dumps(chunk_data, ensure_ascii=False)}\n\n"
+
+        # 发送最终结果
+        final_answer = "".join(answer_chunks)
+        result = {
+            "type": "final",
+            "answer": final_answer,
+            "citations": [c.dict() for c in citations],
+        }
+        yield f"data: {json.dumps(result, ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 # ---- Knowledge Base (docs/ 下的 Markdown 文件阅读 + 阅读次数统计) ----
 
-def detect_topic(path: Path) -> str:
-    parts = path.parts
-    if "docs" in parts:
-        idx = parts.index("docs")
-        if idx + 1 < len(parts) - 1:
-            return parts[idx + 1]
-    return "general"
-
-
 class KbDocItem(BaseModel):
     source: str
     title: str
-    topic: str
     read_count: int
 
 
 class KbDocDetail(BaseModel):
     source: str
     title: str
-    topic: str
     content: str
     read_count: int
 
@@ -163,18 +198,16 @@ def list_kb_docs(db: Session = Depends(get_db)):
                     break
         except Exception:
             pass
-        topic = detect_topic(path)
         read_count = stat_map.get(source, 0)
         items.append(
             KbDocItem(
                 source=source,
                 title=title,
-                topic=topic,
                 read_count=read_count,
             )
         )
 
-    items.sort(key=lambda x: (x.topic, x.title))
+    items.sort(key=lambda x: x.title)
     return items
 
 
@@ -199,8 +232,6 @@ def get_kb_doc(
             title = line.lstrip("#").strip() or title
             break
 
-    topic = detect_topic(path)
-
     stat = (
         db.query(DocumentStat)
         .filter_by(user_id=user_id, source=source)
@@ -223,7 +254,6 @@ def get_kb_doc(
     return KbDocDetail(
         source=source,
         title=title,
-        topic=topic,
         content=text,
         read_count=stat.read_count,
     )
@@ -234,7 +264,6 @@ def get_kb_doc(
 class HighlightCreate(BaseModel):
     source: str
     page: Optional[int] = None
-    topic: Optional[str] = None
     selected_text: str
     note: Optional[str] = None
 
@@ -243,7 +272,6 @@ class HighlightOut(BaseModel):
     id: int
     source: str
     page: Optional[int]
-    topic: Optional[str]
     selected_text: str
     note: Optional[str]
     created_at: datetime
@@ -257,7 +285,6 @@ def create_highlight(req: HighlightCreate, db: Session = Depends(get_db)):
     h = Highlight(
         source=req.source,
         page=req.page,
-        topic=req.topic,
         selected_text=req.selected_text,
         note=req.note,
     )
@@ -283,20 +310,17 @@ def list_highlights(
 
 class MarkdownDocCreate(BaseModel):
     title: str = "未命名文档"
-    topic: Optional[str] = "general"
     content: Optional[str] = ""
 
 
 class MarkdownDocUpdate(BaseModel):
     title: Optional[str] = None
-    topic: Optional[str] = None
     content: Optional[str] = None
 
 
 class MarkdownDocItem(BaseModel):
     id: str
     title: str
-    topic: str
     created_at: datetime
     updated_at: datetime
 
@@ -307,7 +331,6 @@ class MarkdownDocItem(BaseModel):
 class MarkdownDocDetail(BaseModel):
     id: str
     title: str
-    topic: str
     content: str
     created_at: datetime
     updated_at: datetime
@@ -328,7 +351,6 @@ def upsert_markdown_doc_to_vectorstore(doc: MarkdownDoc):
         page_content=doc.content,
         metadata={
             "source": f"markdown_doc:{doc.id}",
-            "topic": doc.topic,
             "doc_id": str(doc.id),
             "title": doc.title,
             "page": None,
@@ -357,7 +379,6 @@ def create_markdown_doc(req: MarkdownDocCreate, db: Session = Depends(get_db)):
     doc = MarkdownDoc(
         id=doc_id,
         title=req.title or "未命名文档",
-        topic=(req.topic or "general"),
         content=req.content or "",
         created_at=now,
         updated_at=now,
@@ -397,9 +418,6 @@ def update_markdown_doc(
     if req.title is not None:
         doc.title = req.title
         changed = True
-    if req.topic is not None:
-        doc.topic = req.topic
-        changed = True
     if req.content is not None:
         doc.content = req.content
         changed = True
@@ -431,6 +449,95 @@ def delete_markdown_doc(doc_id: str, db: Session = Depends(get_db)):
     db.commit()
 
     return {"message": "文档已删除", "id": doc_id}
+
+
+# ---- 网页正文提取 ----
+
+class WebExtractRequest(BaseModel):
+    url: str
+    title: Optional[str] = None
+
+
+@app.post("/extract-web", response_model=MarkdownDocDetail)
+def extract_web_content(req: WebExtractRequest, db: Session = Depends(get_db)):
+    """从网页 URL 提取正文并保存为 Markdown 文档"""
+    try:
+        # 获取网页内容
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+        }
+        response = requests.get(req.url, headers=headers, timeout=30)
+        response.raise_for_status()
+        
+        # 正确处理字符编码
+        # 1. 首先尝试从响应头获取编码
+        encoding = response.encoding
+        
+        # 2. 如果响应头没有编码信息，尝试从 HTML meta 标签获取
+        if not encoding or encoding.lower() == 'iso-8859-1':
+            # 先尝试用 UTF-8 解码一部分内容来查找 charset
+            try:
+                content_preview = response.content[:5000].decode('utf-8', errors='ignore')
+                # 查找 charset 声明
+                import re
+                charset_match = re.search(r'<meta[^>]*charset=["\']?([^"\'>\s]+)', content_preview, re.IGNORECASE)
+                if charset_match:
+                    encoding = charset_match.group(1)
+                else:
+                    encoding = 'utf-8'
+            except Exception:
+                encoding = 'utf-8'
+        
+        # 3. 使用检测到的编码解码内容
+        try:
+            html_content = response.content.decode(encoding)
+        except (UnicodeDecodeError, LookupError):
+            # 如果解码失败，尝试 UTF-8
+            try:
+                html_content = response.content.decode('utf-8')
+            except UnicodeDecodeError:
+                # 最后尝试 latin-1（不会失败，但可能产生乱码）
+                html_content = response.content.decode('latin-1', errors='replace')
+
+        # 使用 readability 提取正文
+        doc = Document(html_content)
+        title = doc.title() if not req.title else req.title
+        content_html = doc.summary()
+
+        # 使用 html2text 将 HTML 转换为 Markdown
+        h = html2text.HTML2Text()
+        h.ignore_links = False
+        h.ignore_images = False
+        h.body_width = 0  # 不限制行宽
+        h.unicode_snob = True  # 使用 Unicode
+        markdown_content = h.handle(content_html).strip()
+
+        # 添加来源信息
+        markdown_content = f"# {title}\n\n**来源**: [{req.url}]({req.url})\n\n---\n\n{markdown_content}"
+
+        # 创建 Markdown 文档
+        now = datetime.utcnow()
+        doc_id = str(uuid.uuid4())
+        doc = MarkdownDoc(
+            id=doc_id,
+            title=title,
+            content=markdown_content,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(doc)
+        db.commit()
+        db.refresh(doc)
+
+        # 同步到向量库
+        upsert_markdown_doc_to_vectorstore(doc)
+
+        return doc
+
+    except requests.RequestException as e:
+        raise HTTPException(status_code=400, detail=f"无法获取网页内容: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"提取网页内容失败: {str(e)}")
 
 
 @app.get("/health")

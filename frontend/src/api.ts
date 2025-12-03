@@ -7,14 +7,12 @@ const API_BASE_URL = "http://localhost:8000";
 // export interface KbDocItem {
 //   source: string;
 //   title: string;
-//   topic: string;
 //   read_count: number;
 // }
 
 // export interface KbDocDetail {
 //   source: string;
 //   title: string;
-//   topic: string;
 //   content: string;
 //   read_count: number;
 // }
@@ -37,7 +35,6 @@ export interface Highlight {
   id: number;
   source: string;
   page?: number | null;
-  topic?: string | null;
   selected_text: string;
   note?: string | null;
   created_at: string;
@@ -55,7 +52,6 @@ export async function listHighlights(params?: {
 export async function createHighlight(payload: {
   source: string;
   page?: number | null;
-  topic?: string | null;
   selected_text: string;
   note?: string | null;
 }): Promise<Highlight> {
@@ -71,7 +67,6 @@ export async function createHighlight(payload: {
 export interface MarkdownDocItem {
   id: string;
   title: string;
-  topic: string;
   created_at: string;
   updated_at: string;
 }
@@ -79,7 +74,6 @@ export interface MarkdownDocItem {
 export interface MarkdownDocDetail {
   id: string;
   title: string;
-  topic: string;
   content: string;
   created_at: string;
   updated_at: string;
@@ -87,13 +81,11 @@ export interface MarkdownDocDetail {
 
 export interface MarkdownDocCreate {
   title?: string;
-  topic?: string;
   content?: string;
 }
 
 export interface MarkdownDocUpdate {
   title?: string;
-  topic?: string;
   content?: string;
 }
 
@@ -132,6 +124,23 @@ export async function deleteDoc(id: string): Promise<void> {
   await axios.delete(`${API_BASE_URL}/docs/${id}`);
 }
 
+// ---- Web Content Extraction ----
+
+export interface WebExtractRequest {
+  url: string;
+  title?: string;
+}
+
+export async function extractWebContent(
+  payload: WebExtractRequest
+): Promise<MarkdownDocDetail> {
+  const resp = await axios.post<MarkdownDocDetail>(
+    `${API_BASE_URL}/extract-web`,
+    payload
+  );
+  return resp.data;
+}
+
 // ---- Knowledge Base Query ----
 
 export interface Citation {
@@ -145,6 +154,85 @@ export interface QueryResponse {
   citations: Citation[];
 }
 
+export interface StreamChunk {
+  type: "chunk" | "citations" | "final";
+  chunk?: string;
+  citations?: Citation[];
+  answer?: string;
+}
+
+export async function queryKnowledgeBaseStream(
+  question: string,
+  onChunk: (chunk: StreamChunk) => void
+): Promise<QueryResponse> {
+  const response = await fetch(`${API_BASE_URL}/query`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ question }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const reader = response.body?.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalAnswer = "";
+  let finalCitations: Citation[] = [];
+
+  if (!reader) {
+    throw new Error("No response body");
+  }
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n\n");
+    buffer = lines.pop() || ""; // 保留最后一个不完整的行
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        try {
+          const data = JSON.parse(line.slice(6)) as StreamChunk;
+
+          if (data.type === "chunk" && data.chunk) {
+            finalAnswer += data.chunk;
+            onChunk({ type: "chunk", chunk: data.chunk });
+          } else if (data.type === "citations" && data.citations) {
+            finalCitations = data.citations;
+            onChunk({ type: "citations", citations: data.citations });
+          } else if (data.type === "final") {
+            if (data.answer) {
+              finalAnswer = data.answer;
+            }
+            if (data.citations) {
+              finalCitations = data.citations;
+            }
+            onChunk({
+              type: "final",
+              answer: finalAnswer,
+              citations: finalCitations,
+            });
+          }
+        } catch (e) {
+          console.error("Failed to parse SSE data:", e);
+        }
+      }
+    }
+  }
+
+  return {
+    answer: finalAnswer,
+    citations: finalCitations,
+  };
+}
+
+// 保留旧接口以兼容，但标记为废弃
 export async function queryKnowledgeBase(
   question: string
 ): Promise<QueryResponse> {

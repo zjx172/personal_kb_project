@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import ReactMarkdown from "react-markdown";
+import type { Components } from "react-markdown";
 import {
   Layout,
   List,
@@ -116,7 +117,6 @@ const KnowledgeBase: React.FC = () => {
       const source = `markdown_doc:${selectedDoc.id}`;
       await createHighlight({
         source: source,
-        topic: selectedDoc.topic,
         selected_text: text,
         note: highlightNote.trim() || undefined,
       });
@@ -130,35 +130,95 @@ const KnowledgeBase: React.FC = () => {
     }
   };
 
+  // 生成 slug（标题的 id）
+  const generateSlug = (text: string): string => {
+    return text
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, "") // 移除特殊字符
+      .replace(/[\s_-]+/g, "-") // 将空格、下划线、连字符替换为单个连字符
+      .replace(/^-+|-+$/g, ""); // 移除开头和结尾的连字符
+  };
+
+  // 自定义 ReactMarkdown 组件，给标题添加 id
+  const markdownComponents: Components = {
+    h1: ({ node, ...props }) => {
+      const text = React.Children.toArray(props.children).join("");
+      const id = generateSlug(text);
+      return <h1 id={id} {...props} />;
+    },
+    h2: ({ node, ...props }) => {
+      const text = React.Children.toArray(props.children).join("");
+      const id = generateSlug(text);
+      return <h2 id={id} {...props} />;
+    },
+    h3: ({ node, ...props }) => {
+      const text = React.Children.toArray(props.children).join("");
+      const id = generateSlug(text);
+      return <h3 id={id} {...props} />;
+    },
+    h4: ({ node, ...props }) => {
+      const text = React.Children.toArray(props.children).join("");
+      const id = generateSlug(text);
+      return <h4 id={id} {...props} />;
+    },
+    h5: ({ node, ...props }) => {
+      const text = React.Children.toArray(props.children).join("");
+      const id = generateSlug(text);
+      return <h5 id={id} {...props} />;
+    },
+    h6: ({ node, ...props }) => {
+      const text = React.Children.toArray(props.children).join("");
+      const id = generateSlug(text);
+      return <h6 id={id} {...props} />;
+    },
+  };
+
   const renderHighlightedMarkdown = () => {
     if (!selectedDoc) return null;
     const { content } = selectedDoc;
 
     if (!highlights.length) {
-      return <ReactMarkdown>{content}</ReactMarkdown>;
+      return (
+        <ReactMarkdown components={markdownComponents}>{content}</ReactMarkdown>
+      );
     }
 
-    const uniqTexts = Array.from(
-      new Set(
-        highlights
-          .map((h) => h.selected_text?.trim())
-          .filter((t): t is string => !!t)
-      )
-    ).sort((a, b) => b.length - a.length);
-
+    // 为每个高亮创建唯一的 id
     let html = content;
-    uniqTexts.forEach((t, idx) => {
-      const safe = t.replace(/[.*+?^${}()|[\]\\]/g, "\$&");
+    highlights.forEach((h) => {
+      const text = h.selected_text?.trim();
+      if (!text) return;
+      const safe = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       const reg = new RegExp(safe, "g");
-      const colors = ["#fef08a", "#bfdbfe", "#bbf7d0"];
-      const color = colors[idx % colors.length];
+      const highlightId = `hl-${h.id}`;
       html = html.replace(
         reg,
-        `<mark style="background:${color}; padding:0 2px; border-radius:2px;">${t}</mark>`
+        `<mark id="${highlightId}" style="background:#fef08a; padding:0 2px; border-radius:2px; cursor:pointer;" onclick="document.getElementById('${highlightId}').scrollIntoView({behavior:'smooth',block:'center'})">${text}</mark>`
       );
     });
 
-    return <ReactMarkdown>{html}</ReactMarkdown>;
+    return (
+      <ReactMarkdown components={markdownComponents}>{html}</ReactMarkdown>
+    );
+  };
+
+  // 点击高亮列表项时跳转到对应位置
+  const handleHighlightClick = (highlightId: number) => {
+    const element = document.getElementById(`hl-${highlightId}`);
+    if (element) {
+      element.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
+      });
+      // 添加一个短暂的闪烁效果
+      element.style.transition = "background-color 0.3s";
+      const originalBg = element.style.backgroundColor;
+      element.style.backgroundColor = "#fbbf24";
+      setTimeout(() => {
+        element.style.backgroundColor = originalBg || "#fef08a";
+      }, 500);
+    }
   };
 
   return (
@@ -187,10 +247,6 @@ const KnowledgeBase: React.FC = () => {
                   >
                     <div>
                       <div className="font-medium truncate">{item.title}</div>
-                      <div className="flex justify-between mt-1 text-xs text-gray-400">
-                        <span>{item.topic}</span>
-                        {/* <span>阅读 {item} 次</span> */}
-                      </div>
                     </div>
                   </List.Item>
                 )}
@@ -206,9 +262,6 @@ const KnowledgeBase: React.FC = () => {
             <>
               <div className="text-sm font-semibold text-gray-800 truncate">
                 {selectedDoc.title}
-                <span className="ml-2 text-xs text-gray-400">
-                  ({selectedDoc.topic})
-                </span>
               </div>
               <Typography.Text type="secondary" className="text-xs">
                 {/* 阅读次数：{selectedDoc.read_count} */}
@@ -288,6 +341,7 @@ const KnowledgeBase: React.FC = () => {
                       <List.Item
                         key={item.id}
                         className="mb-2 border rounded p-2 hover:bg-gray-50 cursor-pointer"
+                        onClick={() => handleHighlightClick(item.id)}
                       >
                         <div>
                           <div className="text-xs text-gray-800 mb-1 line-clamp-3">
