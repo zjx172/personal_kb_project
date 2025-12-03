@@ -19,8 +19,10 @@ from config import DOCS_DIR, VECTOR_STORE_DIR, COLLECTION_NAME, OPENAI_API_KEY, 
 
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain.prompts import ChatPromptTemplate
 from langchain.schema import Document as LCDocument
+
+from retrieval import VectorRetrievalService
+from rag_pipeline import RAGPipeline
 
 
 app = FastAPI(title="Personal KB Backend")
@@ -55,31 +57,33 @@ llm = ChatOpenAI(
     temperature=0.2,
 )
 
-answer_prompt = ChatPromptTemplate.from_template(
-    """你是一个技术学习助手，只能根据【上下文】回答问题。
+# 初始化检索服务和 RAG pipeline
+retrieval_service = VectorRetrievalService(
+    vectordb=vectordb,
+    llm=llm,
+    enable_rerank=True,  # 启用 rerank
+)
 
-【问题】
-{question}
-
-【上下文】
-{context}
-
-要求：
-1. 优先使用上下文中的信息，不要凭空编造。
-2. 如果上下文没有相关信息，请明确说明“知识库中没有相关内容”。
-3. 回答中用 [1], [2] 这样的标号引用对应的上下文片段。
-"""
+rag_pipeline = RAGPipeline(
+    retrieval_service=retrieval_service,
+    llm=llm,
 )
 
 
 class QueryRequest(BaseModel):
     question: str
+    doc_type: Optional[str] = None  # 文档类型过滤
+    k: int = 10  # 初始检索数量
+    rerank_k: int = 5  # rerank 后保留数量
 
 
 class Citation(BaseModel):
     index: int
     source: str
+    title: Optional[str] = None
     snippet: str
+    doc_id: Optional[str] = None  # Markdown 文档 ID
+    page: Optional[int] = None  # 页码
 
 
 class QueryResponse(BaseModel):
@@ -89,65 +93,52 @@ class QueryResponse(BaseModel):
 
 @app.post("/query")
 def query_kb(req: QueryRequest):
-    # 使用向量库检索相关文档
-    retriever = vectordb.as_retriever(search_kwargs={"k": 5})
-    # 检索相关文档
-    docs = retriever.get_relevant_documents(req.question)
-
+    """使用新的 RAG pipeline 进行查询"""
     def generate():
-        if not docs:
-            # 发送最终结果
-            result = {
+        try:
+            for result in rag_pipeline.stream_query(
+                question=req.question,
+                doc_type=req.doc_type,
+                k=req.k,
+                rerank_k=req.rerank_k,
+            ):
+                # 转换 citations 格式
+                if result["type"] == "citations":
+                    citations = [
+                        Citation(
+                            index=c["index"],
+                            source=c["source"],
+                            title=c.get("title"),
+                            snippet=c["snippet"],
+                            doc_id=c.get("doc_id"),
+                            page=c.get("page"),
+                        ).dict()
+                        for c in result["citations"]
+                    ]
+                    yield f"data: {json.dumps({'type': 'citations', 'citations': citations}, ensure_ascii=False)}\n\n"
+                elif result["type"] == "chunk":
+                    yield f"data: {json.dumps(result, ensure_ascii=False)}\n\n"
+                elif result["type"] == "final":
+                    citations = [
+                        Citation(
+                            index=c["index"],
+                            source=c["source"],
+                            title=c.get("title"),
+                            snippet=c["snippet"],
+                            doc_id=c.get("doc_id"),
+                            page=c.get("page"),
+                        ).dict()
+                        for c in result["citations"]
+                    ]
+                    yield f"data: {json.dumps({'type': 'final', 'answer': result['answer'], 'citations': citations}, ensure_ascii=False)}\n\n"
+        except Exception as e:
+            # 发送错误信息
+            error_result = {
                 "type": "final",
-                "answer": "知识库中没有相关内容。",
+                "answer": f"查询失败: {str(e)}",
                 "citations": [],
             }
-            yield f"data: {json.dumps(result, ensure_ascii=False)}\n\n"
-            return
-
-        context_parts = []
-        citations: List[Citation] = []
-        for i, d in enumerate(docs, start=1):
-            context_parts.append(f"[{i}] {d.page_content}")
-            citations.append(
-                Citation(
-                    index=i,
-                    source=str(d.metadata.get("source", "unknown")),
-                    snippet=d.page_content[:200],
-                )
-            )
-
-        context = "\n\n".join(context_parts)
-        
-        # 先发送 citations
-        citations_data = {
-            "type": "citations",
-            "citations": [c.dict() for c in citations],
-        }
-        yield f"data: {json.dumps(citations_data, ensure_ascii=False)}\n\n"
-
-        # 流式生成答案
-        chain = answer_prompt | llm
-        answer_chunks = []
-        for chunk in chain.stream({"question": req.question, "context": context}):
-            if hasattr(chunk, "content") and chunk.content:
-                content = chunk.content
-                answer_chunks.append(content)
-                # 发送增量内容
-                chunk_data = {
-                    "type": "chunk",
-                    "chunk": content,
-                }
-                yield f"data: {json.dumps(chunk_data, ensure_ascii=False)}\n\n"
-
-        # 发送最终结果
-        final_answer = "".join(answer_chunks)
-        result = {
-            "type": "final",
-            "answer": final_answer,
-            "citations": [c.dict() for c in citations],
-        }
-        yield f"data: {json.dumps(result, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps(error_result, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(
         generate(),
@@ -311,16 +302,19 @@ def list_highlights(
 class MarkdownDocCreate(BaseModel):
     title: str = "未命名文档"
     content: Optional[str] = ""
+    doc_type: Optional[str] = None  # 文档类型
 
 
 class MarkdownDocUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[str] = None
+    doc_type: Optional[str] = None  # 文档类型
 
 
 class MarkdownDocItem(BaseModel):
     id: str
     title: str
+    doc_type: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -332,6 +326,7 @@ class MarkdownDocDetail(BaseModel):
     id: str
     title: str
     content: str
+    doc_type: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
@@ -347,16 +342,36 @@ def upsert_markdown_doc_to_vectorstore(doc: MarkdownDoc):
         # 某些版本不支持 where 删除，可以忽略
         pass
 
-    lc_doc = LCDocument(
-        page_content=doc.content,
-        metadata={
-            "source": f"markdown_doc:{doc.id}",
-            "doc_id": str(doc.id),
-            "title": doc.title,
-            "page": None,
-        },
+    # 将文档切分为 chunks
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=800,
+        chunk_overlap=100,
+        separators=["\n\n", "\n", ". ", "。", " ", ""],
     )
-    vectordb.add_documents([lc_doc])
+    
+    # 创建临时文档用于切分
+    temp_doc = LCDocument(page_content=doc.content)
+    chunks = splitter.split_documents([temp_doc])
+    
+    # 为每个 chunk 添加元数据
+    lc_docs = []
+    for i, chunk in enumerate(chunks):
+        lc_doc = LCDocument(
+            page_content=chunk.page_content,
+            metadata={
+                "source": f"markdown_doc:{doc.id}",
+                "doc_id": str(doc.id),
+                "title": doc.title,
+                "page": None,
+                "doc_type": doc.doc_type,  # 添加文档类型
+                "chunk_index": i,  # chunk 索引
+            },
+        )
+        lc_docs.append(lc_doc)
+    
+    if lc_docs:
+        vectordb.add_documents(lc_docs)
 
 # 获取所有在线 Markdown 文档
 # Depends(get_db) 是一个依赖注入函数，用于获取数据库会话
@@ -380,6 +395,7 @@ def create_markdown_doc(req: MarkdownDocCreate, db: Session = Depends(get_db)):
         id=doc_id,
         title=req.title or "未命名文档",
         content=req.content or "",
+        doc_type=req.doc_type,
         created_at=now,
         updated_at=now,
     )
@@ -421,12 +437,17 @@ def update_markdown_doc(
     if req.content is not None:
         doc.content = req.content
         changed = True
+    if req.doc_type is not None:
+        doc.doc_type = req.doc_type
+        changed = True
 
     if changed:
         doc.updated_at = datetime.utcnow()
         db.commit()
         db.refresh(doc)
-        upsert_markdown_doc_to_vectorstore(doc)
+        # 如果内容或类型改变，需要重新同步到向量库
+        if req.content is not None or req.doc_type is not None:
+            upsert_markdown_doc_to_vectorstore(doc)
 
     return doc
 
@@ -522,6 +543,7 @@ def extract_web_content(req: WebExtractRequest, db: Session = Depends(get_db)):
             id=doc_id,
             title=title,
             content=markdown_content,
+            doc_type="web",  # 标记为网页类型
             created_at=now,
             updated_at=now,
         )

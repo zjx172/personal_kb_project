@@ -67,6 +67,7 @@ export async function createHighlight(payload: {
 export interface MarkdownDocItem {
   id: string;
   title: string;
+  doc_type?: string;
   created_at: string;
   updated_at: string;
 }
@@ -75,6 +76,7 @@ export interface MarkdownDocDetail {
   id: string;
   title: string;
   content: string;
+  doc_type?: string;
   created_at: string;
   updated_at: string;
 }
@@ -82,11 +84,13 @@ export interface MarkdownDocDetail {
 export interface MarkdownDocCreate {
   title?: string;
   content?: string;
+  doc_type?: string;
 }
 
 export interface MarkdownDocUpdate {
   title?: string;
   content?: string;
+  doc_type?: string;
 }
 
 export async function listDocs(): Promise<MarkdownDocItem[]> {
@@ -146,7 +150,10 @@ export async function extractWebContent(
 export interface Citation {
   index: number;
   source: string;
+  title?: string;
   snippet: string;
+  doc_id?: string;
+  page?: number;
 }
 
 export interface QueryResponse {

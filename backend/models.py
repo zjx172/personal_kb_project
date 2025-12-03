@@ -50,5 +50,6 @@ class MarkdownDoc(Base):
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False, default="")
+    doc_type = Column(String, nullable=True)  # 文档类型：paper, blog, doc, etc.
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)

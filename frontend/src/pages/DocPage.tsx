@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import Vditor from "vditor";
 import "vditor/dist/index.css";
 import {
@@ -18,7 +18,12 @@ const { Sider, Content, Header } = Layout;
 const DocPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const docId = id || null;
+  const highlightTextParam = searchParams.get("highlight");
+  const highlightText = highlightTextParam
+    ? decodeURIComponent(highlightTextParam)
+    : null;
 
   const [currentDoc, setCurrentDoc] = useState<MarkdownDocDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -122,6 +127,222 @@ const DocPage: React.FC = () => {
       }
     }
   }, [contentDraft, currentDoc]);
+
+  // 处理高亮文本
+  useEffect(() => {
+    console.log("highlightText", highlightText);
+    console.log("vditorRef.current", vditorRef.current);
+    console.log("currentDoc", currentDoc);
+    if (!highlightText || !currentDoc) return;
+
+    // 延迟执行，确保编辑器已完全渲染
+    const timer = setTimeout(() => {
+      try {
+        // 尝试切换到预览模式（如果还没有）
+        const vditor = vditorRef.current;
+        if (vditor) {
+          // 获取预览元素
+          const previewElement = document.querySelector(
+            ".vditor-preview"
+          ) as HTMLElement;
+
+          console.log("previewElement", previewElement);
+
+          // 如果预览元素不存在，尝试切换到预览模式
+          if (!previewElement) {
+            // Vditor 的预览模式切换按钮可能有多种选择器
+            const previewBtn = document.querySelector(
+              '[data-type="preview"], button[aria-label*="预览"], .vditor-toolbar [data-type="preview"]'
+            ) as HTMLElement;
+
+            if (previewBtn) {
+              previewBtn.click();
+              // 等待预览模式切换完成后再高亮
+              setTimeout(() => {
+                const newPreviewElement = document.querySelector(
+                  ".vditor-preview"
+                ) as HTMLElement;
+                if (newPreviewElement) {
+                  highlightTextInPreview(highlightText);
+                } else {
+                  console.warn("Failed to switch to preview mode");
+                }
+              }, 500);
+              return;
+            } else {
+              console.warn(
+                "Preview button not found, trying alternative method"
+              );
+              // 如果找不到预览按钮，尝试直接使用 Vditor API
+              // Vditor 可能支持直接获取预览 HTML
+              try {
+                const previewHTML = vditor.getHTML();
+                if (previewHTML) {
+                  // 创建一个临时预览元素来高亮
+                  const tempDiv = document.createElement("div");
+                  tempDiv.innerHTML = previewHTML;
+                  const searchText = highlightText.substring(0, 100).trim();
+                  const escapedText = searchText.replace(
+                    /[.*+?^${}()|[\]\\]/g,
+                    "\\$&"
+                  );
+                  const regex = new RegExp(escapedText, "gi");
+
+                  if (regex.test(tempDiv.textContent || "")) {
+                    // 找到文本，尝试在编辑器中滚动
+                    const editorElement = document.querySelector(
+                      ".vditor-sv"
+                    ) as HTMLElement;
+                    if (editorElement) {
+                      const textContent = editorElement.textContent || "";
+                      const index = textContent.indexOf(searchText);
+                      if (index !== -1) {
+                        // 尝试滚动到文本位置
+                        editorElement.scrollTop =
+                          (index / textContent.length) *
+                          editorElement.scrollHeight;
+                      }
+                    }
+                  }
+                }
+              } catch (e) {
+                console.error("Alternative highlight method failed:", e);
+              }
+            }
+          } else {
+            highlightTextInPreview(highlightText);
+          }
+        }
+      } catch (e) {
+        console.error("Failed to highlight text:", e);
+      }
+    }, 800); // 增加延迟时间，确保 Vditor 完全加载
+
+    const highlightTextInPreview = (text: string) => {
+      const vditor = vditorRef.current;
+      if (!vditor) {
+        console.warn("Vditor instance not found");
+        return;
+      }
+
+      // 使用 Vditor API 获取预览 HTML
+      let content: string;
+      try {
+        // 尝试获取预览 HTML
+        content = vditor.getHTML() || "";
+        console.log("Got content from getHTML:", content.length, "chars");
+      } catch (e) {
+        console.warn("getHTML failed, trying getValue:", e);
+        // 如果 getHTML 失败，尝试获取 Markdown 值
+        content = vditor.getValue() || "";
+      }
+
+      if (!content) {
+        // 如果 API 获取失败，尝试从 DOM 获取
+        const previewElement = document.querySelector(
+          ".vditor-preview"
+        ) as HTMLElement;
+        if (previewElement) {
+          content =
+            previewElement.innerHTML || previewElement.textContent || "";
+        }
+      }
+
+      if (!content) {
+        console.warn("Could not get content from Vditor");
+        return;
+      }
+
+      // 使用前100个字符进行匹配（避免文本过长）
+      const searchText = text.substring(0, 100).trim();
+      if (!searchText) return;
+
+      // 转义特殊字符用于正则表达式
+      const escapedText = searchText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      console.log("Searching for:", escapedText.substring(0, 50));
+
+      // 检查内容中是否包含搜索文本（不区分大小写）
+      const regex = new RegExp(escapedText, "gi");
+
+      if (regex.test(content)) {
+        // 替换匹配的文本为高亮标记
+        const highlighted = content.replace(
+          regex,
+          '<mark style="background-color: #ffeb3b; padding: 2px 4px; border-radius: 2px; font-weight: 500;">$&</mark>'
+        );
+
+        // 尝试更新预览元素
+        const previewElement = document.querySelector(
+          ".vditor-preview"
+        ) as HTMLElement;
+
+        if (previewElement) {
+          previewElement.innerHTML = highlighted;
+
+          // 滚动到第一个高亮位置
+          const markElement = previewElement.querySelector("mark");
+          if (markElement) {
+            markElement.scrollIntoView({
+              behavior: "smooth",
+              block: "center",
+            });
+          }
+        } else {
+          // 如果没有预览元素，尝试在编辑器中定位
+          const editorElement = document.querySelector(
+            ".vditor-sv"
+          ) as HTMLElement;
+          if (editorElement) {
+            const textContent = editorElement.textContent || "";
+            const index = textContent.indexOf(searchText);
+            if (index !== -1) {
+              // 尝试滚动到文本位置
+              const textNodes = getTextNodes(editorElement);
+              for (const node of textNodes) {
+                if (node.textContent && node.textContent.includes(searchText)) {
+                  const element = node.parentElement;
+                  if (element) {
+                    element.scrollIntoView({
+                      behavior: "smooth",
+                      block: "center",
+                    });
+                    // 添加临时高亮
+                    element.style.outline = "3px solid #ffeb3b";
+                    element.style.outlineOffset = "2px";
+                    setTimeout(() => {
+                      element.style.outline = "";
+                      element.style.outlineOffset = "";
+                    }, 3000);
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
+      } else {
+        console.warn("Text not found in content:", searchText);
+      }
+    };
+
+    const getTextNodes = (element: HTMLElement): Text[] => {
+      const textNodes: Text[] = [];
+      const walker = document.createTreeWalker(
+        element,
+        NodeFilter.SHOW_TEXT,
+        null
+      );
+
+      let node;
+      while ((node = walker.nextNode())) {
+        textNodes.push(node as Text);
+      }
+
+      return textNodes;
+    };
+
+    return () => clearTimeout(timer);
+  }, [highlightText, currentDoc]);
 
   // 自动保存函数（防抖）
   const triggerAutoSave = (content: string) => {

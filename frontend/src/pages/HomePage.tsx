@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import ReactMarkdown from "react-markdown";
 import {
   Layout,
   Input,
@@ -23,6 +22,7 @@ import {
   QueryResponse,
   extractWebContent,
 } from "../api";
+import { AnswerWithCitations } from "../components/AnswerWithCitations";
 
 const { Sider, Content, Header } = Layout;
 
@@ -40,6 +40,9 @@ const HomePage: React.FC = () => {
   const [queryResult, setQueryResult] = useState<QueryResponse | null>(null);
   const [querying, setQuerying] = useState(false);
   const [streamingAnswer, setStreamingAnswer] = useState("");
+  const [streamingCitations, setStreamingCitations] = useState<
+    QueryResponse["citations"]
+  >([]);
 
   // 流式显示控制
   const streamBufferRef = useRef<string>("");
@@ -169,6 +172,7 @@ const HomePage: React.FC = () => {
     setQuerying(true);
     setQueryResult(null);
     setStreamingAnswer("");
+    setStreamingCitations([]);
     streamBufferRef.current = "";
     streamDisplayRef.current = "";
 
@@ -182,7 +186,8 @@ const HomePage: React.FC = () => {
             startStreamDisplay();
           }
         } else if (chunk.type === "citations" && chunk.citations) {
-          // 暂存 citations，但不立即显示，等流式完成后再显示
+          // 保存 citations，以便在流式显示时也能使用
+          setStreamingCitations(chunk.citations);
         } else if (chunk.type === "final") {
           // 确保所有缓冲内容都显示完
           if (streamBufferRef.current.length > 0) {
@@ -199,9 +204,10 @@ const HomePage: React.FC = () => {
 
           setQueryResult({
             answer: chunk.answer || streamDisplayRef.current,
-            citations: chunk.citations || [],
+            citations: chunk.citations || streamingCitations,
           });
           setStreamingAnswer("");
+          setStreamingCitations([]);
           streamBufferRef.current = "";
           streamDisplayRef.current = "";
         }
@@ -370,10 +376,18 @@ const HomePage: React.FC = () => {
                     答案：
                   </Typography.Text>
                 </div>
-                <div className="mb-4 text-gray-700 prose prose-sm max-w-none">
-                  <ReactMarkdown>
-                    {queryResult?.answer || streamingAnswer || ""}
-                  </ReactMarkdown>
+                <div className="mb-4 text-gray-700">
+                  {queryResult ? (
+                    <AnswerWithCitations
+                      answer={queryResult.answer}
+                      citations={queryResult.citations}
+                    />
+                  ) : streamingAnswer ? (
+                    <AnswerWithCitations
+                      answer={streamingAnswer}
+                      citations={streamingCitations}
+                    />
+                  ) : null}
                   {querying && !streamingAnswer && (
                     <span className="inline-block w-2 h-4 bg-gray-400 animate-pulse ml-1" />
                   )}
