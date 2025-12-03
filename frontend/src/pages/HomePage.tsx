@@ -40,9 +40,6 @@ const HomePage: React.FC = () => {
   const [queryResult, setQueryResult] = useState<QueryResponse | null>(null);
   const [querying, setQuerying] = useState(false);
   const [streamingAnswer, setStreamingAnswer] = useState("");
-  const [streamingCitations, setStreamingCitations] = useState<
-    QueryResponse["citations"]
-  >([]);
 
   // 流式显示控制
   const streamBufferRef = useRef<string>("");
@@ -172,7 +169,6 @@ const HomePage: React.FC = () => {
     setQuerying(true);
     setQueryResult(null);
     setStreamingAnswer("");
-    setStreamingCitations([]);
     streamBufferRef.current = "";
     streamDisplayRef.current = "";
 
@@ -186,7 +182,7 @@ const HomePage: React.FC = () => {
             startStreamDisplay();
           }
         } else if (chunk.type === "citations" && chunk.citations) {
-          setStreamingCitations(chunk.citations);
+          // 暂存 citations，但不立即显示，等流式完成后再显示
         } else if (chunk.type === "final") {
           // 确保所有缓冲内容都显示完
           if (streamBufferRef.current.length > 0) {
@@ -203,10 +199,9 @@ const HomePage: React.FC = () => {
 
           setQueryResult({
             answer: chunk.answer || streamDisplayRef.current,
-            citations: chunk.citations || streamingCitations,
+            citations: chunk.citations || [],
           });
           setStreamingAnswer("");
-          setStreamingCitations([]);
           streamBufferRef.current = "";
           streamDisplayRef.current = "";
         }
@@ -384,8 +379,7 @@ const HomePage: React.FC = () => {
                   )}
                 </div>
 
-                {(queryResult?.citations.length || streamingCitations.length) >
-                  0 && (
+                {queryResult?.citations && queryResult.citations.length > 0 && (
                   <>
                     <Divider />
                     <div className="mb-2">
@@ -394,49 +388,47 @@ const HomePage: React.FC = () => {
                       </Typography.Text>
                     </div>
                     <div className="space-y-2">
-                      {(queryResult?.citations || streamingCitations).map(
-                        (citation) => {
-                          // 检查是否是 Markdown 文档（格式：markdown_doc:{id}）
-                          const isMarkdownDoc =
-                            citation.source.startsWith("markdown_doc:");
-                          const docId = isMarkdownDoc
-                            ? citation.source.replace("markdown_doc:", "")
-                            : null;
+                      {queryResult.citations.map((citation) => {
+                        // 检查是否是 Markdown 文档（格式：markdown_doc:{id}）
+                        const isMarkdownDoc =
+                          citation.source.startsWith("markdown_doc:");
+                        const docId = isMarkdownDoc
+                          ? citation.source.replace("markdown_doc:", "")
+                          : null;
 
-                          const handleCitationClick = () => {
-                            if (docId) {
-                              navigate(`/doc/${docId}`);
+                        const handleCitationClick = () => {
+                          if (docId) {
+                            navigate(`/doc/${docId}`);
+                          }
+                        };
+
+                        return (
+                          <Card
+                            key={citation.index}
+                            size="small"
+                            className={`bg-gray-50 ${
+                              isMarkdownDoc
+                                ? "cursor-pointer hover:bg-gray-100 transition-colors"
+                                : ""
+                            }`}
+                            onClick={
+                              isMarkdownDoc ? handleCitationClick : undefined
                             }
-                          };
-
-                          return (
-                            <Card
-                              key={citation.index}
-                              size="small"
-                              className={`bg-gray-50 ${
-                                isMarkdownDoc
-                                  ? "cursor-pointer hover:bg-gray-100 transition-colors"
-                                  : ""
-                              }`}
-                              onClick={
-                                isMarkdownDoc ? handleCitationClick : undefined
-                              }
-                            >
-                              <div className="text-xs text-gray-500 mb-1">
-                                [{citation.index}] {citation.source}
-                                {isMarkdownDoc && (
-                                  <span className="ml-2 text-blue-500">
-                                    (点击打开)
-                                  </span>
-                                )}
-                              </div>
-                              <div className="text-sm text-gray-700">
-                                {citation.snippet}...
-                              </div>
-                            </Card>
-                          );
-                        }
-                      )}
+                          >
+                            <div className="text-xs text-gray-500 mb-1">
+                              [{citation.index}] {citation.source}
+                              {isMarkdownDoc && (
+                                <span className="ml-2 text-blue-500">
+                                  (点击打开)
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-sm text-gray-700">
+                              {citation.snippet}...
+                            </div>
+                          </Card>
+                        );
+                      })}
                     </div>
                   </>
                 )}
