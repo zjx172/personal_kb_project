@@ -1,6 +1,15 @@
 import React, { useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import {
+  Layout,
+  Button,
+  List,
+  Input,
+  Message,
+  Spin,
+  Empty,
+} from "@arco-design/web-react";
+import {
   listDocs,
   createDoc,
   getDoc,
@@ -8,6 +17,9 @@ import {
   MarkdownDocItem,
   MarkdownDocDetail,
 } from "../../api";
+
+const { Sider, Content, Header } = Layout;
+const { TextArea } = Input;
 
 const DocEditor: React.FC = () => {
   const [docs, setDocs] = useState<MarkdownDocItem[]>([]);
@@ -94,133 +106,136 @@ const DocEditor: React.FC = () => {
   }, []);
 
   return (
-    <div className="h-full w-full flex bg-gray-50">
-      <aside className="w-64 border-r bg-white flex flex-col">
+    <Layout className="h-full">
+      <Sider width={260} className="border-r">
         <div className="h-12 px-3 flex items-center justify-between border-b">
-          <div className="text-xs font-semibold text-gray-700">文档列表</div>
-          <button
-            className="text-xs px-2 py-1 rounded bg-blue-600 text-white"
-            onClick={handleCreate}
-          >
+          <div className="text-sm font-semibold">文档列表</div>
+          <Button type="primary" size="small" onClick={handleCreate}>
             新建
-          </button>
+          </Button>
         </div>
-        {loadingList ? (
-          <div className="flex-1 flex items-center justify-center text-xs text-gray-400">
-            加载中...
-          </div>
-        ) : (
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        <div
+          className="overflow-y-auto"
+          style={{ height: "calc(100% - 48px)" }}
+        >
+          <Spin loading={loadingList} className="w-full">
             {docs.length === 0 ? (
-              <div className="text-xs text-gray-400">
-                暂无文档，点右上角“新建”～
-              </div>
+              <Empty description="暂无文档，点击新建" className="mt-8" />
             ) : (
-              docs.map((d) => {
-                const active = selectedId === d.id;
-                return (
-                  <button
-                    key={d.id}
-                    onClick={() => openDoc(d.id)}
-                    className={`w-full text-left rounded px-2 py-2 text-xs ${
-                      active
-                        ? "bg-blue-50 border border-blue-200 text-blue-700"
-                        : "hover:bg-gray-50 text-gray-800"
+              <List
+                dataSource={docs}
+                render={(item) => (
+                  <List.Item
+                    key={item.id}
+                    className={`cursor-pointer ${
+                      selectedId === item.id ? "bg-blue-50" : ""
                     }`}
+                    onClick={() => openDoc(item.id)}
                   >
-                    <div className="font-medium truncate">{d.title}</div>
-                    <div className="flex justify-between mt-1 text-[11px] text-gray-400">
-                      <span>{d.topic}</span>
-                      <span>
-                        {new Date(d.updated_at).toLocaleDateString("zh-CN", {
-                          month: "2-digit",
-                          day: "2-digit",
-                        })}
-                      </span>
+                    <div>
+                      <div className="font-medium truncate">{item.title}</div>
+                      <div className="flex justify-between mt-1 text-xs text-gray-400">
+                        <span>{item.topic}</span>
+                        <span>
+                          {new Date(item.updated_at).toLocaleDateString(
+                            "zh-CN",
+                            {
+                              month: "2-digit",
+                              day: "2-digit",
+                            }
+                          )}
+                        </span>
+                      </div>
                     </div>
-                  </button>
-                );
-              })
+                  </List.Item>
+                )}
+              />
             )}
-          </div>
-        )}
-      </aside>
+          </Spin>
+        </div>
+      </Sider>
 
-      <main className="flex-1 flex flex-col">
-        <header className="h-12 px-4 border-b bg-white flex items-center justify-between">
+      <Layout className="flex-1">
+        <Header className="h-14 px-4 border-b flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <input
-              className="text-sm font-semibold border-none focus:outline-none px-2 py-1 rounded bg-gray-100"
+            <Input
               placeholder="文档标题"
               value={titleDraft}
-              onChange={(e) => setTitleDraft(e.target.value)}
+              onChange={setTitleDraft}
+              style={{ width: 200 }}
+              size="small"
             />
-            <input
-              className="text-xs border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400"
+            <Input
               placeholder="topic（例如 nlp / backend）"
               value={topicDraft}
-              onChange={(e) => setTopicDraft(e.target.value)}
+              onChange={setTopicDraft}
+              style={{ width: 180 }}
+              size="small"
             />
           </div>
-          <div className="flex items-center gap-3 text-xs">
+          <div className="flex items-center gap-3">
             {currentDoc && (
-              <span className="text-gray-400">
+              <span className="text-xs text-gray-400">
                 最后保存：
                 {new Date(currentDoc.updated_at).toLocaleString()}
               </span>
             )}
-            <button
-              className={`px-3 py-1 rounded text-xs text-white ${
-                saving ? "bg-gray-400" : "bg-blue-600 hover:bg-blue-700"
-              }`}
+            <Button
+              type="primary"
+              size="small"
               onClick={handleSave}
-              disabled={saving || !selectedId}
+              loading={saving}
+              disabled={!selectedId}
             >
-              {saving ? "保存中..." : "保存"}
-            </button>
+              保存
+            </Button>
           </div>
-        </header>
+        </Header>
 
         {error && (
-          <div className="px-4 py-1 text-xs text-red-500 bg-red-50 border-b border-red-100">
-            {error}
+          <div className="px-4 py-2">
+            <Message type="error" content={error} />
           </div>
         )}
 
-        {!currentDoc ? (
-          <div className="flex-1 flex items-center justify-center text-sm text-gray-400">
-            请选择左侧文档，或新建一个～
-          </div>
-        ) : (
-          <div className="flex-1 flex overflow-hidden">
-            <div className="w-1/2 border-r flex flex-col">
-              <div className="h-8 px-3 flex items-center text-[11px] text-gray-500 border-b bg-gray-50">
-                Markdown 编辑
-              </div>
-              <textarea
-                className="flex-1 w-full px-3 py-2 text-sm font-mono resize-none border-none outline-none bg-white"
-                value={contentDraft}
-                onChange={(e) => setContentDraft(e.target.value)}
-                placeholder="在这里输入 Markdown 内容..."
-              />
+        <Content className="flex-1 overflow-hidden">
+          {!currentDoc ? (
+            <div className="h-full flex items-center justify-center">
+              <Empty description="请选择左侧文档，或新建一个" />
             </div>
-
-            <div className="w-1/2 flex flex-col">
-              <div className="h-8 px-3 flex items-center text-[11px] text-gray-500 border-b bg-gray-50">
-                预览
-              </div>
-              <div className="flex-1 overflow-y-auto px-4 py-3 bg-white">
-                <div className="prose prose-sm max-w-none">
-                  <ReactMarkdown>
-                    {contentDraft || "*（暂无内容）*"}
-                  </ReactMarkdown>
+          ) : (
+            <Layout className="h-full">
+              <Sider width="50%" className="border-r">
+                <div className="h-8 px-3 flex items-center text-xs text-gray-500 border-b bg-gray-50">
+                  Markdown 编辑
                 </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </main>
-    </div>
+                <TextArea
+                  value={contentDraft}
+                  onChange={setContentDraft}
+                  placeholder="在这里输入 Markdown 内容..."
+                  style={{
+                    height: "calc(100% - 32px)",
+                    fontFamily: "monospace",
+                  }}
+                />
+              </Sider>
+              <Content>
+                <div className="h-8 px-3 flex items-center text-xs text-gray-500 border-b bg-gray-50">
+                  预览
+                </div>
+                <div className="overflow-y-auto px-4 py-3 h-full">
+                  <div className="prose prose-sm max-w-none">
+                    <ReactMarkdown>
+                      {contentDraft || "*（暂无内容）*"}
+                    </ReactMarkdown>
+                  </div>
+                </div>
+              </Content>
+            </Layout>
+          )}
+        </Content>
+      </Layout>
+    </Layout>
   );
 };
 

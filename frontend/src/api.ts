@@ -2,34 +2,34 @@ import axios from "axios";
 
 const API_BASE_URL = "http://localhost:8000";
 
-// ---- KB docs in filesystem ----
+// // ---- KB docs in filesystem ----
 
-export interface KbDocItem {
-  source: string;
-  title: string;
-  topic: string;
-  read_count: number;
-}
+// export interface KbDocItem {
+//   source: string;
+//   title: string;
+//   topic: string;
+//   read_count: number;
+// }
 
-export interface KbDocDetail {
-  source: string;
-  title: string;
-  topic: string;
-  content: string;
-  read_count: number;
-}
+// export interface KbDocDetail {
+//   source: string;
+//   title: string;
+//   topic: string;
+//   content: string;
+//   read_count: number;
+// }
 
-export async function listKbDocs(): Promise<KbDocItem[]> {
-  const resp = await axios.get<KbDocItem[]>(`${API_BASE_URL}/kb/docs`);
-  return resp.data;
-}
+// export async function listKbDocs(): Promise<KbDocItem[]> {
+//   const resp = await axios.get<KbDocItem[]>(`${API_BASE_URL}/kb/docs`);
+//   return resp.data;
+// }
 
-export async function getKbDoc(source: string): Promise<KbDocDetail> {
-  const resp = await axios.get<KbDocDetail>(`${API_BASE_URL}/kb/doc`, {
-    params: { source },
-  });
-  return resp.data;
-}
+// export async function getKbDoc(source: string): Promise<KbDocDetail> {
+//   const resp = await axios.get<KbDocDetail>(`${API_BASE_URL}/kb/doc`, {
+//     params: { source },
+//   });
+//   return resp.data;
+// }
 
 // ---- Highlights ----
 
@@ -59,7 +59,10 @@ export async function createHighlight(payload: {
   selected_text: string;
   note?: string | null;
 }): Promise<Highlight> {
-  const resp = await axios.post<Highlight>(`${API_BASE_URL}/highlights`, payload);
+  const resp = await axios.post<Highlight>(
+    `${API_BASE_URL}/highlights`,
+    payload
+  );
   return resp.data;
 }
 
@@ -99,8 +102,13 @@ export async function listDocs(): Promise<MarkdownDocItem[]> {
   return resp.data;
 }
 
-export async function createDoc(payload: MarkdownDocCreate): Promise<MarkdownDocDetail> {
-  const resp = await axios.post<MarkdownDocDetail>(`${API_BASE_URL}/docs`, payload);
+export async function createDoc(
+  payload: MarkdownDocCreate
+): Promise<MarkdownDocDetail> {
+  const resp = await axios.post<MarkdownDocDetail>(
+    `${API_BASE_URL}/docs`,
+    payload
+  );
   return resp.data;
 }
 
@@ -109,7 +117,35 @@ export async function getDoc(id: number): Promise<MarkdownDocDetail> {
   return resp.data;
 }
 
-export async function updateDoc(id: number, payload: MarkdownDocUpdate): Promise<MarkdownDocDetail> {
-  const resp = await axios.put<MarkdownDocDetail>(`${API_BASE_URL}/docs/${id}`, payload);
+export async function updateDoc(
+  id: number,
+  payload: MarkdownDocUpdate
+): Promise<MarkdownDocDetail> {
+  const resp = await axios.put<MarkdownDocDetail>(
+    `${API_BASE_URL}/docs/${id}`,
+    payload
+  );
+  return resp.data;
+}
+
+// ---- Knowledge Base Query ----
+
+export interface Citation {
+  index: number;
+  source: string;
+  snippet: string;
+}
+
+export interface QueryResponse {
+  answer: string;
+  citations: Citation[];
+}
+
+export async function queryKnowledgeBase(
+  question: string
+): Promise<QueryResponse> {
+  const resp = await axios.post<QueryResponse>(`${API_BASE_URL}/query`, {
+    question,
+  });
   return resp.data;
 }
