@@ -23,6 +23,8 @@ from langchain.schema import Document as LCDocument
 
 from retrieval import VectorRetrievalService
 from rag_pipeline import RAGPipeline
+from ai_services import ai_services
+from hybrid_search import HybridSearchService
 
 
 app = FastAPI(title="Personal KB Backend")
@@ -69,10 +71,17 @@ rag_pipeline = RAGPipeline(
     llm=llm,
 )
 
+# 初始化混合搜索服务
+hybrid_search_service = HybridSearchService(vectordb=vectordb)
+
 
 class QueryRequest(BaseModel):
     question: str
     doc_type: Optional[str] = None  # 文档类型过滤
+    tags: Optional[List[str]] = None  # 标签过滤
+    start_date: Optional[str] = None  # 开始日期过滤（YYYY-MM-DD）
+    end_date: Optional[str] = None  # 结束日期过滤（YYYY-MM-DD）
+    use_keyword_search: bool = False  # 是否使用关键词搜索
     k: int = 10  # 初始检索数量
     rerank_k: int = 5  # rerank 后保留数量
 
@@ -92,45 +101,118 @@ class QueryResponse(BaseModel):
 
 
 @app.post("/query")
-def query_kb(req: QueryRequest):
-    """使用新的 RAG pipeline 进行查询"""
+def query_kb(req: QueryRequest, db: Session = Depends(get_db)):
+    """使用新的 RAG pipeline 进行查询，支持混合搜索和过滤"""
     def generate():
         try:
-            for result in rag_pipeline.stream_query(
-                question=req.question,
-                doc_type=req.doc_type,
-                k=req.k,
-                rerank_k=req.rerank_k,
-            ):
-                # 转换 citations 格式
-                if result["type"] == "citations":
-                    citations = [
-                        Citation(
-                            index=c["index"],
-                            source=c["source"],
-                            title=c.get("title"),
-                            snippet=c["snippet"],
-                            doc_id=c.get("doc_id"),
-                            page=c.get("page"),
-                        ).dict()
-                        for c in result["citations"]
-                    ]
-                    yield f"data: {json.dumps({'type': 'citations', 'citations': citations}, ensure_ascii=False)}\n\n"
-                elif result["type"] == "chunk":
-                    yield f"data: {json.dumps(result, ensure_ascii=False)}\n\n"
-                elif result["type"] == "final":
-                    citations = [
-                        Citation(
-                            index=c["index"],
-                            source=c["source"],
-                            title=c.get("title"),
-                            snippet=c["snippet"],
-                            doc_id=c.get("doc_id"),
-                            page=c.get("page"),
-                        ).dict()
-                        for c in result["citations"]
-                    ]
-                    yield f"data: {json.dumps({'type': 'final', 'answer': result['answer'], 'citations': citations}, ensure_ascii=False)}\n\n"
+            # 如果启用关键词搜索或设置了过滤条件，使用混合搜索
+            if req.use_keyword_search or req.tags or req.start_date or req.end_date:
+                # 使用混合搜索
+                search_results = hybrid_search_service.hybrid_search(
+                    query=req.question,
+                    db=db,
+                    retrieval_service=retrieval_service,
+                    doc_type=req.doc_type,
+                    tags=req.tags,
+                    start_date=req.start_date,
+                    end_date=req.end_date,
+                    k=req.k,
+                )
+                
+                # 转换为 citations 格式
+                citations = []
+                context_parts = []
+                
+                for result in search_results:
+                    citations.append({
+                        "index": result["index"],
+                        "source": result["source"],
+                        "title": result.get("title", ""),
+                        "snippet": result.get("content", "")[:200] + "..." if len(result.get("content", "")) > 200 else result.get("content", ""),
+                        "doc_id": result.get("doc_id"),
+                    })
+                    content_preview = result.get("content", "")[:500]
+                    context_parts.append(f"[{result['index']}] {content_preview}")
+                
+                context = "\n\n".join(context_parts)
+                
+                # 先发送 citations
+                yield f"data: {json.dumps({'type': 'citations', 'citations': citations}, ensure_ascii=False)}\n\n"
+                
+                # 使用 LLM 生成回答
+                from langchain.prompts import ChatPromptTemplate
+                # 根据 rerank_k 判断是否为严格模式
+                is_strict_mode = req.rerank_k and req.rerank_k <= 3
+                strict_instruction = """严格模式：如果检索到的文档片段与问题的相关性不够高（低于80%），请直接回答"知识库中没有相关内容"，不要强行回答。""" if is_strict_mode else ""
+                
+                prompt = ChatPromptTemplate.from_messages([
+                    ("system", f"""你是一个技术学习助手，只能根据【上下文】回答问题。
+
+要求：
+1. 优先使用上下文中的信息，不要凭空编造。
+2. 如果上下文没有相关信息或相关性不够高，请明确说明"知识库中没有相关内容"。
+3. 只有当上下文中的信息与问题高度相关时，才给出答案。如果相关性不够高，请直接说"知识库中没有相关内容"。
+4. 回答中必须使用 [1], [2], [3] 这样的标号引用对应的上下文片段。
+5. 每个引用标号对应上下文中的一个文档片段。
+6. 引用标号应该紧跟在相关信息的后面。
+7. 保持回答的专业性和准确性。
+{strict_instruction}"""),
+                    ("human", """【问题】
+{question}
+
+【上下文】
+{context}
+
+请根据上下文回答问题。如果上下文中的信息与问题高度相关（相关性≥80%），请给出答案并在回答中使用 [1], [2] 等标号引用对应的上下文片段。如果相关性不够高，请直接回答"知识库中没有相关内容"。""")
+                ])
+                
+                messages = prompt.format_messages(question=req.question, context=context)
+                answer_chunks = []
+                for chunk in llm.stream(messages):
+                    if hasattr(chunk, "content") and chunk.content:
+                        content = chunk.content
+                        answer_chunks.append(content)
+                        yield f"data: {json.dumps({'type': 'chunk', 'chunk': content}, ensure_ascii=False)}\n\n"
+                
+                final_answer = "".join(answer_chunks)
+                yield f"data: {json.dumps({'type': 'final', 'answer': final_answer, 'citations': citations}, ensure_ascii=False)}\n\n"
+            else:
+                # 使用原有的 RAG pipeline
+                for result in rag_pipeline.stream_query(
+                    question=req.question,
+                    doc_type=req.doc_type,
+                    k=req.k,
+                    rerank_k=req.rerank_k,
+                ):
+                    # 转换 citations 格式
+                    if result["type"] == "citations":
+                        citations = [
+                            Citation(
+                                index=c["index"],
+                                source=c["source"],
+                                title=c.get("title"),
+                                snippet=c["snippet"],
+                                doc_id=c.get("doc_id"),
+                                page=c.get("page"),
+                            ).dict()
+                            for c in result["citations"]
+                        ]
+                        yield f"data: {json.dumps({'type': 'citations', 'citations': citations}, ensure_ascii=False)}\n\n"
+                    elif result["type"] == "chunk":
+                        yield f"data: {json.dumps(result, ensure_ascii=False)}\n\n"
+                    elif result["type"] == "final":
+                        citations = [
+                            Citation(
+                                index=c["index"],
+                                source=c["source"],
+                                title=c.get("title"),
+                                snippet=c["snippet"],
+                                doc_id=c.get("doc_id"),
+                                page=c.get("page"),
+                            ).dict()
+                            for c in result["citations"]
+                        ]
+                        yield f"data: {json.dumps({'type': 'final', 'answer': result['answer'], 'citations': citations}, ensure_ascii=False)}\n\n"
         except Exception as e:
             # 发送错误信息
             error_result = {
@@ -315,6 +397,8 @@ class MarkdownDocItem(BaseModel):
     id: str
     title: str
     doc_type: Optional[str] = None
+    summary: Optional[str] = None
+    tags: Optional[List[str]] = None
     created_at: datetime
     updated_at: datetime
 
@@ -327,6 +411,8 @@ class MarkdownDocDetail(BaseModel):
     title: str
     content: str
     doc_type: Optional[str] = None
+    summary: Optional[str] = None
+    tags: Optional[List[str]] = None
     created_at: datetime
     updated_at: datetime
 
@@ -383,19 +469,44 @@ def list_markdown_docs(db: Session = Depends(get_db)):
         .order_by(MarkdownDoc.created_at.desc())
         .all()
     )
-    # 返回所有在线 Markdown 文档
-    return rows
+    # 转换 tags 为列表格式
+    result = []
+    for doc in rows:
+        result.append(MarkdownDocItem(
+            id=doc.id,
+            title=doc.title,
+            doc_type=doc.doc_type,
+            summary=doc.summary,
+            tags=json.loads(doc.tags) if doc.tags else None,
+            created_at=doc.created_at,
+            updated_at=doc.updated_at,
+        ))
+    return result
 
 # 创建在线 Markdown 文档
 @app.post("/docs", response_model=MarkdownDocDetail)
 def create_markdown_doc(req: MarkdownDocCreate, db: Session = Depends(get_db)):
     now = datetime.utcnow()
     doc_id = str(uuid.uuid4())
+    content = req.content or ""
+    
+    # 生成摘要和标签（如果内容足够长）
+    summary = None
+    tags = None
+    if content and len(content.strip()) > 50:
+        try:
+            summary = ai_services.generate_summary(content)
+            tags = ai_services.recommend_tags(req.title or "未命名文档", content)
+        except Exception as e:
+            print(f"生成摘要或标签失败: {e}")
+    
     doc = MarkdownDoc(
         id=doc_id,
         title=req.title or "未命名文档",
-        content=req.content or "",
+        content=content,
         doc_type=req.doc_type,
+        summary=summary,
+        tags=json.dumps(tags, ensure_ascii=False) if tags else None,
         created_at=now,
         updated_at=now,
     )
@@ -409,7 +520,18 @@ def create_markdown_doc(req: MarkdownDocCreate, db: Session = Depends(get_db)):
     # 将文档同步到向量库
     upsert_markdown_doc_to_vectorstore(doc)
 
-    return doc
+    # 转换 tags 为列表格式返回
+    result = MarkdownDocDetail(
+        id=doc.id,
+        title=doc.title,
+        content=doc.content,
+        doc_type=doc.doc_type,
+        summary=doc.summary,
+        tags=json.loads(doc.tags) if doc.tags else None,
+        created_at=doc.created_at,
+        updated_at=doc.updated_at,
+    )
+    return result
 
 
 @app.get("/docs/{doc_id}", response_model=MarkdownDocDetail)
@@ -417,7 +539,19 @@ def get_markdown_doc(doc_id: str, db: Session = Depends(get_db)):
     doc = db.query(MarkdownDoc).get(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")
-    return doc
+    
+    # 转换 tags 为列表格式
+    result = MarkdownDocDetail(
+        id=doc.id,
+        title=doc.title,
+        content=doc.content,
+        doc_type=doc.doc_type,
+        summary=doc.summary,
+        tags=json.loads(doc.tags) if doc.tags else None,
+        created_at=doc.created_at,
+        updated_at=doc.updated_at,
+    )
+    return result
 
 
 @app.put("/docs/{doc_id}", response_model=MarkdownDocDetail)
@@ -565,3 +699,126 @@ def extract_web_content(req: WebExtractRequest, db: Session = Depends(get_db)):
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+# ---- 智能功能 API ----
+
+@app.post("/docs/{doc_id}/generate-summary")
+def generate_doc_summary(doc_id: str, db: Session = Depends(get_db)):
+    """为文档生成摘要"""
+    doc = db.query(MarkdownDoc).get(doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="文档不存在")
+    
+    if not doc.content or len(doc.content.strip()) < 50:
+        raise HTTPException(status_code=400, detail="文档内容太短，无法生成摘要")
+    
+    summary = ai_services.generate_summary(doc.content)
+    doc.summary = summary
+    db.commit()
+    db.refresh(doc)
+    
+    return {"summary": summary}
+
+
+@app.post("/docs/{doc_id}/recommend-tags")
+def recommend_doc_tags(doc_id: str, db: Session = Depends(get_db)):
+    """为文档推荐标签"""
+    doc = db.query(MarkdownDoc).get(doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="文档不存在")
+    
+    if not doc.content:
+        raise HTTPException(status_code=400, detail="文档内容为空")
+    
+    existing_tags = json.loads(doc.tags) if doc.tags else None
+    tags = ai_services.recommend_tags(doc.title, doc.content, existing_tags)
+    doc.tags = json.dumps(tags, ensure_ascii=False)
+    db.commit()
+    db.refresh(doc)
+    
+    return {"tags": tags}
+
+
+@app.get("/docs/{doc_id}/related")
+def get_related_docs(doc_id: str, top_k: int = Query(5), db: Session = Depends(get_db)):
+    """获取相关文档推荐"""
+    doc = db.query(MarkdownDoc).get(doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="文档不存在")
+    
+    # 获取所有文档
+    all_docs = db.query(MarkdownDoc).all()
+    docs_list = [
+        {
+            "id": d.id,
+            "title": d.title,
+            "content": d.content,
+            "summary": d.summary,
+        }
+        for d in all_docs
+    ]
+    
+    # 查找相关文档
+    related = ai_services.find_related_docs(
+        doc.content,
+        doc.id,
+        docs_list,
+        top_k=top_k,
+    )
+    
+    # 转换为响应格式
+    result = []
+    for r in related:
+        result.append({
+            "id": r["id"],
+            "title": r["title"],
+            "summary": r.get("summary"),
+        })
+    
+    return {"related_docs": result}
+
+
+@app.get("/docs/graph")
+def get_docs_graph(db: Session = Depends(get_db)):
+    """获取文档关系图谱数据"""
+    docs = db.query(MarkdownDoc).all()
+    
+    nodes = []
+    edges = []
+    
+    # 创建节点
+    for doc in docs:
+        nodes.append({
+            "id": doc.id,
+            "label": doc.title,
+            "type": doc.doc_type or "doc",
+            "tags": json.loads(doc.tags) if doc.tags else [],
+        })
+    
+    # 创建边（基于标签相似度）
+    for i, doc1 in enumerate(docs):
+        if not doc1.tags:
+            continue
+        tags1 = set(json.loads(doc1.tags))
+        
+        for doc2 in docs[i+1:]:
+            if not doc2.tags:
+                continue
+            tags2 = set(json.loads(doc2.tags))
+            
+            # 计算标签交集
+            common_tags = tags1 & tags2
+            if common_tags:
+                # 创建边，权重基于共同标签数量
+                edges.append({
+                    "source": doc1.id,
+                    "target": doc2.id,
+                    "weight": len(common_tags),
+                    "tags": list(common_tags),
+                })
+    
+    return {
+        "nodes": nodes,
+        "edges": edges,
+    }

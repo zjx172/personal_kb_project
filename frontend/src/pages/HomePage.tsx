@@ -23,6 +23,8 @@ import {
   extractWebContent,
 } from "../api";
 import { AnswerWithCitations } from "../components/AnswerWithCitations";
+import { SearchResultCard } from "../components/SearchResultCard";
+import { SearchFilters, SearchFilterOptions } from "../components/SearchFilters";
 
 const { Sider, Content, Header } = Layout;
 
@@ -43,6 +45,15 @@ const HomePage: React.FC = () => {
   const [streamingCitations, setStreamingCitations] = useState<
     QueryResponse["citations"]
   >([]);
+  const [searchFilters, setSearchFilters] = useState<SearchFilterOptions>({});
+  
+  // 提取所有标签和文档类型用于过滤器
+  const allTags = Array.from(
+    new Set(docs.flatMap((doc) => doc.tags || []))
+  ).sort();
+  const allDocTypes = Array.from(
+    new Set(docs.map((doc) => doc.doc_type).filter(Boolean) as string[])
+  ).sort();
 
   // 流式显示控制
   const streamBufferRef = useRef<string>("");
@@ -177,7 +188,9 @@ const HomePage: React.FC = () => {
     streamDisplayRef.current = "";
 
     try {
-      await queryKnowledgeBaseStream(query, (chunk) => {
+      await queryKnowledgeBaseStream(
+        query,
+        (chunk) => {
         if (chunk.type === "chunk" && chunk.chunk) {
           // 将接收到的 chunk 添加到缓冲区
           streamBufferRef.current += chunk.chunk;
@@ -211,7 +224,9 @@ const HomePage: React.FC = () => {
           streamBufferRef.current = "";
           streamDisplayRef.current = "";
         }
-      });
+      },
+      searchFilters
+      );
     } catch (e: any) {
       console.error(e);
       Message.error(e?.message || "搜索失败");
@@ -367,86 +382,80 @@ const HomePage: React.FC = () => {
                   </Button>
                 }
               />
+              
+              {/* 搜索过滤器 */}
+              <SearchFilters
+                onFilterChange={setSearchFilters}
+                availableTags={allTags}
+                availableDocTypes={allDocTypes}
+              />
             </div>
 
             {(queryResult || streamingAnswer || querying) && (
-              <Card className="mt-6">
-                <div className="mb-4">
-                  <Typography.Text className="text-base font-semibold">
-                    答案：
-                  </Typography.Text>
-                </div>
-                <div className="mb-4 text-gray-700">
-                  {queryResult ? (
-                    <AnswerWithCitations
-                      answer={queryResult.answer}
-                      citations={queryResult.citations}
-                    />
-                  ) : streamingAnswer ? (
-                    <AnswerWithCitations
-                      answer={streamingAnswer}
-                      citations={streamingCitations}
-                    />
-                  ) : null}
-                  {querying && !streamingAnswer && (
-                    <span className="inline-block w-2 h-4 bg-gray-400 animate-pulse ml-1" />
-                  )}
-                </div>
+              <div className="mt-6">
+                {/* 搜索结果卡片列表 - 类似 Google 搜索结果 */}
+                {(queryResult?.citations && queryResult.citations.length > 0) ||
+                (streamingCitations.length > 0) ? (
+                  <div className="mb-8">
+                    <div className="mb-4 text-sm text-gray-600">
+                      找到约{" "}
+                      <span className="font-medium">
+                        {queryResult?.citations?.length || streamingCitations.length}
+                      </span>{" "}
+                      条结果
+                    </div>
+                    <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
+                      {(queryResult?.citations || streamingCitations).map(
+                        (citation) => (
+                          <SearchResultCard
+                            key={citation.index}
+                            citation={citation}
+                            index={citation.index}
+                          />
+                        )
+                      )}
+                    </div>
+                  </div>
+                ) : null}
 
-                {queryResult?.citations && queryResult.citations.length > 0 && (
-                  <>
-                    <Divider />
-                    <div className="mb-2">
-                      <Typography.Text className="text-sm font-semibold">
-                        参考来源：
+                {/* AI 回答部分 */}
+                {(queryResult?.answer || streamingAnswer) && (
+                  <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 shadow-sm">
+                    <div className="mb-3">
+                      <Typography.Text className="text-base font-semibold text-gray-800 flex items-center gap-2">
+                        <span>🤖</span>
+                        AI 智能回答：
                       </Typography.Text>
                     </div>
-                    <div className="space-y-2">
-                      {queryResult.citations.map((citation) => {
-                        // 检查是否是 Markdown 文档（格式：markdown_doc:{id}）
-                        const isMarkdownDoc =
-                          citation.source.startsWith("markdown_doc:");
-                        const docId = isMarkdownDoc
-                          ? citation.source.replace("markdown_doc:", "")
-                          : null;
-
-                        const handleCitationClick = () => {
-                          if (docId) {
-                            navigate(`/doc/${docId}`);
-                          }
-                        };
-
-                        return (
-                          <Card
-                            key={citation.index}
-                            size="small"
-                            className={`bg-gray-50 ${
-                              isMarkdownDoc
-                                ? "cursor-pointer hover:bg-gray-100 transition-colors"
-                                : ""
-                            }`}
-                            onClick={
-                              isMarkdownDoc ? handleCitationClick : undefined
-                            }
-                          >
-                            <div className="text-xs text-gray-500 mb-1">
-                              [{citation.index}] {citation.source}
-                              {isMarkdownDoc && (
-                                <span className="ml-2 text-blue-500">
-                                  (点击打开)
-                                </span>
-                              )}
-                            </div>
-                            <div className="text-sm text-gray-700">
-                              {citation.snippet}...
-                            </div>
-                          </Card>
-                        );
-                      })}
+                    <div className="text-gray-700">
+                      {queryResult ? (
+                        <AnswerWithCitations
+                          answer={queryResult.answer}
+                          citations={queryResult.citations}
+                        />
+                      ) : streamingAnswer ? (
+                        <AnswerWithCitations
+                          answer={streamingAnswer}
+                          citations={streamingCitations}
+                        />
+                      ) : null}
+                      {querying && !streamingAnswer && (
+                        <span className="inline-block w-2 h-4 bg-gray-400 animate-pulse ml-1" />
+                      )}
                     </div>
-                  </>
+                  </Card>
                 )}
-              </Card>
+
+                {/* 加载状态 */}
+                {querying && !streamingAnswer && !queryResult && (
+                  <Card className="mt-6">
+                    <div className="flex items-center justify-center py-8">
+                      <Spin />
+                      <span className="ml-3 text-gray-500">正在搜索...</span>
+                    </div>
+                  </Card>
+                )}
+              </div>
             )}
 
             {!queryResult && !streamingAnswer && !querying && (

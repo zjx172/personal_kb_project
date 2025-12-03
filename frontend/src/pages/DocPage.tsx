@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import Vditor from "vditor";
-import "vditor/dist/index.css";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   Layout,
   Button,
@@ -10,8 +10,33 @@ import {
   Spin,
   Empty,
   Popconfirm,
+  Card,
+  Typography,
+  Divider,
+  Tooltip,
 } from "@arco-design/web-react";
-import { getDoc, updateDoc, deleteDoc, MarkdownDocDetail } from "../api";
+import {
+  IconBold,
+  IconItalic,
+  IconStrikethrough,
+  IconCode,
+  IconList,
+  IconOrderedList,
+  IconQuote,
+  IconLink,
+} from "@arco-design/web-react/icon";
+import {
+  getDoc,
+  updateDoc,
+  deleteDoc,
+  MarkdownDocDetail,
+  generateDocSummary,
+  recommendDocTags,
+  getRelatedDocs,
+  RelatedDoc,
+  queryKnowledgeBaseStream,
+  Citation,
+} from "../api";
 
 const { Sider, Content, Header } = Layout;
 
@@ -31,11 +56,21 @@ const DocPage: React.FC = () => {
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
   const saveTimerRef = useRef<number | null>(null);
+  const [relatedDocs, setRelatedDocs] = useState<RelatedDoc[]>([]);
+  const [loadingRelated, setLoadingRelated] = useState(false);
+
+  // 复习知识相关状态
+  const [reviewQuery, setReviewQuery] = useState("");
+  const [reviewAnswer, setReviewAnswer] = useState("");
+  const [reviewCitations, setReviewCitations] = useState<Citation[]>([]);
+  const [reviewing, setReviewing] = useState(false);
+  const [showReviewPanel, setShowReviewPanel] = useState(false);
 
   const [titleDraft, setTitleDraft] = useState("");
   const [contentDraft, setContentDraft] = useState("");
-  const vditorRef = useRef<Vditor | null>(null);
-  const editorContainerRef = useRef<HTMLDivElement>(null);
+  const [viewMode, setViewMode] = useState<"edit" | "preview" | "both">("both");
+  const editorRef = useRef<HTMLTextAreaElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
 
   const loadDoc = async () => {
     if (!docId) return;
@@ -60,286 +95,93 @@ const DocPage: React.FC = () => {
     }
   }, [docId]);
 
-  // 初始化 Vditor - 只在文档加载完成且容器存在时初始化
-  useEffect(() => {
-    if (!editorContainerRef.current || !currentDoc || vditorRef.current) return;
-
-    const initVditor = () => {
-      if (!editorContainerRef.current) return;
-
-      vditorRef.current = new Vditor(editorContainerRef.current, {
-        height: window.innerHeight - 100,
-        mode: "sv",
-        cache: {
-          id: `vditor-${docId}`,
-        },
-        toolbar: [
-          "headings",
-          "bold",
-          "italic",
-          "strike",
-          "line",
-          "quote",
-          "list",
-          "ordered-list",
-          "check",
-          "code",
-          "inline-code",
-          "link",
-          "table",
-          "undo",
-          "redo",
-          "upload",
-          "edit-mode",
-          "both",
-          "preview",
-          "fullscreen",
-          "outline",
-          "devtools",
-        ],
-        value: contentDraft,
-        input: (value: string) => {
-          setContentDraft(value);
-          // 触发自动保存
-          triggerAutoSave(value);
-        },
-      });
-    };
-
-    // 延迟初始化确保 DOM 已渲染
-    const timer = setTimeout(initVditor, 100);
-
-    return () => {
-      clearTimeout(timer);
-      if (vditorRef.current) {
-        vditorRef.current.destroy();
-        vditorRef.current = null;
-      }
-    };
-  }, [currentDoc]);
-
-  // 当文档内容变化时，更新编辑器内容
-  useEffect(() => {
-    if (vditorRef.current && currentDoc && contentDraft !== undefined) {
-      const currentValue = vditorRef.current.getValue();
-      if (currentValue !== contentDraft) {
-        vditorRef.current.setValue(contentDraft);
-      }
-    }
-  }, [contentDraft, currentDoc]);
-
   // 处理高亮文本
   useEffect(() => {
-    console.log("highlightText", highlightText);
-    console.log("vditorRef.current", vditorRef.current);
-    console.log("currentDoc", currentDoc);
     if (!highlightText || !currentDoc) return;
 
-    // 延迟执行，确保编辑器已完全渲染
     const timer = setTimeout(() => {
-      try {
-        // 尝试切换到预览模式（如果还没有）
-        const vditor = vditorRef.current;
-        if (vditor) {
-          // 获取预览元素
-          const previewElement = document.querySelector(
-            ".vditor-preview"
-          ) as HTMLElement;
-
-          console.log("previewElement", previewElement);
-
-          // 如果预览元素不存在，尝试切换到预览模式
-          if (!previewElement) {
-            // Vditor 的预览模式切换按钮可能有多种选择器
-            const previewBtn = document.querySelector(
-              '[data-type="preview"], button[aria-label*="预览"], .vditor-toolbar [data-type="preview"]'
-            ) as HTMLElement;
-
-            if (previewBtn) {
-              previewBtn.click();
-              // 等待预览模式切换完成后再高亮
-              setTimeout(() => {
-                const newPreviewElement = document.querySelector(
-                  ".vditor-preview"
-                ) as HTMLElement;
-                if (newPreviewElement) {
-                  highlightTextInPreview(highlightText);
-                } else {
-                  console.warn("Failed to switch to preview mode");
-                }
-              }, 500);
-              return;
-            } else {
-              console.warn(
-                "Preview button not found, trying alternative method"
-              );
-              // 如果找不到预览按钮，尝试直接使用 Vditor API
-              // Vditor 可能支持直接获取预览 HTML
-              try {
-                const previewHTML = vditor.getHTML();
-                if (previewHTML) {
-                  // 创建一个临时预览元素来高亮
-                  const tempDiv = document.createElement("div");
-                  tempDiv.innerHTML = previewHTML;
-                  const searchText = highlightText.substring(0, 100).trim();
-                  const escapedText = searchText.replace(
-                    /[.*+?^${}()|[\]\\]/g,
-                    "\\$&"
-                  );
-                  const regex = new RegExp(escapedText, "gi");
-
-                  if (regex.test(tempDiv.textContent || "")) {
-                    // 找到文本，尝试在编辑器中滚动
-                    const editorElement = document.querySelector(
-                      ".vditor-sv"
-                    ) as HTMLElement;
-                    if (editorElement) {
-                      const textContent = editorElement.textContent || "";
-                      const index = textContent.indexOf(searchText);
-                      if (index !== -1) {
-                        // 尝试滚动到文本位置
-                        editorElement.scrollTop =
-                          (index / textContent.length) *
-                          editorElement.scrollHeight;
-                      }
-                    }
-                  }
-                }
-              } catch (e) {
-                console.error("Alternative highlight method failed:", e);
-              }
-            }
-          } else {
-            highlightTextInPreview(highlightText);
-          }
-        }
-      } catch (e) {
-        console.error("Failed to highlight text:", e);
-      }
-    }, 800); // 增加延迟时间，确保 Vditor 完全加载
-
-    const highlightTextInPreview = (text: string) => {
-      const vditor = vditorRef.current;
-      if (!vditor) {
-        console.warn("Vditor instance not found");
-        return;
-      }
-
-      // 使用 Vditor API 获取预览 HTML
-      let content: string;
-      try {
-        // 尝试获取预览 HTML
-        content = vditor.getHTML() || "";
-        console.log("Got content from getHTML:", content.length, "chars");
-      } catch (e) {
-        console.warn("getHTML failed, trying getValue:", e);
-        // 如果 getHTML 失败，尝试获取 Markdown 值
-        content = vditor.getValue() || "";
-      }
-
-      if (!content) {
-        // 如果 API 获取失败，尝试从 DOM 获取
-        const previewElement = document.querySelector(
-          ".vditor-preview"
-        ) as HTMLElement;
-        if (previewElement) {
-          content =
-            previewElement.innerHTML || previewElement.textContent || "";
-        }
-      }
-
-      if (!content) {
-        console.warn("Could not get content from Vditor");
-        return;
-      }
-
-      // 使用前100个字符进行匹配（避免文本过长）
-      const searchText = text.substring(0, 100).trim();
+      const searchText = highlightText.substring(0, 100).trim();
       if (!searchText) return;
 
-      // 转义特殊字符用于正则表达式
-      const escapedText = searchText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      console.log("Searching for:", escapedText.substring(0, 50));
+      // 在预览区域高亮
+      if (previewRef.current) {
+        const previewContent = previewRef.current.textContent || "";
+        const escapedText = searchText.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const regex = new RegExp(escapedText, "gi");
 
-      // 检查内容中是否包含搜索文本（不区分大小写）
-      const regex = new RegExp(escapedText, "gi");
+        if (regex.test(previewContent)) {
+          // 查找并高亮所有匹配的文本节点
+          const walker = document.createTreeWalker(
+            previewRef.current,
+            NodeFilter.SHOW_TEXT,
+            null
+          );
 
-      if (regex.test(content)) {
-        // 替换匹配的文本为高亮标记
-        const highlighted = content.replace(
-          regex,
-          '<mark style="background-color: #ffeb3b; padding: 2px 4px; border-radius: 2px; font-weight: 500;">$&</mark>'
-        );
-
-        // 尝试更新预览元素
-        const previewElement = document.querySelector(
-          ".vditor-preview"
-        ) as HTMLElement;
-
-        if (previewElement) {
-          previewElement.innerHTML = highlighted;
-
-          // 滚动到第一个高亮位置
-          const markElement = previewElement.querySelector("mark");
-          if (markElement) {
-            markElement.scrollIntoView({
-              behavior: "smooth",
-              block: "center",
-            });
+          const textNodes: Text[] = [];
+          let node;
+          while ((node = walker.nextNode())) {
+            if (node.textContent && regex.test(node.textContent)) {
+              textNodes.push(node as Text);
+            }
           }
-        } else {
-          // 如果没有预览元素，尝试在编辑器中定位
-          const editorElement = document.querySelector(
-            ".vditor-sv"
-          ) as HTMLElement;
-          if (editorElement) {
-            const textContent = editorElement.textContent || "";
-            const index = textContent.indexOf(searchText);
-            if (index !== -1) {
-              // 尝试滚动到文本位置
-              const textNodes = getTextNodes(editorElement);
-              for (const node of textNodes) {
-                if (node.textContent && node.textContent.includes(searchText)) {
-                  const element = node.parentElement;
-                  if (element) {
-                    element.scrollIntoView({
-                      behavior: "smooth",
-                      block: "center",
-                    });
-                    // 添加临时高亮
-                    element.style.outline = "3px solid #ffeb3b";
-                    element.style.outlineOffset = "2px";
-                    setTimeout(() => {
-                      element.style.outline = "";
-                      element.style.outlineOffset = "";
-                    }, 3000);
-                    break;
-                  }
+
+          // 高亮第一个匹配项
+          if (textNodes.length > 0) {
+            const firstNode = textNodes[0];
+            const range = document.createRange();
+            const startIndex = firstNode
+              .textContent!.toLowerCase()
+              .indexOf(searchText.toLowerCase());
+            range.setStart(firstNode, startIndex);
+            range.setEnd(firstNode, startIndex + searchText.length);
+
+            const mark = document.createElement("mark");
+            mark.style.backgroundColor = "#ffeb3b";
+            mark.style.padding = "2px 4px";
+            mark.style.borderRadius = "2px";
+            mark.style.fontWeight = "500";
+            try {
+              range.surroundContents(mark);
+              mark.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+            } catch (e) {
+              // 如果 surroundContents 失败，尝试在编辑器中定位
+              if (editorRef.current) {
+                const editorContent = editorRef.current.value;
+                const index = editorContent
+                  .toLowerCase()
+                  .indexOf(searchText.toLowerCase());
+                if (index !== -1) {
+                  editorRef.current.setSelectionRange(
+                    index,
+                    index + searchText.length
+                  );
+                  editorRef.current.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                  });
                 }
               }
             }
           }
         }
-      } else {
-        console.warn("Text not found in content:", searchText);
+      } else if (editorRef.current) {
+        // 如果在预览中找不到，尝试在编辑器中定位
+        const editorContent = editorRef.current.value;
+        const index = editorContent
+          .toLowerCase()
+          .indexOf(searchText.toLowerCase());
+        if (index !== -1) {
+          editorRef.current.setSelectionRange(index, index + searchText.length);
+          editorRef.current.scrollIntoView({
+            behavior: "smooth",
+            block: "center",
+          });
+        }
       }
-    };
-
-    const getTextNodes = (element: HTMLElement): Text[] => {
-      const textNodes: Text[] = [];
-      const walker = document.createTreeWalker(
-        element,
-        NodeFilter.SHOW_TEXT,
-        null
-      );
-
-      let node;
-      while ((node = walker.nextNode())) {
-        textNodes.push(node as Text);
-      }
-
-      return textNodes;
-    };
+    }, 300);
 
     return () => clearTimeout(timer);
   }, [highlightText, currentDoc]);
@@ -373,6 +215,80 @@ const DocPage: React.FC = () => {
     }, 2000); // 2秒延迟
   };
 
+  // 处理内容变化
+  const handleContentChange = (value: string) => {
+    setContentDraft(value);
+    triggerAutoSave(value);
+  };
+
+  // 格式化工具函数
+  const insertText = (before: string, after: string = "") => {
+    if (!editorRef.current) return;
+    const textarea = editorRef.current;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = contentDraft.substring(start, end);
+    const newText =
+      contentDraft.substring(0, start) +
+      before +
+      selectedText +
+      after +
+      contentDraft.substring(end);
+    setContentDraft(newText);
+    triggerAutoSave(newText);
+
+    // 恢复光标位置
+    setTimeout(() => {
+      textarea.focus();
+      const newPos = start + before.length + selectedText.length;
+      textarea.setSelectionRange(newPos, newPos);
+    }, 0);
+  };
+
+  // 工具栏按钮处理
+  const handleFormat = (type: string) => {
+    switch (type) {
+      case "bold":
+        insertText("**", "**");
+        break;
+      case "italic":
+        insertText("*", "*");
+        break;
+      case "strikethrough":
+        insertText("~~", "~~");
+        break;
+      case "code":
+        insertText("`", "`");
+        break;
+      case "codeBlock":
+        insertText("```\n", "\n```");
+        break;
+      case "quote":
+        insertText("> ", "");
+        break;
+      case "heading":
+        insertText("# ", "");
+        break;
+      case "ul":
+        insertText("- ", "");
+        break;
+      case "ol":
+        insertText("1. ", "");
+        break;
+      case "link":
+        insertText("[", "]()");
+        setTimeout(() => {
+          if (editorRef.current) {
+            const pos = editorRef.current.selectionStart - 1;
+            editorRef.current.setSelectionRange(pos, pos);
+          }
+        }, 0);
+        break;
+      default:
+        break;
+    }
+  };
+
   // 监听标题变化，也触发自动保存
   useEffect(() => {
     if (currentDoc && docId && titleDraft !== currentDoc.title) {
@@ -385,10 +301,9 @@ const DocPage: React.FC = () => {
       saveTimerRef.current = window.setTimeout(async () => {
         setSaving(true);
         try {
-          const currentContent = vditorRef.current?.getValue() || contentDraft;
           const detail = await updateDoc(docId, {
             title: titleDraft,
-            content: currentContent,
+            content: contentDraft,
           });
           setCurrentDoc(detail);
           setLastSaved(new Date());
@@ -414,14 +329,11 @@ const DocPage: React.FC = () => {
     setSaving(true);
     setError(null);
     try {
-      // 从 Vditor 获取最新内容
-      const currentContent = vditorRef.current?.getValue() || contentDraft;
       const detail = await updateDoc(docId, {
         title: titleDraft,
-        content: currentContent,
+        content: contentDraft,
       });
       setCurrentDoc(detail);
-      setContentDraft(currentContent);
       setLastSaved(new Date());
       Message.success("保存成功");
     } catch (e: any) {
@@ -442,6 +354,43 @@ const DocPage: React.FC = () => {
     };
   }, []);
 
+  // 加载相关文档
+  const loadRelatedDocs = async (docId: string) => {
+    setLoadingRelated(true);
+    try {
+      const result = await getRelatedDocs(docId, 5);
+      setRelatedDocs(result.related_docs);
+    } catch (e) {
+      console.error("加载相关文档失败:", e);
+    } finally {
+      setLoadingRelated(false);
+    }
+  };
+
+  // 手动生成摘要
+  const handleGenerateSummary = async () => {
+    if (!docId) return;
+    try {
+      const result = await generateDocSummary(docId);
+      Message.success("摘要生成成功");
+      await loadDoc(); // 重新加载文档
+    } catch (e: any) {
+      Message.error(e?.message || "生成摘要失败");
+    }
+  };
+
+  // 手动推荐标签
+  const handleRecommendTags = async () => {
+    if (!docId) return;
+    try {
+      const result = await recommendDocTags(docId);
+      Message.success("标签推荐成功");
+      await loadDoc(); // 重新加载文档
+    } catch (e: any) {
+      Message.error(e?.message || "推荐标签失败");
+    }
+  };
+
   const handleDelete = async () => {
     if (!docId) return;
     try {
@@ -452,6 +401,80 @@ const DocPage: React.FC = () => {
       console.error(e);
       Message.error(e?.message || "删除失败");
     }
+  };
+
+  // 复习知识功能
+  const handleReviewQuery = async () => {
+    if (!reviewQuery.trim()) {
+      Message.warning("请输入问题");
+      return;
+    }
+
+    setReviewing(true);
+    setReviewAnswer("");
+    setReviewCitations([]);
+    setShowReviewPanel(true);
+
+    try {
+      await queryKnowledgeBaseStream(
+        reviewQuery,
+        (chunk) => {
+          if (chunk.type === "chunk" && chunk.chunk) {
+            setReviewAnswer((prev) => prev + chunk.chunk);
+          } else if (chunk.type === "citations" && chunk.citations) {
+            setReviewCitations(chunk.citations);
+          } else if (chunk.type === "final") {
+            if (chunk.answer) {
+              setReviewAnswer(chunk.answer);
+            }
+            if (chunk.citations) {
+              setReviewCitations(chunk.citations);
+            }
+          }
+        },
+        {
+          k: 5, // 初始检索5个
+          rerank_k: 3, // 只返回最相关的3个结果
+        }
+      );
+    } catch (e: any) {
+      console.error(e);
+      Message.error(e?.message || "搜索失败");
+      setReviewAnswer("搜索失败，请稍后重试");
+    } finally {
+      setReviewing(false);
+    }
+  };
+
+  // 处理搜索结果点击，跳转到对应文档并高亮
+  const handleCitationClick = (citation: Citation) => {
+    const isMarkdownDoc = citation.source.startsWith("markdown_doc:");
+    const docId = isMarkdownDoc
+      ? citation.source.replace("markdown_doc:", "")
+      : null;
+
+    if (docId && citation.snippet) {
+      // 跳转到文档页面，并传递高亮信息
+      const highlightParam = encodeURIComponent(
+        citation.snippet.substring(0, 100)
+      );
+      navigate(`/doc/${docId}?highlight=${highlightParam}`);
+    } else if (docId) {
+      navigate(`/doc/${docId}`);
+    }
+  };
+
+  // 检查答案是否表示找不到相关内容
+  const isNoAnswerFound = (answer: string): boolean => {
+    const lowerAnswer = answer.toLowerCase();
+    return (
+      lowerAnswer.includes("知识库中没有相关内容") ||
+      lowerAnswer.includes("没有找到") ||
+      lowerAnswer.includes("找不到") ||
+      lowerAnswer.includes("未找到") ||
+      (lowerAnswer.includes("没有") && lowerAnswer.includes("信息")) ||
+      reviewCitations.length === 0
+    );
   };
 
   if (!docId) {
@@ -480,6 +503,13 @@ const DocPage: React.FC = () => {
           />
         </div>
         <div className="flex items-center gap-3">
+          <Button
+            type="outline"
+            size="small"
+            onClick={() => setShowReviewPanel(!showReviewPanel)}
+          >
+            {showReviewPanel ? "隐藏" : "复习知识"}
+          </Button>
           {saving && <span className="text-xs text-gray-400">保存中...</span>}
           {lastSaved && !saving && (
             <span className="text-xs text-gray-400">
@@ -518,23 +548,371 @@ const DocPage: React.FC = () => {
         </div>
       )}
 
-      <Content className="flex-1 overflow-hidden">
-        {loading ? (
-          <div className="h-full flex items-center justify-center">
-            <Spin />
-          </div>
-        ) : !currentDoc ? (
-          <div className="h-full flex items-center justify-center">
-            <Empty description="文档不存在" />
-          </div>
-        ) : (
+      <Layout className="flex-1 overflow-hidden">
+        <Content className="flex-1 overflow-hidden flex flex-col">
+          {loading ? (
+            <div className="h-full flex items-center justify-center">
+              <Spin />
+            </div>
+          ) : !currentDoc ? (
+            <div className="h-full flex items-center justify-center">
+              <Empty description="文档不存在" />
+            </div>
+          ) : (
+            <div className="flex-1 flex flex-col overflow-hidden">
+              {/* 工具栏 */}
+              <div className="border-b bg-white px-4 py-2 flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-1 border-r pr-2 mr-2">
+                  <Tooltip content="粗体">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<IconBold />}
+                      onClick={() => handleFormat("bold")}
+                    />
+                  </Tooltip>
+                  <Tooltip content="斜体">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<IconItalic />}
+                      onClick={() => handleFormat("italic")}
+                    />
+                  </Tooltip>
+                  <Tooltip content="删除线">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<IconStrikethrough />}
+                      onClick={() => handleFormat("strikethrough")}
+                    />
+                  </Tooltip>
+                  <Tooltip content="行内代码">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<IconCode />}
+                      onClick={() => handleFormat("code")}
+                    />
+                  </Tooltip>
+                </div>
+                <div className="flex items-center gap-1 border-r pr-2 mr-2">
+                  <Tooltip content="标题">
+                    <Button
+                      type="text"
+                      size="small"
+                      onClick={() => handleFormat("heading")}
+                    >
+                      H
+                    </Button>
+                  </Tooltip>
+                  <Tooltip content="引用">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<IconQuote />}
+                      onClick={() => handleFormat("quote")}
+                    />
+                  </Tooltip>
+                  <Tooltip content="无序列表">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<IconList />}
+                      onClick={() => handleFormat("ul")}
+                    />
+                  </Tooltip>
+                  <Tooltip content="有序列表">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<IconOrderedList />}
+                      onClick={() => handleFormat("ol")}
+                    />
+                  </Tooltip>
+                  <Tooltip content="链接">
+                    <Button
+                      type="text"
+                      size="small"
+                      icon={<IconLink />}
+                      onClick={() => handleFormat("link")}
+                    />
+                  </Tooltip>
+                </div>
+                <div className="flex items-center gap-1 ml-auto">
+                  <Button
+                    type={viewMode === "edit" ? "primary" : "text"}
+                    size="small"
+                    onClick={() => setViewMode("edit")}
+                  >
+                    编辑
+                  </Button>
+                  <Button
+                    type={viewMode === "preview" ? "primary" : "text"}
+                    size="small"
+                    onClick={() => setViewMode("preview")}
+                  >
+                    预览
+                  </Button>
+                  <Button
+                    type={viewMode === "both" ? "primary" : "text"}
+                    size="small"
+                    onClick={() => setViewMode("both")}
+                  >
+                    分屏
+                  </Button>
+                </div>
+              </div>
+
+              {/* 编辑器区域 */}
+              <div className="flex-1 flex overflow-hidden">
+                {(viewMode === "edit" || viewMode === "both") && (
+                  <div
+                    className={`${
+                      viewMode === "both" ? "w-1/2" : "w-full"
+                    } flex flex-col border-r`}
+                  >
+                    <textarea
+                      ref={editorRef}
+                      value={contentDraft}
+                      onChange={(e) => handleContentChange(e.target.value)}
+                      className="flex-1 w-full p-6 resize-none outline-none text-sm leading-relaxed bg-white"
+                      placeholder="开始输入...支持 Markdown 语法"
+                      style={{
+                        fontFamily:
+                          '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif',
+                        color: "#1f2329",
+                        fontSize: "14px",
+                        lineHeight: "1.75",
+                      }}
+                    />
+                  </div>
+                )}
+                {(viewMode === "preview" || viewMode === "both") && (
+                  <div
+                    ref={previewRef}
+                    className={`${
+                      viewMode === "both" ? "w-1/2" : "w-full"
+                    } overflow-y-auto p-6 bg-white`}
+                    style={{
+                      maxWidth: viewMode === "both" ? "100%" : "900px",
+                      margin: viewMode === "both" ? "0" : "0 auto",
+                    }}
+                  >
+                    <div className="prose prose-sm max-w-none">
+                      <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
+                        components={{
+                          code: ({
+                            node,
+                            inline,
+                            className,
+                            children,
+                            ...props
+                          }: any) => {
+                            const match = /language-(\w+)/.exec(
+                              className || ""
+                            );
+                            return !inline && match ? (
+                              <pre className="bg-gray-50 border border-gray-200 rounded-md p-4 overflow-x-auto">
+                                <code className={className} {...props}>
+                                  {children}
+                                </code>
+                              </pre>
+                            ) : (
+                              <code
+                                className="bg-gray-100 px-1.5 py-0.5 rounded text-sm"
+                                {...props}
+                              >
+                                {children}
+                              </code>
+                            );
+                          },
+                        }}
+                      >
+                        {contentDraft || "*暂无内容*"}
+                      </ReactMarkdown>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </Content>
+
+        {/* 复习知识侧边栏 */}
+        {showReviewPanel && (
           <div
-            ref={editorContainerRef}
-            className="w-full"
-            style={{ height: "calc(100vh - 56px)", minHeight: 400 }}
-          />
+            className="w-96 border-l bg-white overflow-y-auto"
+            style={{ height: "calc(100vh - 56px)" }}
+          >
+            <div className="p-4">
+              <Typography.Title heading={6} className="mb-4">
+                复习知识
+              </Typography.Title>
+              <div className="mb-4">
+                <Input
+                  placeholder="输入问题，在知识库中查找答案..."
+                  value={reviewQuery}
+                  onChange={setReviewQuery}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleReviewQuery();
+                    }
+                  }}
+                  suffix={
+                    <Button
+                      type="primary"
+                      size="small"
+                      loading={reviewing}
+                      onClick={handleReviewQuery}
+                    >
+                      搜索
+                    </Button>
+                  }
+                />
+              </div>
+
+              {/* 搜索结果 */}
+              {(reviewAnswer || reviewing) && (
+                <div className="mt-4">
+                  {reviewing && !reviewAnswer && (
+                    <div className="flex items-center justify-center py-8">
+                      <Spin />
+                      <span className="ml-3 text-gray-500">正在搜索...</span>
+                    </div>
+                  )}
+
+                  {reviewAnswer && (
+                    <>
+                      {/* 答案部分 */}
+                      <Card className="mb-4">
+                        <Typography.Text className="text-sm font-semibold text-gray-700 mb-2 block">
+                          AI 回答：
+                        </Typography.Text>
+                        <div className="text-sm text-gray-800 leading-relaxed">
+                          {isNoAnswerFound(reviewAnswer) ? (
+                            <div className="text-orange-600">
+                              <Typography.Text type="warning">
+                                知识库中没有找到相关内容
+                              </Typography.Text>
+                            </div>
+                          ) : (
+                            <div
+                              dangerouslySetInnerHTML={{
+                                __html: reviewAnswer.replace(
+                                  /\[(\d+)\]/g,
+                                  '<span class="text-blue-600 font-medium">[$1]</span>'
+                                ),
+                              }}
+                            />
+                          )}
+                          {reviewing && (
+                            <span className="inline-block w-2 h-4 bg-gray-400 animate-pulse ml-1" />
+                          )}
+                        </div>
+                      </Card>
+
+                      {/* 引用来源 */}
+                      {reviewCitations.length > 0 &&
+                        !isNoAnswerFound(reviewAnswer) && (
+                          <div>
+                            <Typography.Text className="text-sm font-semibold text-gray-700 mb-2 block">
+                              相关来源：
+                            </Typography.Text>
+                            <div className="space-y-3">
+                              {reviewCitations.map((citation) => {
+                                const isMarkdownDoc =
+                                  citation.source.startsWith("markdown_doc:");
+                                const docId = isMarkdownDoc
+                                  ? citation.source.replace("markdown_doc:", "")
+                                  : null;
+
+                                return (
+                                  <Card
+                                    key={citation.index}
+                                    hoverable={!!docId}
+                                    className={`cursor-pointer transition-all ${
+                                      docId
+                                        ? "hover:shadow-md hover:border-blue-400"
+                                        : ""
+                                    }`}
+                                    onClick={() =>
+                                      handleCitationClick(citation)
+                                    }
+                                  >
+                                    <div className="flex flex-col">
+                                      {/* 标题 */}
+                                      {citation.title && (
+                                        <div className="mb-1">
+                                          <Typography.Text
+                                            className={`text-base font-normal leading-snug ${
+                                              docId
+                                                ? "text-blue-600 hover:underline"
+                                                : "text-gray-800"
+                                            }`}
+                                          >
+                                            {citation.title}
+                                          </Typography.Text>
+                                        </div>
+                                      )}
+
+                                      {/* 来源 */}
+                                      <div className="mb-1 flex items-center gap-2 text-xs">
+                                        <span className="text-green-700 font-normal">
+                                          {isMarkdownDoc
+                                            ? citation.title || "知识库文档"
+                                            : citation.source
+                                                .split("/")
+                                                .pop() || citation.source}
+                                        </span>
+                                        {isMarkdownDoc && (
+                                          <>
+                                            <span className="text-gray-400">
+                                              •
+                                            </span>
+                                            <span className="text-gray-500">
+                                              知识库文档
+                                            </span>
+                                          </>
+                                        )}
+                                      </div>
+
+                                      {/* 摘要内容 */}
+                                      <div className="text-sm text-gray-700 leading-relaxed mt-1">
+                                        <span className="line-clamp-3">
+                                          {citation.snippet}
+                                        </span>
+                                        {citation.snippet.length > 150 && (
+                                          <span className="text-gray-500">
+                                            ...
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </Card>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                    </>
+                  )}
+                </div>
+              )}
+
+              {!reviewAnswer && !reviewing && (
+                <div className="text-center text-gray-400 mt-8">
+                  <Typography.Text>
+                    输入问题，在知识库中查找准确的答案
+                  </Typography.Text>
+                </div>
+              )}
+            </div>
+          </div>
         )}
-      </Content>
+      </Layout>
     </Layout>
   );
 };

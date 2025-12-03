@@ -68,6 +68,8 @@ export interface MarkdownDocItem {
   id: string;
   title: string;
   doc_type?: string;
+  summary?: string;
+  tags?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -77,6 +79,8 @@ export interface MarkdownDocDetail {
   title: string;
   content: string;
   doc_type?: string;
+  summary?: string;
+  tags?: string[];
   created_at: string;
   updated_at: string;
 }
@@ -170,14 +174,26 @@ export interface StreamChunk {
 
 export async function queryKnowledgeBaseStream(
   question: string,
-  onChunk: (chunk: StreamChunk) => void
+  onChunk: (chunk: StreamChunk) => void,
+  options?: {
+    doc_type?: string;
+    tags?: string[];
+    start_date?: string;
+    end_date?: string;
+    use_keyword_search?: boolean;
+    k?: number;
+    rerank_k?: number;
+  }
 ): Promise<QueryResponse> {
   const response = await fetch(`${API_BASE_URL}/query`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify({
+      question,
+      ...options,
+    }),
   });
 
   if (!response.ok) {
@@ -237,6 +253,67 @@ export async function queryKnowledgeBaseStream(
     answer: finalAnswer,
     citations: finalCitations,
   };
+}
+
+// ---- 智能功能 API ----
+
+export async function generateDocSummary(
+  docId: string
+): Promise<{ summary: string }> {
+  const resp = await axios.post<{ summary: string }>(
+    `${API_BASE_URL}/docs/${docId}/generate-summary`
+  );
+  return resp.data;
+}
+
+export async function recommendDocTags(
+  docId: string
+): Promise<{ tags: string[] }> {
+  const resp = await axios.post<{ tags: string[] }>(
+    `${API_BASE_URL}/docs/${docId}/recommend-tags`
+  );
+  return resp.data;
+}
+
+export interface RelatedDoc {
+  id: string;
+  title: string;
+  summary?: string;
+}
+
+export async function getRelatedDocs(
+  docId: string,
+  topK: number = 5
+): Promise<{ related_docs: RelatedDoc[] }> {
+  const resp = await axios.get<{ related_docs: RelatedDoc[] }>(
+    `${API_BASE_URL}/docs/${docId}/related`,
+    { params: { top_k: topK } }
+  );
+  return resp.data;
+}
+
+export interface GraphNode {
+  id: string;
+  label: string;
+  type: string;
+  tags: string[];
+}
+
+export interface GraphEdge {
+  source: string;
+  target: string;
+  weight: number;
+  tags: string[];
+}
+
+export interface DocsGraph {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export async function getDocsGraph(): Promise<DocsGraph> {
+  const resp = await axios.get<DocsGraph>(`${API_BASE_URL}/docs/graph`);
+  return resp.data;
 }
 
 // 保留旧接口以兼容，但标记为废弃
