@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import ReactMarkdown from "react-markdown";
 import {
@@ -43,6 +43,11 @@ const HomePage: React.FC = () => {
   const [streamingCitations, setStreamingCitations] = useState<
     QueryResponse["citations"]
   >([]);
+
+  // 流式显示控制
+  const streamBufferRef = useRef<string>("");
+  const streamTimerRef = useRef<number | null>(null);
+  const streamDisplayRef = useRef<string>("");
 
   const loadDocs = async () => {
     setLoading(true);
@@ -121,38 +126,112 @@ const HomePage: React.FC = () => {
     }
   };
 
+  // 匀速显示流式内容
+  const startStreamDisplay = () => {
+    if (streamTimerRef.current) {
+      return; // 已经在运行
+    }
+
+    const displayChunk = () => {
+      if (streamBufferRef.current.length > 0) {
+        // 每次显示 3-5 个字符，根据内容调整
+        const chunkSize = Math.min(
+          Math.max(3, Math.floor(streamBufferRef.current.length / 20)),
+          10
+        );
+        const chunk = streamBufferRef.current.slice(0, chunkSize);
+        streamBufferRef.current = streamBufferRef.current.slice(chunkSize);
+        streamDisplayRef.current += chunk;
+        setStreamingAnswer(streamDisplayRef.current);
+
+        if (streamBufferRef.current.length > 0) {
+          streamTimerRef.current = window.setTimeout(displayChunk, 50); // 每 50ms 显示一次
+        } else {
+          streamTimerRef.current = null;
+        }
+      } else {
+        streamTimerRef.current = null;
+      }
+    };
+
+    displayChunk();
+  };
+
   const handleQuery = async () => {
     if (!query.trim()) {
       Message.warning("请输入问题");
       return;
     }
+
+    // 清理之前的定时器
+    if (streamTimerRef.current) {
+      clearTimeout(streamTimerRef.current);
+      streamTimerRef.current = null;
+    }
+
     setQuerying(true);
     setQueryResult(null);
     setStreamingAnswer("");
     setStreamingCitations([]);
+    streamBufferRef.current = "";
+    streamDisplayRef.current = "";
 
     try {
       await queryKnowledgeBaseStream(query, (chunk) => {
         if (chunk.type === "chunk" && chunk.chunk) {
-          setStreamingAnswer((prev) => prev + chunk.chunk);
+          // 将接收到的 chunk 添加到缓冲区
+          streamBufferRef.current += chunk.chunk;
+          // 如果定时器没有运行，启动显示
+          if (!streamTimerRef.current) {
+            startStreamDisplay();
+          }
         } else if (chunk.type === "citations" && chunk.citations) {
           setStreamingCitations(chunk.citations);
         } else if (chunk.type === "final") {
+          // 确保所有缓冲内容都显示完
+          if (streamBufferRef.current.length > 0) {
+            streamDisplayRef.current += streamBufferRef.current;
+            streamBufferRef.current = "";
+            setStreamingAnswer(streamDisplayRef.current);
+          }
+
+          // 清理定时器
+          if (streamTimerRef.current) {
+            clearTimeout(streamTimerRef.current);
+            streamTimerRef.current = null;
+          }
+
           setQueryResult({
-            answer: chunk.answer || streamingAnswer,
+            answer: chunk.answer || streamDisplayRef.current,
             citations: chunk.citations || streamingCitations,
           });
           setStreamingAnswer("");
           setStreamingCitations([]);
+          streamBufferRef.current = "";
+          streamDisplayRef.current = "";
         }
       });
     } catch (e: any) {
       console.error(e);
       Message.error(e?.message || "搜索失败");
+      // 清理定时器
+      if (streamTimerRef.current) {
+        clearTimeout(streamTimerRef.current);
+        streamTimerRef.current = null;
+      }
     } finally {
       setQuerying(false);
     }
   };
+
+  // 组件卸载时清理定时器
+  useEffect(() => {
+    return () => {
+      if (streamTimerRef.current) {
+        clearTimeout(streamTimerRef.current);
+      }
+    };
+  }, []);
 
   const handleQueryKeyPress = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
