@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import ReactMarkdown from "react-markdown";
+import Vditor from "vditor";
+import "vditor/dist/index.css";
 import {
   Layout,
   Button,
@@ -12,7 +13,6 @@ import {
 import { getDoc, updateDoc, MarkdownDocDetail } from "../api";
 
 const { Sider, Content, Header } = Layout;
-const { TextArea } = Input;
 
 const DocPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -27,6 +27,8 @@ const DocPage: React.FC = () => {
   const [titleDraft, setTitleDraft] = useState("");
   const [topicDraft, setTopicDraft] = useState("general");
   const [contentDraft, setContentDraft] = useState("");
+  const vditorRef = useRef<Vditor | null>(null);
+  const editorContainerRef = useRef<HTMLDivElement>(null);
 
   const loadDoc = async () => {
     if (!docId) return;
@@ -52,17 +54,86 @@ const DocPage: React.FC = () => {
     }
   }, [docId]);
 
+  // 初始化 Vditor - 只在文档加载完成且容器存在时初始化
+  useEffect(() => {
+    if (!editorContainerRef.current || !currentDoc || vditorRef.current) return;
+
+    const initVditor = () => {
+      if (!editorContainerRef.current) return;
+
+      vditorRef.current = new Vditor(editorContainerRef.current, {
+        height: window.innerHeight - 100,
+        mode: "sv",
+        cache: {
+          id: `vditor-${docId}`,
+        },
+        toolbar: [
+          "headings",
+          "bold",
+          "italic",
+          "strike",
+          "line",
+          "quote",
+          "list",
+          "ordered-list",
+          "check",
+          "code",
+          "inline-code",
+          "link",
+          "table",
+          "undo",
+          "redo",
+          "upload",
+          "edit-mode",
+          "both",
+          "preview",
+          "fullscreen",
+          "outline",
+          "devtools",
+        ],
+        value: contentDraft,
+        input: (value: string) => {
+          setContentDraft(value);
+        },
+      });
+    };
+
+    // 延迟初始化确保 DOM 已渲染
+    const timer = setTimeout(initVditor, 100);
+
+    return () => {
+      clearTimeout(timer);
+      if (vditorRef.current) {
+        vditorRef.current.destroy();
+        vditorRef.current = null;
+      }
+    };
+  }, [currentDoc]);
+
+  // 当文档内容变化时，更新编辑器内容
+  useEffect(() => {
+    if (vditorRef.current && currentDoc && contentDraft !== undefined) {
+      const currentValue = vditorRef.current.getValue();
+      if (currentValue !== contentDraft) {
+        vditorRef.current.setValue(contentDraft);
+      }
+    }
+  }, [contentDraft, currentDoc]);
+
   const handleSave = async () => {
     if (!docId) return;
     setSaving(true);
     setError(null);
     try {
+      // 从 Vditor 获取最新内容
+      const currentContent = vditorRef.current?.getValue() || contentDraft;
       const detail = await updateDoc(docId, {
         title: titleDraft,
         topic: topicDraft,
-        content: contentDraft,
+        content: currentContent,
       });
       setCurrentDoc(detail);
+      setContentDraft(currentContent);
       Message.success("保存成功");
     } catch (e: any) {
       console.error(e);
@@ -130,42 +201,21 @@ const DocPage: React.FC = () => {
       )}
 
       <Content className="flex-1 overflow-hidden">
-        <Spin loading={loading} className="w-full h-full">
-          {!currentDoc ? (
-            <div className="h-full flex items-center justify-center">
-              <Empty description="文档不存在" />
-            </div>
-          ) : (
-            <Layout className="h-full">
-              <Sider width="50%" className="border-r">
-                <div className="h-8 px-3 flex items-center text-xs text-gray-500 border-b bg-gray-50">
-                  Markdown 编辑
-                </div>
-                <TextArea
-                  value={contentDraft}
-                  onChange={setContentDraft}
-                  placeholder="在这里输入 Markdown 内容..."
-                  style={{
-                    height: "calc(100% - 32px)",
-                    fontFamily: "monospace",
-                  }}
-                />
-              </Sider>
-              <Content>
-                <div className="h-8 px-3 flex items-center text-xs text-gray-500 border-b bg-gray-50">
-                  预览
-                </div>
-                <div className="overflow-y-auto px-4 py-3 h-full">
-                  <div className="prose prose-sm max-w-none">
-                    <ReactMarkdown>
-                      {contentDraft || "*（暂无内容）*"}
-                    </ReactMarkdown>
-                  </div>
-                </div>
-              </Content>
-            </Layout>
-          )}
-        </Spin>
+        {loading ? (
+          <div className="h-full flex items-center justify-center">
+            <Spin />
+          </div>
+        ) : !currentDoc ? (
+          <div className="h-full flex items-center justify-center">
+            <Empty description="文档不存在" />
+          </div>
+        ) : (
+          <div
+            ref={editorContainerRef}
+            className="w-full"
+            style={{ height: "calc(100vh - 56px)", minHeight: 400 }}
+          />
+        )}
       </Content>
     </Layout>
   );
