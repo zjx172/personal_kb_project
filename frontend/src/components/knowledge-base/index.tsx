@@ -16,7 +16,7 @@ import {
   MarkdownDocDetail,
   MarkdownDocItem,
   listDocs,
-  getDoc
+  getDoc,
 } from "../../api";
 
 const { Sider, Content, Header } = Layout;
@@ -28,9 +28,11 @@ type SelectionInfo = {
 
 const KnowledgeBase: React.FC = () => {
   const [docs, setDocs] = useState<MarkdownDocItem[]>([]);
-  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loadingDocs, setLoadingDocs] = useState(false);
-  const [selectedDoc, setSelectedDoc] = useState<MarkdownDocDetail | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState<MarkdownDocDetail | null>(
+    null
+  );
   const [loadingDocContent, setLoadingDocContent] = useState(false);
 
   const [highlights, setHighlights] = useState<Highlight[]>([]);
@@ -60,14 +62,16 @@ const KnowledgeBase: React.FC = () => {
     load();
   }, []);
 
-  const openDoc = async (id: number) => {
+  const openDoc = async (id: string) => {
+    setSelectedId(id);
     setLoadingDocContent(true);
     try {
       const detail = await getDoc(id);
-      // setSelectedDoc(detail);
-      // setSelection(null);
-      // setHighlightNote("");
-      // await loadHighlightsForDoc(source);
+      setSelectedDoc(detail);
+      setSelection(null);
+      setHighlightNote("");
+      // 使用文档 ID 作为 source 来加载高亮
+      await loadHighlightsForDoc(`markdown_doc:${id}`);
     } catch (e) {
       console.error(e);
     } finally {
@@ -109,15 +113,16 @@ const KnowledgeBase: React.FC = () => {
 
     setSavingHighlight(true);
     try {
+      const source = `markdown_doc:${selectedDoc.id}`;
       await createHighlight({
-        source: selectedDoc.source,
+        source: source,
         topic: selectedDoc.topic,
         selected_text: text,
         note: highlightNote.trim() || undefined,
       });
       setSelection(null);
       setHighlightNote("");
-      await loadHighlightsForDoc(selectedDoc.source);
+      await loadHighlightsForDoc(source);
     } catch (e) {
       console.error(e);
     } finally {
@@ -160,7 +165,10 @@ const KnowledgeBase: React.FC = () => {
     <Layout className="h-full">
       <Sider width={260} className="border-r p-3">
         <div className="mb-2 text-sm font-semibold">知识库文档</div>
-        <div className="overflow-y-auto" style={{ height: "calc(100% - 32px)" }}>
+        <div
+          className="overflow-y-auto"
+          style={{ height: "calc(100% - 32px)" }}
+        >
           <Spin loading={loadingDocs} className="w-full">
             {docs.length === 0 ? (
               <Empty description="暂无文档" className="mt-8" />
@@ -266,7 +274,10 @@ const KnowledgeBase: React.FC = () => {
               )}
             </div>
 
-            <div className="overflow-y-auto" style={{ height: "calc(100% - 120px)" }}>
+            <div
+              className="overflow-y-auto"
+              style={{ height: "calc(100% - 120px)" }}
+            >
               <Spin loading={loadingHighlights}>
                 {highlights.length === 0 ? (
                   <Empty description="暂无高亮" className="mt-8" />

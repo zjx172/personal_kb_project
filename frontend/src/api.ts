@@ -69,7 +69,7 @@ export async function createHighlight(payload: {
 // ---- Online Markdown Docs (飞书风格) ----
 
 export interface MarkdownDocItem {
-  id: number;
+  id: string;
   title: string;
   topic: string;
   created_at: string;
@@ -77,7 +77,7 @@ export interface MarkdownDocItem {
 }
 
 export interface MarkdownDocDetail {
-  id: number;
+  id: string;
   title: string;
   topic: string;
   content: string;
@@ -112,13 +112,13 @@ export async function createDoc(
   return resp.data;
 }
 
-export async function getDoc(id: number): Promise<MarkdownDocDetail> {
+export async function getDoc(id: string): Promise<MarkdownDocDetail> {
   const resp = await axios.get<MarkdownDocDetail>(`${API_BASE_URL}/docs/${id}`);
   return resp.data;
 }
 
 export async function updateDoc(
-  id: number,
+  id: string,
   payload: MarkdownDocUpdate
 ): Promise<MarkdownDocDetail> {
   const resp = await axios.put<MarkdownDocDetail>(
@@ -128,7 +128,7 @@ export async function updateDoc(
   return resp.data;
 }
 
-export async function deleteDoc(id: number): Promise<void> {
+export async function deleteDoc(id: string): Promise<void> {
   await axios.delete(`${API_BASE_URL}/docs/${id}`);
 }
 

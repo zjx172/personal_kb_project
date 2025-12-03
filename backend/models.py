@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, Text, DateTime, String
 from datetime import datetime
+import uuid
 from db import Base
 
 # 
@@ -49,7 +50,7 @@ class MarkdownDoc(Base):
     """在线编辑的 Markdown 文档"""
     __tablename__ = "markdown_docs"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False, default="")
     topic = Column(String, nullable=False, default="general")

@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import Optional, List
 from pathlib import Path
 from datetime import datetime
+import uuid
 
 from sqlalchemy.orm import Session
 
@@ -83,7 +84,9 @@ class QueryResponse(BaseModel):
 
 @app.post("/query", response_model=QueryResponse)
 def query_kb(req: QueryRequest):
+    # 使用向量库检索相关文档
     retriever = vectordb.as_retriever(search_kwargs={"k": 5})
+    # 检索相关文档
     docs = retriever.get_relevant_documents(req.question)
 
     if not docs:
@@ -291,7 +294,7 @@ class MarkdownDocUpdate(BaseModel):
 
 
 class MarkdownDocItem(BaseModel):
-    id: int
+    id: str
     title: str
     topic: str
     created_at: datetime
@@ -302,7 +305,7 @@ class MarkdownDocItem(BaseModel):
 
 
 class MarkdownDocDetail(BaseModel):
-    id: int
+    id: str
     title: str
     topic: str
     content: str
@@ -350,7 +353,9 @@ def list_markdown_docs(db: Session = Depends(get_db)):
 @app.post("/docs", response_model=MarkdownDocDetail)
 def create_markdown_doc(req: MarkdownDocCreate, db: Session = Depends(get_db)):
     now = datetime.utcnow()
+    doc_id = str(uuid.uuid4())
     doc = MarkdownDoc(
+        id=doc_id,
         title=req.title or "未命名文档",
         topic=(req.topic or "general"),
         content=req.content or "",
@@ -371,7 +376,7 @@ def create_markdown_doc(req: MarkdownDocCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/docs/{doc_id}", response_model=MarkdownDocDetail)
-def get_markdown_doc(doc_id: int, db: Session = Depends(get_db)):
+def get_markdown_doc(doc_id: str, db: Session = Depends(get_db)):
     doc = db.query(MarkdownDoc).get(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")
@@ -380,7 +385,7 @@ def get_markdown_doc(doc_id: int, db: Session = Depends(get_db)):
 
 @app.put("/docs/{doc_id}", response_model=MarkdownDocDetail)
 def update_markdown_doc(
-    doc_id: int,
+    doc_id: str,
     req: MarkdownDocUpdate,
     db: Session = Depends(get_db),
 ):
@@ -409,7 +414,7 @@ def update_markdown_doc(
 
 
 @app.delete("/docs/{doc_id}")
-def delete_markdown_doc(doc_id: int, db: Session = Depends(get_db)):
+def delete_markdown_doc(doc_id: str, db: Session = Depends(get_db)):
     doc = db.query(MarkdownDoc).get(doc_id)
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")

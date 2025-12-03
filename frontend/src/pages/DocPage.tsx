@@ -18,7 +18,7 @@ const { Sider, Content, Header } = Layout;
 const DocPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const docId = id ? parseInt(id, 10) : null;
+  const docId = id || null;
 
   const [currentDoc, setCurrentDoc] = useState<MarkdownDocDetail | null>(null);
   const [loading, setLoading] = useState(false);

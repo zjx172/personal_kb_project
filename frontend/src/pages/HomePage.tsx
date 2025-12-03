@@ -63,11 +63,11 @@ const HomePage: React.FC = () => {
     }
   };
 
-  const handleDocClick = (id: number) => {
+  const handleDocClick = (id: string) => {
     navigate(`/doc/${id}`);
   };
 
-  const handleDelete = async (id: number, e: React.MouseEvent) => {
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation(); // 阻止事件冒泡，避免触发文档点击
     try {
       await deleteDoc(id);
