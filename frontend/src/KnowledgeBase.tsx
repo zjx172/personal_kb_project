@@ -1,6 +1,14 @@
 import React, { useEffect, useState, useRef } from "react";
 import ReactMarkdown from "react-markdown";
-import { listKbDocs, getKbDoc, listHighlights, createHighlight, KbDocItem, KbDocDetail, Highlight } from "./api";
+import {
+  listKbDocs,
+  getKbDoc,
+  listHighlights,
+  createHighlight,
+  KbDocItem,
+  KbDocDetail,
+  Highlight,
+} from "./api";
 
 type SelectionInfo = {
   text: string;
@@ -122,7 +130,7 @@ const KnowledgeBase: React.FC = () => {
 
     let html = content;
     uniqTexts.forEach((t, idx) => {
-      const safe = t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const safe = t.replace(/[.*+?^${}()|[\]\\]/g, "\$&");
       const reg = new RegExp(safe, "g");
       const colors = ["#fef08a", "#bfdbfe", "#bbf7d0"];
       const color = colors[idx % colors.length];
@@ -135,12 +143,11 @@ const KnowledgeBase: React.FC = () => {
     return <ReactMarkdown>{html}</ReactMarkdown>;
   };
 
-
   return (
-    <div className="h-screen flex">
+    <div className="h-full flex">
       <aside className="w-64 border-r bg-white p-3 flex flex-col">
         <div className="mb-2 text-xs font-semibold text-gray-700">
-          知识库文档（Markdown）
+          知识库文档（docs/ 目录）
         </div>
         {loadingDocs ? (
           <div className="flex-1 flex items-center justify-center text-xs text-gray-400">
@@ -148,12 +155,13 @@ const KnowledgeBase: React.FC = () => {
           </div>
         ) : docs.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-xs text-gray-400">
-            请先在 backend/docs/ 放一些 .md 文件
+            backend/docs/ 下暂时没有 .md 文件
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto space-y-1">
             {docs.map((d) => {
-              const active = selectedDoc && selectedDoc.source === d.source;
+              const active =
+                selectedDoc && selectedDoc.source === d.source;
               return (
                 <button
                   key={d.source}

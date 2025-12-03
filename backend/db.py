@@ -4,15 +4,19 @@ from config import DB_PATH
 
 SQLALCHEMY_DATABASE_URL = f"sqlite:///{DB_PATH}"
 
+# 创建数据库引擎
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
 )
 
+# 创建会话
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+# 创建基类
 Base = declarative_base()
 
 
+# 创建数据库会话
 def get_db():
     db = SessionLocal()
     try:
