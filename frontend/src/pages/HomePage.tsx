@@ -168,10 +168,20 @@ const HomePage: React.FC = () => {
     }
   }, [currentConversationId, loadConversationMessages, resetQueryState]);
 
-  // 当知识库变化时，加载该知识库下的对话
+  // 当知识库变化时，加载该知识库下的对话，并重置当前对话和消息
   useEffect(() => {
     if (currentKnowledgeBaseId) {
+      // 重置当前对话和消息
+      setCurrentConversationId(null);
+      setMessages([]);
+      // 加载新知识库下的对话列表
       loadConversations(currentKnowledgeBaseId);
+    } else {
+      // 如果没有知识库，清空对话和消息
+      setCurrentConversationId(null);
+      setMessages([]);
+      // 加载空对话列表（不传 knowledgeBaseId）
+      loadConversations();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentKnowledgeBaseId]);
@@ -183,7 +193,7 @@ const HomePage: React.FC = () => {
       return;
     }
     if (user) {
-      loadDocs();
+      // loadDocs 现在由 useDocs 的 useEffect 自动处理，不需要手动调用
       loadKnowledgeBases();
     }
   }, [user, authLoading, navigate, loadKnowledgeBases]);
@@ -348,8 +358,7 @@ const HomePage: React.FC = () => {
             currentKnowledgeBaseId={currentKnowledgeBaseId}
             onSelect={(id) => {
               navigate(`/kb/${id}`);
-              setCurrentConversationId(null);
-              setMessages([]);
+              // 对话和消息的重置由 useEffect 自动处理
             }}
             onCreate={async (name) => {
               try {

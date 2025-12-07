@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { listDocs, createDoc, deleteDoc, MarkdownDocItem } from "../api";
 
@@ -6,7 +6,29 @@ export function useDocs(knowledgeBaseId?: string | null) {
   const [docs, setDocs] = useState<MarkdownDocItem[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const loadDocs = async () => {
+  // 当知识库 ID 变化时，自动重新加载文档
+  useEffect(() => {
+    if (knowledgeBaseId) {
+      const loadDocs = async () => {
+        setLoading(true);
+        try {
+          const data = await listDocs(knowledgeBaseId || undefined);
+          setDocs(data);
+        } catch (e) {
+          console.error(e);
+        } finally {
+          setLoading(false);
+        }
+      };
+      loadDocs();
+    } else {
+      // 如果没有知识库 ID，清空文档列表
+      setDocs([]);
+      setLoading(false);
+    }
+  }, [knowledgeBaseId]);
+
+  const loadDocs = useCallback(async () => {
     setLoading(true);
     try {
       const data = await listDocs(knowledgeBaseId || undefined);
@@ -16,7 +38,7 @@ export function useDocs(knowledgeBaseId?: string | null) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [knowledgeBaseId]);
 
   const handleCreate = async () => {
     try {
