@@ -30,25 +30,14 @@ def create_knowledge_base(
     if req.type not in ["document", "table"]:
         raise HTTPException(status_code=400, detail="知识库类型必须是 document 或 table")
     
-    # 如果是表格型知识库，必须提供数据源
-    if req.type == "table":
-        if not req.data_source:
-            raise HTTPException(status_code=400, detail="表格型知识库必须指定数据源类型")
-        if req.data_source not in ["database", "excel"]:
-            raise HTTPException(status_code=400, detail="数据源类型必须是 database 或 excel")
-    
-    # 序列化数据源配置
-    data_source_config_json = None
-    if req.data_source_config:
-        data_source_config_json = json.dumps(req.data_source_config, ensure_ascii=False)
-    
+    # 创建知识库（不要求立即配置数据源）
     knowledge_base = KnowledgeBase(
         user_id=current_user.id,
         name=req.name,
         description=req.description,
         type=req.type,
-        data_source=req.data_source,
-        data_source_config=data_source_config_json,
+        data_source=None,  # 数据源在创建后单独配置
+        data_source_config=None,
     )
     db.add(knowledge_base)
     db.commit()

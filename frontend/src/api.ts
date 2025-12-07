@@ -843,3 +843,61 @@ export async function updateKnowledgeBase(
 export async function deleteKnowledgeBase(id: string): Promise<void> {
   await axios.delete(`${API_BASE_URL}/knowledge-bases/${id}`);
 }
+
+// ---- Data Sources ----
+
+export interface DataSource {
+  id: string;
+  knowledge_base_id: string;
+  type: string; // "database" | "excel"
+  name: string;
+  config: Record<string, any>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DataSourceCreate {
+  knowledge_base_id: string;
+  type: string; // "database" | "excel"
+  name: string;
+  config: Record<string, any>;
+}
+
+export interface DataSourceUpdate {
+  name?: string;
+  config?: Record<string, any>;
+}
+
+export async function listDataSources(
+  knowledgeBaseId: string
+): Promise<DataSource[]> {
+  const resp = await axios.get<DataSource[]>(
+    `${API_BASE_URL}/data-sources?knowledge_base_id=${knowledgeBaseId}`
+  );
+  return resp.data;
+}
+
+export async function createDataSource(
+  payload: DataSourceCreate
+): Promise<DataSource> {
+  const resp = await axios.post<DataSource>(
+    `${API_BASE_URL}/data-sources`,
+    payload
+  );
+  return resp.data;
+}
+
+export async function updateDataSource(
+  id: string,
+  payload: DataSourceUpdate
+): Promise<DataSource> {
+  const resp = await axios.put<DataSource>(
+    `${API_BASE_URL}/data-sources/${id}`,
+    payload
+  );
+  return resp.data;
+}
+
+export async function deleteDataSource(id: string): Promise<void> {
+  await axios.delete(`${API_BASE_URL}/data-sources/${id}`);
+}

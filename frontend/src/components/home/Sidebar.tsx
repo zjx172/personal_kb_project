@@ -1,11 +1,21 @@
 import React, { useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Globe, FileText, Loader2 } from "lucide-react";
+import {
+  Plus,
+  Globe,
+  FileText,
+  Loader2,
+  FileSpreadsheet,
+  Database,
+} from "lucide-react";
 import { DocList } from "./DocList";
 import { ConversationList } from "./ConversationList";
-import { MarkdownDocItem, Conversation } from "../../api";
+import { MarkdownDocItem, Conversation, DataSource } from "../../api";
+import { DataSourceList } from "./DataSourceList";
+import { DataSourceDialog } from "./DataSourceDialog";
 import { FileUploadDialog } from "./FileUploadDialog";
+import { TableDataDialog } from "./TableDataDialog";
 
 interface SidebarProps {
   open: boolean;
@@ -13,25 +23,28 @@ interface SidebarProps {
   docs: MarkdownDocItem[];
   loadingDocs: boolean;
   currentKnowledgeBaseId: string | null;
+  currentKnowledgeBaseType?: string | null;
   conversations: Conversation[];
   loadingConversations: boolean;
   currentConversationId: string | null;
   editingConversationId: string | null;
   editingTitle: string;
   savingTitle: boolean;
-  webUrl: string;
-  extracting: boolean;
-  uploadingFile: boolean;
+  // 文档型知识库的操作
+  webUrl?: string;
+  extracting?: boolean;
+  uploadingFile?: boolean;
   uploadProgress?: { progress: number; message: string; status: string } | null;
-  showUploadDialog: boolean;
+  showUploadDialog?: boolean;
+  onCreateDoc?: () => void;
+  onWebUrlChange?: (value: string) => void;
+  onExtractWeb?: () => void;
+  onUploadFile?: (file: File) => Promise<void>;
+  onShowUploadDialog?: (show: boolean) => void;
+  // 通用操作
   onToggle: () => void;
   onResize: (width: number) => void;
-  onCreateDoc: () => void;
   onDeleteDoc: (id: string) => void;
-  onWebUrlChange: (value: string) => void;
-  onExtractWeb: () => void;
-  onUploadFile: (file: File) => Promise<void>;
-  onShowUploadDialog: (show: boolean) => void;
   onSelectConversation: (id: string) => void;
   onCreateConversation: () => void;
   onDeleteConversation: (id: string) => void;
@@ -48,24 +61,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
   docs,
   loadingDocs,
   currentKnowledgeBaseId,
+  currentKnowledgeBaseType,
   conversations,
   loadingConversations,
   currentConversationId,
   editingConversationId,
   editingTitle,
   savingTitle,
-  webUrl,
-  extracting,
-  uploadingFile,
+  webUrl = "",
+  extracting = false,
+  uploadingFile = false,
   uploadProgress,
-  showUploadDialog,
-  onResize,
+  showUploadDialog = false,
   onCreateDoc,
-  onDeleteDoc,
   onWebUrlChange,
   onExtractWeb,
   onUploadFile,
   onShowUploadDialog,
+  onResize,
+  onDeleteDoc,
   onSelectConversation,
   onCreateConversation,
   onDeleteConversation,
@@ -75,6 +89,31 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onTitleChange,
   titleInputRef,
 }) => {
+  const [dataSources, setDataSources] = React.useState<DataSource[]>([]);
+  const [loadingDataSources, setLoadingDataSources] = React.useState(false);
+  const [showDataSourceDialog, setShowDataSourceDialog] = React.useState(false);
+  const [showTableDataDialog, setShowTableDataDialog] = React.useState(false);
+
+  // 加载数据源列表
+  React.useEffect(() => {
+    const loadDataSources = async () => {
+      if (currentKnowledgeBaseId && currentKnowledgeBaseType === "table") {
+        setLoadingDataSources(true);
+        try {
+          const { listDataSources } = await import("../../api");
+          const data = await listDataSources(currentKnowledgeBaseId);
+          setDataSources(data);
+        } catch (error) {
+          console.error("加载数据源失败:", error);
+        } finally {
+          setLoadingDataSources(false);
+        }
+      } else {
+        setDataSources([]);
+      }
+    };
+    loadDataSources();
+  }, [currentKnowledgeBaseId, currentKnowledgeBaseType]);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const resizeHandleRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
@@ -126,68 +165,116 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className={`${open ? "p-4" : "p-0"} space-y-4`}>
           {open && (
             <>
-              <Button onClick={onCreateDoc} className="w-full" size="sm">
-                <Plus className="mr-2 h-4 w-4" />
-                新建文档
-              </Button>
+              {/* 文档型知识库的操作 */}
+              {currentKnowledgeBaseType !== "table" &&
+                currentKnowledgeBaseId && (
+                  <>
+                    <Button onClick={onCreateDoc} className="w-full" size="sm">
+                      <Plus className="mr-2 h-4 w-4" />
+                      新建文档
+                    </Button>
 
-              <div className="space-y-2">
-                <Input
-                  placeholder="输入网页 URL..."
-                  value={webUrl}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    onWebUrlChange(e.target.value)
-                  }
-                  onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                    if (e.key === "Enter") {
-                      onExtractWeb();
-                    }
-                  }}
-                  className="h-9"
-                />
-                <Button
-                  variant="outline"
-                  onClick={onExtractWeb}
-                  disabled={extracting}
-                  className="w-full"
-                  size="sm"
-                >
-                  {extracting ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <Globe className="mr-2 h-4 w-4" />
-                  )}
-                  提取网页
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => onShowUploadDialog(true)}
-                  disabled={uploadingFile}
-                  className="w-full"
-                  size="sm"
-                >
-                  {uploadingFile ? (
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  ) : (
-                    <FileText className="mr-2 h-4 w-4" />
-                  )}
-                  上传文件
-                </Button>
-                {uploadProgress && (
-                  <div className="mt-2 space-y-1">
-                    <div className="flex items-center justify-between text-xs text-muted-foreground">
-                      <span>{uploadProgress.message}</span>
-                      <span>{uploadProgress.progress}%</span>
-                    </div>
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-                      <div
-                        className="h-full bg-primary transition-all duration-300"
-                        style={{ width: `${uploadProgress.progress}%` }}
+                    <div className="space-y-2">
+                      <Input
+                        placeholder="输入网页 URL..."
+                        value={webUrl}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                          onWebUrlChange?.(e.target.value)
+                        }
+                        onKeyPress={(
+                          e: React.KeyboardEvent<HTMLInputElement>
+                        ) => {
+                          if (e.key === "Enter") {
+                            onExtractWeb?.();
+                          }
+                        }}
+                        className="h-9"
                       />
+                      <Button
+                        variant="outline"
+                        onClick={onExtractWeb}
+                        disabled={extracting}
+                        className="w-full"
+                        size="sm"
+                      >
+                        {extracting ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <Globe className="mr-2 h-4 w-4" />
+                        )}
+                        提取网页
+                      </Button>
+                      <Button
+                        variant="outline"
+                        onClick={() => onShowUploadDialog?.(true)}
+                        disabled={uploadingFile}
+                        className="w-full"
+                        size="sm"
+                      >
+                        {uploadingFile ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <FileText className="mr-2 h-4 w-4" />
+                        )}
+                        上传文件
+                      </Button>
+                      {uploadProgress && (
+                        <div className="mt-2 space-y-1">
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{uploadProgress.message}</span>
+                            <span>{uploadProgress.progress}%</span>
+                          </div>
+                          <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                            <div
+                              className="h-full bg-primary transition-all duration-300"
+                              style={{ width: `${uploadProgress.progress}%` }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  </div>
+                  </>
                 )}
-              </div>
+
+              {/* 表格型知识库的操作 */}
+              {currentKnowledgeBaseType === "table" &&
+                currentKnowledgeBaseId && (
+                  <>
+                    <Button
+                      onClick={() => setShowTableDataDialog(true)}
+                      className="w-full"
+                      size="sm"
+                      variant="outline"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      新建数据
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        // 打开 Excel 导入对话框
+                        const input = document.createElement("input");
+                        input.type = "file";
+                        input.accept = ".xlsx,.xls";
+                        input.onchange = async (e) => {
+                          const file = (e.target as HTMLInputElement)
+                            .files?.[0];
+                          if (file) {
+                            // 导入 Excel 作为数据源
+                            setShowDataSourceDialog(true);
+                            // TODO: 解析 Excel 并展示
+                          }
+                        };
+                        input.click();
+                      }}
+                      className="w-full"
+                      size="sm"
+                      variant="outline"
+                    >
+                      <FileSpreadsheet className="mr-2 h-4 w-4" />
+                      导入 Excel
+                    </Button>
+                  </>
+                )}
             </>
           )}
         </div>
@@ -197,16 +284,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
         >
           {open && (
             <>
-              <DocList
-                docs={docs}
-                loading={loadingDocs}
-                currentKnowledgeBaseId={currentKnowledgeBaseId}
-                onDelete={onDeleteDoc}
-              />
+              {/* 文档列表（仅文档型知识库显示） */}
+              {currentKnowledgeBaseType !== "table" && (
+                <DocList
+                  docs={docs}
+                  loading={loadingDocs}
+                  currentKnowledgeBaseId={currentKnowledgeBaseId}
+                  onDelete={onDeleteDoc}
+                />
+              )}
+
+              {/* 数据源列表（仅表格型知识库显示） */}
+              {currentKnowledgeBaseType === "table" &&
+                currentKnowledgeBaseId && (
+                  <>
+                    <DataSourceList
+                      dataSources={dataSources}
+                      loading={loadingDataSources}
+                      knowledgeBaseId={currentKnowledgeBaseId}
+                      onAdd={() => setShowDataSourceDialog(true)}
+                      onDelete={async (id) => {
+                        try {
+                          const { deleteDataSource } =
+                            await import("../../api");
+                          await deleteDataSource(id);
+                          setDataSources((prev) =>
+                            prev.filter((ds) => ds.id !== id)
+                          );
+                        } catch (error) {
+                          console.error("删除数据源失败:", error);
+                        }
+                      }}
+                    />
+                    <div className="border-t my-4" />
+                  </>
+                )}
 
               {currentKnowledgeBaseId && (
                 <>
-                  <div className="border-t my-4" />
+                  {currentKnowledgeBaseType !== "table" && (
+                    <div className="border-t my-4" />
+                  )}
                   <ConversationList
                     conversations={conversations}
                     loading={loadingConversations}
@@ -230,13 +348,53 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
       </aside>
-      <FileUploadDialog
-        open={showUploadDialog}
-        onOpenChange={onShowUploadDialog}
-        onUpload={onUploadFile}
-        uploading={uploadingFile}
-        uploadProgress={uploadProgress}
-      />
+      {/* 数据源对话框 */}
+      {currentKnowledgeBaseId && currentKnowledgeBaseType === "table" && (
+        <>
+          <DataSourceDialog
+            open={showDataSourceDialog}
+            onOpenChange={setShowDataSourceDialog}
+            knowledgeBaseId={currentKnowledgeBaseId}
+            onCreate={async (payload) => {
+              try {
+                const { createDataSource, listDataSources } =
+                  await import("../../api");
+                await createDataSource(payload);
+                // 重新加载数据源列表
+                const updated = await listDataSources(currentKnowledgeBaseId);
+                setDataSources(updated);
+              } catch (error) {
+                console.error("创建数据源失败:", error);
+                throw error;
+              }
+            }}
+          />
+          <TableDataDialog
+            open={showTableDataDialog}
+            onOpenChange={setShowTableDataDialog}
+            knowledgeBaseId={currentKnowledgeBaseId}
+            onSave={async (data) => {
+              // TODO: 保存表格数据到后端
+              console.log("保存表格数据:", data);
+              // 这里可以调用 API 保存数据
+            }}
+          />
+        </>
+      )}
+
+      {/* 文件上传对话框（文档型知识库） */}
+      {currentKnowledgeBaseId &&
+        currentKnowledgeBaseType !== "table" &&
+        onShowUploadDialog &&
+        onUploadFile && (
+          <FileUploadDialog
+            open={showUploadDialog}
+            onOpenChange={onShowUploadDialog}
+            onUpload={onUploadFile}
+            uploading={uploadingFile}
+            uploadProgress={uploadProgress}
+          />
+        )}
       {open && (
         <div
           ref={resizeHandleRef}

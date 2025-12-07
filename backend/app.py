@@ -82,6 +82,7 @@ from routers import (
     evaluation,
     chunk_upload,
     file_upload,
+    data_sources,
 )
 
 app.include_router(auth.router)
@@ -97,4 +98,5 @@ app.include_router(knowledge_bases.router)
 app.include_router(evaluation.router)
 app.include_router(chunk_upload.router)
 app.include_router(file_upload.router)
+app.include_router(data_sources.router)
 

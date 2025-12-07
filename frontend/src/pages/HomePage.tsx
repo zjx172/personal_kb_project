@@ -141,6 +141,13 @@ const HomePage: React.FC = () => {
     searchFilters
   );
 
+  // 获取当前知识库的类型
+  const currentKnowledgeBase = knowledgeBases.find(
+    (kb) => kb.id === currentKnowledgeBaseId
+  );
+  const currentKnowledgeBaseType = currentKnowledgeBase?.type || null;
+
+  // 文档型知识库的文件操作
   const { webUrl, setWebUrl, extracting, handleExtractWeb } = useWebExtract(
     loadDocs,
     currentKnowledgeBaseId
@@ -288,6 +295,7 @@ const HomePage: React.FC = () => {
           docs={docs}
           loadingDocs={loadingDocs}
           currentKnowledgeBaseId={currentKnowledgeBaseId}
+          currentKnowledgeBaseType={currentKnowledgeBaseType}
           conversations={conversations}
           loadingConversations={loadingConversations}
           currentConversationId={currentConversationId}
@@ -299,14 +307,14 @@ const HomePage: React.FC = () => {
           uploadingFile={uploading}
           uploadProgress={uploadProgress}
           showUploadDialog={showUploadDialog}
-          onToggle={() => setSidebarOpen(!sidebarOpen)}
-          onResize={setSidebarWidth}
           onCreateDoc={handleCreateDoc}
-          onDeleteDoc={handleDeleteDoc}
           onWebUrlChange={setWebUrl}
           onExtractWeb={handleExtractWeb}
           onUploadFile={handleUploadFile}
           onShowUploadDialog={setShowUploadDialog}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+          onResize={setSidebarWidth}
+          onDeleteDoc={handleDeleteDoc}
           onSelectConversation={async (id) => {
             console.log("选择对话，ID:", id);
             setCurrentConversationId(id);

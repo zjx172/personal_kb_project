@@ -227,3 +227,23 @@ class EvaluationResult(Base):
     context = Column(Text, nullable=True)  # 检索到的上下文，JSON 格式
     metrics = Column(Text, nullable=True)  # 评估指标，JSON 格式
     created_at = Column(DateTime, default=datetime.utcnow)
+
+# 数据源
+# DataSource: 数据源，用于表格型知识库
+# id: 数据源 ID
+# knowledge_base_id: 所属知识库 ID
+# type: 数据源类型（database/excel）
+# name: 数据源名称
+# config: 数据源配置（JSON 格式）
+# created_at: 创建时间
+# updated_at: 更新时间
+class DataSource(Base):
+    __tablename__ = "data_sources"
+
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    knowledge_base_id = Column(String, nullable=False, index=True)
+    type = Column(String, nullable=False)  # database 或 excel
+    name = Column(String, nullable=False)  # 数据源名称
+    config = Column(Text, nullable=False)  # 数据源配置，JSON 格式
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

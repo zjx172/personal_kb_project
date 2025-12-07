@@ -230,6 +230,32 @@ class KnowledgeBaseOut(BaseModel):
         from_attributes = True
 
 
+# ---- 数据源相关 ----
+class DataSourceCreate(BaseModel):
+    knowledge_base_id: str
+    type: str  # database 或 excel
+    name: str  # 数据源名称
+    config: dict  # 数据源配置
+
+
+class DataSourceUpdate(BaseModel):
+    name: Optional[str] = None
+    config: Optional[dict] = None
+
+
+class DataSourceOut(BaseModel):
+    id: str
+    knowledge_base_id: str
+    type: str
+    name: str
+    config: dict
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ---- 对话相关 ----
 class ConversationCreate(BaseModel):
     knowledge_base_id: str
