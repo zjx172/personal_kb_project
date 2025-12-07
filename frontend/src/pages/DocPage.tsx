@@ -1101,6 +1101,7 @@ const DocPage: React.FC = () => {
                     <PdfViewer
                       url={getPdfUrl(currentDoc.id)}
                       title={currentDoc.title || "PDF文档"}
+                      docId={currentDoc.id}
                     />
                   </div>
                 ) : (
