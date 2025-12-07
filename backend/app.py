@@ -40,26 +40,35 @@ app.add_middleware(
 
 # ---- LangChain / Vector Store ----
 
+# 初始化 OpenAI Embeddings
+# Embeddings用于将文本转换为向量
 embeddings = OpenAIEmbeddings(
     api_key=OPENAI_API_KEY,
     base_url=OPENAI_BASE_URL,
     model="text-embedding-3-large",
 )
 
+# 初始化向量库
+# Chroma向量库是用于存储和检索向量的数据库
 vectordb = Chroma(
     collection_name=COLLECTION_NAME,
     embedding_function=embeddings,
     persist_directory=VECTOR_STORE_DIR,
 )
 
+# 初始化 LLM
 llm = ChatOpenAI(
     api_key=OPENAI_API_KEY,
     base_url=OPENAI_BASE_URL,
-    model="gpt-4.1-mini",
+    model="gpt-4o-mini",
     temperature=0.2,
 )
 
 # 初始化检索服务和 RAG pipeline
+# 检索服务是用于检索向量库中的文档
+# VectorRetrievalService是用于检索向量库中的文档的类
+# enable_rerank=True 启用 rerank
+# rerank是用于重排序的模型
 retrieval_service = VectorRetrievalService(
     vectordb=vectordb,
     llm=llm,
@@ -85,14 +94,23 @@ class QueryRequest(BaseModel):
     k: int = 10  # 初始检索数量
     rerank_k: int = 5  # rerank 后保留数量
 
-
 class Citation(BaseModel):
+    # 引用标号
     index: int
+    # 引用来源
     source: str
+    # 引用标题
     title: Optional[str] = None
+    # 引用片段
     snippet: str
+    # 引用文档 ID
     doc_id: Optional[str] = None  # Markdown 文档 ID
-    page: Optional[int] = None  # 页码
+    # 引用页码
+    page: Optional[int] = None  
+    # 文档片段索引
+    chunk_index: Optional[int] = None  
+    # 文档片段位置描述
+    chunk_position: Optional[str] = None  
 
 
 class QueryResponse(BaseModel):
@@ -124,12 +142,20 @@ def query_kb(req: QueryRequest, db: Session = Depends(get_db)):
                 context_parts = []
                 
                 for result in search_results:
+                    chunk_index = result.get("chunk_index")
+                    chunk_position = None
+                    if chunk_index is not None:
+                        chunk_position = f"第 {chunk_index + 1} 段"
+                    
                     citations.append({
                         "index": result["index"],
                         "source": result["source"],
                         "title": result.get("title", ""),
                         "snippet": result.get("content", "")[:200] + "..." if len(result.get("content", "")) > 200 else result.get("content", ""),
                         "doc_id": result.get("doc_id"),
+                        "page": result.get("page"),
+                        "chunk_index": chunk_index,
+                        "chunk_position": chunk_position,
                     })
                     content_preview = result.get("content", "")[:500]
                     context_parts.append(f"[{result['index']}] {content_preview}")
@@ -169,6 +195,7 @@ def query_kb(req: QueryRequest, db: Session = Depends(get_db)):
                 messages = prompt.format_messages(question=req.question, context=context)
                 answer_chunks = []
                 for chunk in llm.stream(messages):
+                    # hasattr(chunk, "content") 判断 chunk 是否包含 content 属性
                     if hasattr(chunk, "content") and chunk.content:
                         content = chunk.content
                         answer_chunks.append(content)
@@ -406,6 +433,15 @@ class MarkdownDocItem(BaseModel):
         from_attributes = True
 
 
+# 在线 Markdown 文档详情
+# MarkdownDocDetail: 在线 Markdown 文档详情
+# id: 文档 ID
+# title: 文档标题
+# content: 文档内容
+# doc_type: 文档类型
+# summary: 文档摘要
+# tags: 文档标签
+# created_at: 创建时间
 class MarkdownDocDetail(BaseModel):
     id: str
     title: str
@@ -415,14 +451,19 @@ class MarkdownDocDetail(BaseModel):
     tags: Optional[List[str]] = None
     created_at: datetime
     updated_at: datetime
-
+    
+    # 允许 Pydantic 模型从对象属性（如 SQLAlchemy ORM 对象）创建实例，
+    # 简化了数据库对象到 API 响应模型的转换。
     class Config:
         from_attributes = True
 
 
+# 将单个在线 Markdown 文档同步到向量库
+# doc: 在线 Markdown 文档
 def upsert_markdown_doc_to_vectorstore(doc: MarkdownDoc):
     """将单个在线 Markdown 文档同步到向量库。"""
     try:
+        # 删除文档对应的向量
         vectordb.delete(where={"doc_id": str(doc.id)})
     except Exception:
         # 某些版本不支持 where 删除，可以忽略
@@ -430,6 +471,10 @@ def upsert_markdown_doc_to_vectorstore(doc: MarkdownDoc):
 
     # 将文档切分为 chunks
     from langchain.text_splitter import RecursiveCharacterTextSplitter
+    # 创建文本分割器
+    # chunk_size: 每个 chunk 的大小
+    # chunk_overlap: 每个 chunk 的 overlap 大小
+    # separators: 分割符
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=800,
         chunk_overlap=100,
@@ -437,7 +482,9 @@ def upsert_markdown_doc_to_vectorstore(doc: MarkdownDoc):
     )
     
     # 创建临时文档用于切分
+    # LCDocument是LangChain的文档类
     temp_doc = LCDocument(page_content=doc.content)
+    # 切分文档
     chunks = splitter.split_documents([temp_doc])
     
     # 为每个 chunk 添加元数据
@@ -506,8 +553,13 @@ def create_markdown_doc(req: MarkdownDocCreate, db: Session = Depends(get_db)):
         content=content,
         doc_type=req.doc_type,
         summary=summary,
+        # 将 tags 转换为 JSON 字符串
+        # ensure_ascii=False 确保中文不转义
+        # 如果 tags 为 None，则不转换
         tags=json.dumps(tags, ensure_ascii=False) if tags else None,
+        # 创建时间
         created_at=now,
+        # 更新时间
         updated_at=now,
     )
     # 添加文档到数据库
@@ -520,20 +572,25 @@ def create_markdown_doc(req: MarkdownDocCreate, db: Session = Depends(get_db)):
     # 将文档同步到向量库
     upsert_markdown_doc_to_vectorstore(doc)
 
-    # 转换 tags 为列表格式返回
+
     result = MarkdownDocDetail(
         id=doc.id,
         title=doc.title,
         content=doc.content,
         doc_type=doc.doc_type,
         summary=doc.summary,
+        # 转换 tags 为列表格式返回
         tags=json.loads(doc.tags) if doc.tags else None,
         created_at=doc.created_at,
         updated_at=doc.updated_at,
     )
     return result
 
-
+# 获取在线 Markdown 文档
+# doc_id: 文档 ID
+# db: 数据库会话
+# response_model: 响应模型
+# MarkdownDocDetail: 在线 Markdown 文档详情
 @app.get("/docs/{doc_id}", response_model=MarkdownDocDetail)
 def get_markdown_doc(doc_id: str, db: Session = Depends(get_db)):
     doc = db.query(MarkdownDoc).get(doc_id)
@@ -554,6 +611,12 @@ def get_markdown_doc(doc_id: str, db: Session = Depends(get_db)):
     return result
 
 
+# 更新在线 Markdown 文档
+# doc_id: 文档 ID
+# req: 更新请求
+# db: 数据库会话
+# response_model: 响应模型
+# MarkdownDocDetail: 在线 Markdown 文档详情
 @app.put("/docs/{doc_id}", response_model=MarkdownDocDetail)
 def update_markdown_doc(
     doc_id: str,
@@ -575,6 +638,7 @@ def update_markdown_doc(
         doc.doc_type = req.doc_type
         changed = True
 
+    # 如果内容或类型改变，需要重新同步到向量库
     if changed:
         doc.updated_at = datetime.utcnow()
         db.commit()
@@ -694,11 +758,6 @@ def extract_web_content(req: WebExtractRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail=f"无法获取网页内容: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"提取网页内容失败: {str(e)}")
-
-
-@app.get("/health")
-def health():
-    return {"status": "ok"}
 
 
 # ---- 智能功能 API ----

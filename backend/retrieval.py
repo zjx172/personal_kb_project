@@ -127,6 +127,7 @@ class VectorRetrievalService:
         results = []
         for i, doc in enumerate(docs, start=1):
             metadata = doc.metadata.copy()
+            chunk_index = metadata.get("chunk_index")
             results.append({
                 "index": i,
                 "content": doc.page_content,
@@ -135,6 +136,7 @@ class VectorRetrievalService:
                 "doc_type": metadata.get("doc_type"),
                 "doc_id": metadata.get("doc_id"),
                 "page": metadata.get("page"),
+                "chunk_index": chunk_index,
             })
         
         return results

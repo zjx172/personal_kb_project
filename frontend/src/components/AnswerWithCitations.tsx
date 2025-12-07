@@ -1,7 +1,7 @@
-import React from "react";
-import ReactMarkdown from "react-markdown";
+import React, { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Citation } from "../api";
+import { markdownToHtml } from "../utils/markdown";
 
 interface AnswerWithCitationsProps {
   answer: string;
@@ -37,7 +37,7 @@ export const AnswerWithCitations: React.FC<AnswerWithCitationsProps> = ({
     }
   };
 
-  // 处理 Markdown 内容，将引用标号转换为 Markdown 链接格式
+  // 处理 Markdown 内容，将引用标号转换为可点击的链接格式
   const processAnswer = (text: string): string => {
     // 匹配 [1], [2], [12] 等引用标号
     // 支持多个连续引用，如 [1][2] 或 [1,2]
@@ -62,7 +62,7 @@ export const AnswerWithCitations: React.FC<AnswerWithCitationsProps> = ({
       if (isClickable) {
         // 创建 Markdown 链接格式，使用特殊的 href 来标识引用链接
         const citationText =
-          numbers.length > 1 ? `[${numbers.join(",")}]` : `[${numbers[0]}]`;
+          numbers.length > 1 ? numbers.join(",") : numbers[0].toString();
         return `[${citationText}](citation:${numbers[0]})`;
       }
 
@@ -70,36 +70,57 @@ export const AnswerWithCitations: React.FC<AnswerWithCitationsProps> = ({
     });
   };
 
-  // 自定义 ReactMarkdown 组件，处理链接点击
-  const components = {
-    a: ({ node, href, children, ...props }: any) => {
-      // 检查是否是引用链接（格式：citation:1）
-      if (href && href.startsWith("citation:")) {
-        const index = parseInt(href.replace("citation:", ""));
-        return (
-          <a
-            href="#"
-            onClick={(e) => handleCitationClick(index, e)}
-            className="text-blue-500 underline cursor-pointer hover:text-blue-700"
-            {...props}
-          >
-            {children}
-          </a>
-        );
-      }
-      return (
-        <a href={href} {...props}>
-          {children}
-        </a>
-      );
-    },
-  };
-
   const processedAnswer = processAnswer(answer);
+  const htmlContent = markdownToHtml(processedAnswer);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // 处理引用链接点击
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const citationLink = target.closest(".citation-link");
+      if (citationLink) {
+        e.preventDefault();
+        const citationId = citationLink.getAttribute("data-citation");
+        if (citationId) {
+          const index = parseInt(citationId);
+          handleCitationClick(index, e as any);
+        }
+      }
+    };
+
+    containerRef.current.addEventListener("click", handleClick);
+    return () => {
+      containerRef.current?.removeEventListener("click", handleClick);
+    };
+  }, [citations]);
 
   return (
-    <div className="prose prose-sm max-w-none">
-      <ReactMarkdown components={components}>{processedAnswer}</ReactMarkdown>
+    <div>
+      {/* 引用来源统计 */}
+      {/* {citations.length > 0 && (
+        <div className="mb-3 text-xs text-gray-500 flex flex-wrap items-center gap-2 pb-2 border-b border-gray-200">
+          <span className="font-medium text-gray-600">引用来源：</span>
+          {citations.map((c) => (
+            <span key={c.index} className="inline-flex items-center gap-1">
+              <span className="text-blue-600 font-medium">[{c.index}]</span>
+              {c.chunk_position && (
+                <span className="text-gray-400">
+                  {c.chunk_position}
+                  {c.page && `, 第 ${c.page} 页`}
+                </span>
+              )}
+            </span>
+          ))}
+        </div>
+      )} */}
+      <div
+        ref={containerRef}
+        className="prose prose-sm max-w-none"
+        dangerouslySetInnerHTML={{ __html: htmlContent }}
+      />
     </div>
   );
 };

@@ -1,7 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import {
   Layout,
   Button,
@@ -15,6 +13,7 @@ import {
   Divider,
   Tooltip,
 } from "@arco-design/web-react";
+import { markdownToHtml } from "../utils/markdown";
 import {
   IconBold,
   IconItalic,
@@ -221,72 +220,220 @@ const DocPage: React.FC = () => {
     triggerAutoSave(value);
   };
 
-  // 格式化工具函数
-  const insertText = (before: string, after: string = "") => {
+  // 格式化工具函数 - 改进版，支持选中文字格式化
+  const insertText = (
+    before: string,
+    after: string = "",
+    wrapSelected: boolean = true
+  ) => {
     if (!editorRef.current) return;
     const textarea = editorRef.current;
     const start = textarea.selectionStart;
     const end = textarea.selectionEnd;
     const selectedText = contentDraft.substring(start, end);
-    const newText =
-      contentDraft.substring(0, start) +
-      before +
-      selectedText +
-      after +
-      contentDraft.substring(end);
+
+    let newText: string;
+    let newCursorPos: number;
+
+    if (selectedText && wrapSelected) {
+      // 如果有选中文字，用格式包裹选中文字
+      newText =
+        contentDraft.substring(0, start) +
+        before +
+        selectedText +
+        after +
+        contentDraft.substring(end);
+      // 光标放在格式标记之后
+      newCursorPos = start + before.length + selectedText.length + after.length;
+    } else {
+      // 如果没有选中文字，插入格式标记，光标在中间
+      newText =
+        contentDraft.substring(0, start) +
+        before +
+        after +
+        contentDraft.substring(end);
+      newCursorPos = start + before.length;
+    }
+
     setContentDraft(newText);
     triggerAutoSave(newText);
 
     // 恢复光标位置
     setTimeout(() => {
       textarea.focus();
-      const newPos = start + before.length + selectedText.length;
-      textarea.setSelectionRange(newPos, newPos);
+      textarea.setSelectionRange(newCursorPos, newCursorPos);
     }, 0);
   };
 
-  // 工具栏按钮处理
+  // 工具栏按钮处理 - 改进版，支持选中文字格式化
   const handleFormat = (type: string) => {
+    if (!editorRef.current) return;
+
+    const textarea = editorRef.current;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selectedText = contentDraft.substring(start, end);
+
     switch (type) {
       case "bold":
-        insertText("**", "**");
+        if (selectedText) {
+          // 如果选中了文字，检查是否已经是粗体格式
+          if (selectedText.startsWith("**") && selectedText.endsWith("**")) {
+            // 移除粗体格式
+            const unformatted = selectedText.slice(2, -2);
+            insertTextAtPosition(start, end, unformatted);
+          } else {
+            // 添加粗体格式
+            insertText("**", "**");
+          }
+        } else {
+          insertText("**", "**");
+        }
         break;
       case "italic":
-        insertText("*", "*");
+        if (selectedText) {
+          // 检查是否已经是斜体格式
+          if (
+            (selectedText.startsWith("*") &&
+              selectedText.endsWith("*") &&
+              !selectedText.startsWith("**")) ||
+            (selectedText.startsWith("_") && selectedText.endsWith("_"))
+          ) {
+            // 移除斜体格式
+            const unformatted = selectedText.replace(/^[*_]|[*_]$/g, "");
+            insertTextAtPosition(start, end, unformatted);
+          } else {
+            insertText("*", "*");
+          }
+        } else {
+          insertText("*", "*");
+        }
         break;
       case "strikethrough":
-        insertText("~~", "~~");
+        if (selectedText) {
+          if (selectedText.startsWith("~~") && selectedText.endsWith("~~")) {
+            const unformatted = selectedText.slice(2, -2);
+            insertTextAtPosition(start, end, unformatted);
+          } else {
+            insertText("~~", "~~");
+          }
+        } else {
+          insertText("~~", "~~");
+        }
         break;
       case "code":
-        insertText("`", "`");
+        if (selectedText) {
+          if (selectedText.startsWith("`") && selectedText.endsWith("`")) {
+            const unformatted = selectedText.slice(1, -1);
+            insertTextAtPosition(start, end, unformatted);
+          } else {
+            insertText("`", "`");
+          }
+        } else {
+          insertText("`", "`");
+        }
+        break;
+      case "highlight":
+        if (selectedText) {
+          if (selectedText.startsWith("==") && selectedText.endsWith("==")) {
+            const unformatted = selectedText.slice(2, -2);
+            insertTextAtPosition(start, end, unformatted);
+          } else {
+            insertText("==", "==");
+          }
+        } else {
+          insertText("==", "==");
+        }
         break;
       case "codeBlock":
-        insertText("```\n", "\n```");
+        insertText("```\n", "\n```", false);
         break;
       case "quote":
-        insertText("> ", "");
+        if (selectedText) {
+          // 如果选中了多行，给每行添加引用标记
+          const lines = selectedText.split("\n");
+          const quotedLines = lines.map((line) => `> ${line}`).join("\n");
+          insertTextAtPosition(start, end, quotedLines);
+        } else {
+          insertText("> ", "");
+        }
         break;
       case "heading":
-        insertText("# ", "");
+        if (selectedText && selectedText.match(/^#{1,6} /)) {
+          // 如果已经是标题，移除标题标记
+          const unformatted = selectedText.replace(/^#{1,6} /, "");
+          insertTextAtPosition(start, end, unformatted);
+        } else {
+          insertText("# ", "");
+        }
         break;
       case "ul":
-        insertText("- ", "");
+        if (selectedText) {
+          const lines = selectedText.split("\n");
+          const listLines = lines
+            .map((line) => (line.trim() ? `- ${line.trim()}` : line))
+            .join("\n");
+          insertTextAtPosition(start, end, listLines);
+        } else {
+          insertText("- ", "");
+        }
         break;
       case "ol":
-        insertText("1. ", "");
+        if (selectedText) {
+          const lines = selectedText.split("\n");
+          let counter = 1;
+          const listLines = lines
+            .map((line) => {
+              if (line.trim()) {
+                return `${counter++}. ${line.trim()}`;
+              }
+              return line;
+            })
+            .join("\n");
+          insertTextAtPosition(start, end, listLines);
+        } else {
+          insertText("1. ", "");
+        }
         break;
       case "link":
-        insertText("[", "]()");
-        setTimeout(() => {
-          if (editorRef.current) {
-            const pos = editorRef.current.selectionStart - 1;
-            editorRef.current.setSelectionRange(pos, pos);
-          }
-        }, 0);
+        if (selectedText) {
+          insertText("[", "]()");
+          setTimeout(() => {
+            if (editorRef.current) {
+              const pos = editorRef.current.selectionStart - 1;
+              editorRef.current.setSelectionRange(pos, pos);
+            }
+          }, 0);
+        } else {
+          insertText("[", "]()");
+          setTimeout(() => {
+            if (editorRef.current) {
+              const pos = editorRef.current.selectionStart - 1;
+              editorRef.current.setSelectionRange(pos, pos);
+            }
+          }, 0);
+        }
         break;
       default:
         break;
     }
+  };
+
+  // 在指定位置插入文本（替换选中内容）
+  const insertTextAtPosition = (start: number, end: number, text: string) => {
+    if (!editorRef.current) return;
+    const newText =
+      contentDraft.substring(0, start) + text + contentDraft.substring(end);
+    setContentDraft(newText);
+    triggerAutoSave(newText);
+
+    setTimeout(() => {
+      if (editorRef.current) {
+        editorRef.current.focus();
+        const newPos = start + text.length;
+        editorRef.current.setSelectionRange(newPos, newPos);
+      }
+    }, 0);
   };
 
   // 监听标题变化，也触发自动保存
@@ -464,17 +611,73 @@ const DocPage: React.FC = () => {
     }
   };
 
+  // 处理引用标号点击
+  const handleCitationNumberClick = (index: number) => {
+    const citation = reviewCitations.find((c) => c.index === index);
+    if (citation) {
+      handleCitationClick(citation);
+    }
+  };
+
   // 检查答案是否表示找不到相关内容
   const isNoAnswerFound = (answer: string): boolean => {
+    // 如果没有引用，直接返回找不到
+    if (reviewCitations.length === 0) {
+      return true;
+    }
+
     const lowerAnswer = answer.toLowerCase();
     return (
       lowerAnswer.includes("知识库中没有相关内容") ||
       lowerAnswer.includes("没有找到") ||
       lowerAnswer.includes("找不到") ||
       lowerAnswer.includes("未找到") ||
-      (lowerAnswer.includes("没有") && lowerAnswer.includes("信息")) ||
-      reviewCitations.length === 0
+      (lowerAnswer.includes("没有") && lowerAnswer.includes("信息"))
     );
+  };
+
+  // 渲染答案，将引用标号转换为可点击的链接，并显示详细信息
+  const renderAnswerWithClickableCitations = (answer: string) => {
+    // 匹配 [1], [2] 等引用标号
+    const parts = answer.split(/(\[\d+\])/g);
+
+    return parts.map((part, index) => {
+      const citationMatch = part.match(/\[(\d+)\]/);
+      if (citationMatch) {
+        const citationIndex = parseInt(citationMatch[1], 10);
+        const citation = reviewCitations.find((c) => c.index === citationIndex);
+
+        if (citation) {
+          // 构建详细的引用信息提示
+          const citationInfo = [
+            citation.title || "文档",
+            citation.chunk_position,
+            citation.page && `第 ${citation.page} 页`,
+            citation.chunk_index !== undefined &&
+              `(Chunk #${citation.chunk_index + 1})`,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+
+          return (
+            <span key={index} className="inline-flex items-center gap-1">
+              <span
+                className="text-blue-600 font-medium cursor-pointer hover:underline hover:text-blue-800 relative group"
+                onClick={() => handleCitationNumberClick(citationIndex)}
+                title={`点击查看引用来源: ${citationInfo}`}
+              >
+                {part}
+                {/* 悬停时显示详细信息 */}
+                <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                  {citationInfo}
+                </span>
+              </span>
+            </span>
+          );
+        }
+      }
+      return <span key={index}>{part}</span>;
+    });
   };
 
   if (!docId) {
@@ -595,6 +798,15 @@ const DocPage: React.FC = () => {
                       onClick={() => handleFormat("code")}
                     />
                   </Tooltip>
+                  <Tooltip content="高亮">
+                    <Button
+                      type="text"
+                      size="small"
+                      onClick={() => handleFormat("highlight")}
+                    >
+                      <span className="text-yellow-600 font-bold">高</span>
+                    </Button>
+                  </Tooltip>
                 </div>
                 <div className="flex items-center gap-1 border-r pr-2 mr-2">
                   <Tooltip content="标题">
@@ -699,40 +911,12 @@ const DocPage: React.FC = () => {
                       margin: viewMode === "both" ? "0" : "0 auto",
                     }}
                   >
-                    <div className="prose prose-sm max-w-none">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          code: ({
-                            node,
-                            inline,
-                            className,
-                            children,
-                            ...props
-                          }: any) => {
-                            const match = /language-(\w+)/.exec(
-                              className || ""
-                            );
-                            return !inline && match ? (
-                              <pre className="bg-gray-50 border border-gray-200 rounded-md p-4 overflow-x-auto">
-                                <code className={className} {...props}>
-                                  {children}
-                                </code>
-                              </pre>
-                            ) : (
-                              <code
-                                className="bg-gray-100 px-1.5 py-0.5 rounded text-sm"
-                                {...props}
-                              >
-                                {children}
-                              </code>
-                            );
-                          },
-                        }}
-                      >
-                        {contentDraft || "*暂无内容*"}
-                      </ReactMarkdown>
-                    </div>
+                    <div
+                      className="prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{
+                        __html: markdownToHtml(contentDraft || "*暂无内容*"),
+                      }}
+                    />
                   </div>
                 )}
               </div>
@@ -786,40 +970,61 @@ const DocPage: React.FC = () => {
 
                   {reviewAnswer && (
                     <>
-                      {/* 答案部分 */}
-                      <Card className="mb-4">
-                        <Typography.Text className="text-sm font-semibold text-gray-700 mb-2 block">
-                          AI 回答：
-                        </Typography.Text>
-                        <div className="text-sm text-gray-800 leading-relaxed">
-                          {isNoAnswerFound(reviewAnswer) ? (
-                            <div className="text-orange-600">
-                              <Typography.Text type="warning">
-                                知识库中没有找到相关内容
+                      {/* 答案部分 - 只在有引用时显示 */}
+                      {reviewCitations.length > 0 &&
+                        !isNoAnswerFound(reviewAnswer) && (
+                          <Card className="mb-4">
+                            <div className="mb-3">
+                              <Typography.Text className="text-sm font-semibold text-gray-700 mb-1 block">
+                                AI 回答：
                               </Typography.Text>
+                              {/* 引用来源统计 */}
+                              <div className="text-xs text-gray-500 mb-2 flex flex-wrap items-center gap-2">
+                                <span className="font-medium">引用来源：</span>
+                                {reviewCitations.map((c) => (
+                                  <span
+                                    key={c.index}
+                                    className="inline-flex items-center gap-1"
+                                  >
+                                    <span className="text-blue-600 font-medium">
+                                      [{c.index}]
+                                    </span>
+                                    {c.chunk_position && (
+                                      <span className="text-gray-400">
+                                        {c.chunk_position}
+                                        {c.page && `, 第 ${c.page} 页`}
+                                      </span>
+                                    )}
+                                  </span>
+                                ))}
+                              </div>
                             </div>
-                          ) : (
-                            <div
-                              dangerouslySetInnerHTML={{
-                                __html: reviewAnswer.replace(
-                                  /\[(\d+)\]/g,
-                                  '<span class="text-blue-600 font-medium">[$1]</span>'
-                                ),
-                              }}
-                            />
-                          )}
-                          {reviewing && (
-                            <span className="inline-block w-2 h-4 bg-gray-400 animate-pulse ml-1" />
-                          )}
-                        </div>
-                      </Card>
+                            <div className="text-sm text-gray-800 leading-relaxed">
+                              {renderAnswerWithClickableCitations(reviewAnswer)}
+                              {reviewing && (
+                                <span className="inline-block w-2 h-4 bg-gray-400 animate-pulse ml-1" />
+                              )}
+                            </div>
+                          </Card>
+                        )}
 
-                      {/* 引用来源 */}
+                      {/* 如果没有找到相关内容 */}
+                      {isNoAnswerFound(reviewAnswer) && (
+                        <Card className="mb-4">
+                          <div className="text-orange-600 text-center py-4">
+                            <Typography.Text type="warning">
+                              知识库中没有找到相关内容
+                            </Typography.Text>
+                          </div>
+                        </Card>
+                      )}
+
+                      {/* 原文引用 - 只在有引用且找到相关内容时显示 */}
                       {reviewCitations.length > 0 &&
                         !isNoAnswerFound(reviewAnswer) && (
                           <div>
                             <Typography.Text className="text-sm font-semibold text-gray-700 mb-2 block">
-                              相关来源：
+                              原文引用：
                             </Typography.Text>
                             <div className="space-y-3">
                               {reviewCitations.map((citation) => {
@@ -843,50 +1048,60 @@ const DocPage: React.FC = () => {
                                     }
                                   >
                                     <div className="flex flex-col">
-                                      {/* 标题 */}
-                                      {citation.title && (
-                                        <div className="mb-1">
-                                          <Typography.Text
-                                            className={`text-base font-normal leading-snug ${
-                                              docId
-                                                ? "text-blue-600 hover:underline"
-                                                : "text-gray-800"
-                                            }`}
-                                          >
-                                            {citation.title}
-                                          </Typography.Text>
+                                      {/* 引用标号和标题 */}
+                                      <div className="mb-2 flex items-center gap-2">
+                                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs font-semibold flex-shrink-0">
+                                          {citation.index}
+                                        </span>
+                                        <div className="flex-1">
+                                          {citation.title && (
+                                            <Typography.Text className="text-base font-medium text-gray-800 block">
+                                              {citation.title}
+                                            </Typography.Text>
+                                          )}
+                                          {/* 引用来源详细信息 */}
+                                          <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
+                                            <span className="text-gray-600 font-medium">
+                                              引用来源：
+                                            </span>
+                                            {citation.chunk_position && (
+                                              <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
+                                                {citation.chunk_position}
+                                              </span>
+                                            )}
+                                            {citation.chunk_index !==
+                                              undefined && (
+                                              <span className="text-gray-500">
+                                                (Chunk #
+                                                {citation.chunk_index + 1})
+                                              </span>
+                                            )}
+                                            {citation.page && (
+                                              <span className="text-gray-500">
+                                                第 {citation.page} 页
+                                              </span>
+                                            )}
+                                          </div>
                                         </div>
-                                      )}
+                                      </div>
 
-                                      {/* 来源 */}
-                                      <div className="mb-1 flex items-center gap-2 text-xs">
-                                        <span className="text-green-700 font-normal">
+                                      {/* 原文内容 */}
+                                      <div className="text-sm text-gray-700 leading-relaxed bg-gray-50 p-3 rounded border-l-4 border-blue-400 mb-2">
+                                        <span>{citation.snippet}</span>
+                                      </div>
+
+                                      {/* 来源信息 */}
+                                      <div className="flex items-center gap-2 text-xs text-gray-500">
+                                        <span>
                                           {isMarkdownDoc
-                                            ? citation.title || "知识库文档"
+                                            ? "知识库文档"
                                             : citation.source
                                                 .split("/")
                                                 .pop() || citation.source}
                                         </span>
-                                        {isMarkdownDoc && (
-                                          <>
-                                            <span className="text-gray-400">
-                                              •
-                                            </span>
-                                            <span className="text-gray-500">
-                                              知识库文档
-                                            </span>
-                                          </>
-                                        )}
-                                      </div>
-
-                                      {/* 摘要内容 */}
-                                      <div className="text-sm text-gray-700 leading-relaxed mt-1">
-                                        <span className="line-clamp-3">
-                                          {citation.snippet}
-                                        </span>
-                                        {citation.snippet.length > 150 && (
-                                          <span className="text-gray-500">
-                                            ...
+                                        {docId && (
+                                          <span className="text-blue-600 hover:underline">
+                                            点击查看原文 →
                                           </span>
                                         )}
                                       </div>

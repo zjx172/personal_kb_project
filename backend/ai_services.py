@@ -13,7 +13,7 @@ class AIServices:
         self.llm = ChatOpenAI(
             api_key=OPENAI_API_KEY,
             base_url=OPENAI_BASE_URL,
-            model="gpt-4.1-mini",
+            model="gpt-4o-mini",
             temperature=0.3,
         )
     

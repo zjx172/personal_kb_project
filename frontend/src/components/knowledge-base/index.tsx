@@ -1,6 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import ReactMarkdown from "react-markdown";
-import type { Components } from "react-markdown";
+import { markdownToHtml } from "../../utils/markdown";
 import {
   Layout,
   List,
@@ -130,77 +129,28 @@ const KnowledgeBase: React.FC = () => {
     }
   };
 
-  // 生成 slug（标题的 id）
-  const generateSlug = (text: string): string => {
-    return text
-      .toLowerCase()
-      .trim()
-      .replace(/[^\w\s-]/g, "") // 移除特殊字符
-      .replace(/[\s_-]+/g, "-") // 将空格、下划线、连字符替换为单个连字符
-      .replace(/^-+|-+$/g, ""); // 移除开头和结尾的连字符
-  };
-
-  // 自定义 ReactMarkdown 组件，给标题添加 id
-  const markdownComponents: Components = {
-    h1: ({ node, ...props }) => {
-      const text = React.Children.toArray(props.children).join("");
-      const id = generateSlug(text);
-      return <h1 id={id} {...props} />;
-    },
-    h2: ({ node, ...props }) => {
-      const text = React.Children.toArray(props.children).join("");
-      const id = generateSlug(text);
-      return <h2 id={id} {...props} />;
-    },
-    h3: ({ node, ...props }) => {
-      const text = React.Children.toArray(props.children).join("");
-      const id = generateSlug(text);
-      return <h3 id={id} {...props} />;
-    },
-    h4: ({ node, ...props }) => {
-      const text = React.Children.toArray(props.children).join("");
-      const id = generateSlug(text);
-      return <h4 id={id} {...props} />;
-    },
-    h5: ({ node, ...props }) => {
-      const text = React.Children.toArray(props.children).join("");
-      const id = generateSlug(text);
-      return <h5 id={id} {...props} />;
-    },
-    h6: ({ node, ...props }) => {
-      const text = React.Children.toArray(props.children).join("");
-      const id = generateSlug(text);
-      return <h6 id={id} {...props} />;
-    },
-  };
-
   const renderHighlightedMarkdown = () => {
     if (!selectedDoc) return null;
     const { content } = selectedDoc;
 
-    if (!highlights.length) {
-      return (
-        <ReactMarkdown components={markdownComponents}>{content}</ReactMarkdown>
-      );
+    // 为每个高亮创建唯一的 id
+    let processedContent = content;
+    if (highlights.length > 0) {
+      highlights.forEach((h) => {
+        const text = h.selected_text?.trim();
+        if (!text) return;
+        const safe = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const reg = new RegExp(safe, "g");
+        const highlightId = `hl-${h.id}`;
+        processedContent = processedContent.replace(
+          reg,
+          `<mark id="${highlightId}" style="background:#fef08a; padding:0 2px; border-radius:2px; cursor:pointer;" onclick="document.getElementById('${highlightId}').scrollIntoView({behavior:'smooth',block:'center'})">${text}</mark>`
+        );
+      });
     }
 
-    // 为每个高亮创建唯一的 id
-    let html = content;
-    highlights.forEach((h) => {
-      const text = h.selected_text?.trim();
-      if (!text) return;
-      const safe = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const reg = new RegExp(safe, "g");
-      const highlightId = `hl-${h.id}`;
-      html = html.replace(
-        reg,
-        `<mark id="${highlightId}" style="background:#fef08a; padding:0 2px; border-radius:2px; cursor:pointer;" onclick="document.getElementById('${highlightId}').scrollIntoView({behavior:'smooth',block:'center'})">${text}</mark>`
-      );
-    });
-
-    return (
-      <ReactMarkdown components={markdownComponents}>{html}</ReactMarkdown>
-    );
+    const html = markdownToHtml(processedContent, { generateHeadingIds: true });
+    return <div dangerouslySetInnerHTML={{ __html: html }} />;
   };
 
   // 点击高亮列表项时跳转到对应位置

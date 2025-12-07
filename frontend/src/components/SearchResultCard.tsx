@@ -68,7 +68,7 @@ export const SearchResultCard: React.FC<SearchResultCardProps> = ({
         )}
 
         {/* 来源和 URL */}
-        <div className="mb-1 flex items-center gap-2 text-sm">
+        <div className="mb-1 flex items-center gap-2 text-sm flex-wrap">
           <span className="text-green-700 font-normal">
             {formatSource(citation.source)}
           </span>
@@ -76,6 +76,32 @@ export const SearchResultCard: React.FC<SearchResultCardProps> = ({
             <>
               <span className="text-gray-400">•</span>
               <span className="text-gray-500">知识库文档</span>
+            </>
+          )}
+          {/* 引用来源详细信息 */}
+          {(citation.chunk_position ||
+            citation.page ||
+            citation.chunk_index !== undefined) && (
+            <>
+              <span className="text-gray-400">•</span>
+              <span className="text-gray-500 text-xs">
+                引用来源：
+                {citation.chunk_position && (
+                  <span className="ml-1 bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded">
+                    {citation.chunk_position}
+                  </span>
+                )}
+                {citation.chunk_index !== undefined && (
+                  <span className="ml-1 text-gray-400">
+                    (Chunk #{citation.chunk_index + 1})
+                  </span>
+                )}
+                {citation.page && (
+                  <span className="ml-1 text-gray-400">
+                    第 {citation.page} 页
+                  </span>
+                )}
+              </span>
             </>
           )}
         </div>

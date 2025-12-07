@@ -50,7 +50,7 @@ class MarkdownDoc(Base):
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False, default="")
-    doc_type = Column(String, nullable=True)  # 文档类型：paper, blog, doc, etc.
+    doc_type = Column(String, nullable=True)  # 文档类型：web, markdown
     summary = Column(Text, nullable=True)  # 文档摘要
     tags = Column(Text, nullable=True)  # 标签，JSON 格式存储
     created_at = Column(DateTime, default=datetime.utcnow)

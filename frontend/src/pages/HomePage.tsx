@@ -23,8 +23,11 @@ import {
   extractWebContent,
 } from "../api";
 import { AnswerWithCitations } from "../components/AnswerWithCitations";
-import { SearchResultCard } from "../components/SearchResultCard";
-import { SearchFilters, SearchFilterOptions } from "../components/SearchFilters";
+// import { SearchResultCard } from "../components/SearchResultCard";
+import {
+  SearchFilters,
+  SearchFilterOptions,
+} from "../components/SearchFilters";
 
 const { Sider, Content, Header } = Layout;
 
@@ -39,21 +42,20 @@ const HomePage: React.FC = () => {
 
   // 知识库搜索相关
   const [query, setQuery] = useState("");
-  const [queryResult, setQueryResult] = useState<QueryResponse | null>(null);
   const [querying, setQuerying] = useState(false);
   const [streamingAnswer, setStreamingAnswer] = useState("");
   const [streamingCitations, setStreamingCitations] = useState<
     QueryResponse["citations"]
   >([]);
   const [searchFilters, setSearchFilters] = useState<SearchFilterOptions>({});
-  
+
   // 提取所有标签和文档类型用于过滤器
-  const allTags = Array.from(
-    new Set(docs.flatMap((doc) => doc.tags || []))
-  ).sort();
-  const allDocTypes = Array.from(
-    new Set(docs.map((doc) => doc.doc_type).filter(Boolean) as string[])
-  ).sort();
+  // const allTags = Array.from(
+  //   new Set(docs.flatMap((doc) => doc.tags || []))
+  // ).sort();
+  // const allDocTypes = Array.from(
+  //   new Set(docs.map((doc) => doc.doc_type).filter(Boolean) as string[])
+  // ).sort();
 
   // 流式显示控制
   const streamBufferRef = useRef<string>("");
@@ -181,7 +183,6 @@ const HomePage: React.FC = () => {
     }
 
     setQuerying(true);
-    setQueryResult(null);
     setStreamingAnswer("");
     setStreamingCitations([]);
     streamBufferRef.current = "";
@@ -191,41 +192,45 @@ const HomePage: React.FC = () => {
       await queryKnowledgeBaseStream(
         query,
         (chunk) => {
-        if (chunk.type === "chunk" && chunk.chunk) {
-          // 将接收到的 chunk 添加到缓冲区
-          streamBufferRef.current += chunk.chunk;
-          // 如果定时器没有运行，启动显示
-          if (!streamTimerRef.current) {
-            startStreamDisplay();
-          }
-        } else if (chunk.type === "citations" && chunk.citations) {
-          // 保存 citations，以便在流式显示时也能使用
-          setStreamingCitations(chunk.citations);
-        } else if (chunk.type === "final") {
-          // 确保所有缓冲内容都显示完
-          if (streamBufferRef.current.length > 0) {
-            streamDisplayRef.current += streamBufferRef.current;
+          if (chunk.type === "chunk" && chunk.chunk) {
+            // 将接收到的 chunk 添加到缓冲区
+            streamBufferRef.current += chunk.chunk;
+            // 如果定时器没有运行，启动显示
+            if (!streamTimerRef.current) {
+              startStreamDisplay();
+            }
+          } else if (chunk.type === "citations" && chunk.citations) {
+            // 保存 citations，以便在流式显示时也能使用
+            setStreamingCitations(chunk.citations);
+          } else if (chunk.type === "final") {
+            // 确保所有缓冲内容都显示完
+            if (streamBufferRef.current.length > 0) {
+              streamDisplayRef.current += streamBufferRef.current;
+              streamBufferRef.current = "";
+              setStreamingAnswer(streamDisplayRef.current);
+            }
+
+            // 如果 final chunk 包含完整答案，使用它（可能更准确）
+            if (chunk.answer) {
+              setStreamingAnswer(chunk.answer);
+            }
+
+            // 如果 final chunk 包含 citations，使用它
+            if (chunk.citations) {
+              setStreamingCitations(chunk.citations);
+            }
+
+            // 清理定时器
+            if (streamTimerRef.current) {
+              clearTimeout(streamTimerRef.current);
+              streamTimerRef.current = null;
+            }
+
+            // 清理缓冲区（但保留显示的内容）
             streamBufferRef.current = "";
-            setStreamingAnswer(streamDisplayRef.current);
           }
-
-          // 清理定时器
-          if (streamTimerRef.current) {
-            clearTimeout(streamTimerRef.current);
-            streamTimerRef.current = null;
-          }
-
-          setQueryResult({
-            answer: chunk.answer || streamDisplayRef.current,
-            citations: chunk.citations || streamingCitations,
-          });
-          setStreamingAnswer("");
-          setStreamingCitations([]);
-          streamBufferRef.current = "";
-          streamDisplayRef.current = "";
-        }
-      },
-      searchFilters
+        },
+        searchFilters
       );
     } catch (e: any) {
       console.error(e);
@@ -256,13 +261,28 @@ const HomePage: React.FC = () => {
     }
   };
 
+  // 检查答案是否表示找不到相关内容
+  // const isNoAnswerFound = (
+  //   answer: string,
+  //   citations: QueryResponse["citations"]
+  // ): boolean => {
+  //   // 如果没有引用，直接返回找不到
+  //   if (!citations || citations.length === 0) {
+  //     return true;
+  //   }
+
+  //   const lowerAnswer = answer.toLowerCase();
+  //   return (
+  //     lowerAnswer.includes("知识库中没有相关内容") ||
+  //     lowerAnswer.includes("没有找到") ||
+  //     lowerAnswer.includes("找不到") ||
+  //     lowerAnswer.includes("未找到") ||
+  //     (lowerAnswer.includes("没有") && lowerAnswer.includes("信息"))
+  //   );
+  // };
+
   return (
     <Layout className="h-screen">
-      <Header className="h-14 px-4 border-b flex items-center">
-        <Typography.Text className="text-lg font-semibold">
-          个人学习助手
-        </Typography.Text>
-      </Header>
       <Layout className="flex-1">
         <Sider width={300} className="border-r p-4">
           <div className="mb-3">
@@ -382,44 +402,19 @@ const HomePage: React.FC = () => {
                   </Button>
                 }
               />
-              
+
               {/* 搜索过滤器 */}
-              <SearchFilters
+              {/* <SearchFilters
                 onFilterChange={setSearchFilters}
                 availableTags={allTags}
                 availableDocTypes={allDocTypes}
-              />
+              /> */}
             </div>
 
-            {(queryResult || streamingAnswer || querying) && (
+            {(streamingAnswer || querying) && (
               <div className="mt-6">
-                {/* 搜索结果卡片列表 - 类似 Google 搜索结果 */}
-                {(queryResult?.citations && queryResult.citations.length > 0) ||
-                (streamingCitations.length > 0) ? (
-                  <div className="mb-8">
-                    <div className="mb-4 text-sm text-gray-600">
-                      找到约{" "}
-                      <span className="font-medium">
-                        {queryResult?.citations?.length || streamingCitations.length}
-                      </span>{" "}
-                      条结果
-                    </div>
-                    <div className="bg-white rounded-lg p-4 shadow-sm border border-gray-200">
-                      {(queryResult?.citations || streamingCitations).map(
-                        (citation) => (
-                          <SearchResultCard
-                            key={citation.index}
-                            citation={citation}
-                            index={citation.index}
-                          />
-                        )
-                      )}
-                    </div>
-                  </div>
-                ) : null}
-
                 {/* AI 回答部分 */}
-                {(queryResult?.answer || streamingAnswer) && (
+                {streamingAnswer && (
                   <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 shadow-sm">
                     <div className="mb-3">
                       <Typography.Text className="text-base font-semibold text-gray-800 flex items-center gap-2">
@@ -428,18 +423,11 @@ const HomePage: React.FC = () => {
                       </Typography.Text>
                     </div>
                     <div className="text-gray-700">
-                      {queryResult ? (
-                        <AnswerWithCitations
-                          answer={queryResult.answer}
-                          citations={queryResult.citations}
-                        />
-                      ) : streamingAnswer ? (
-                        <AnswerWithCitations
-                          answer={streamingAnswer}
-                          citations={streamingCitations}
-                        />
-                      ) : null}
-                      {querying && !streamingAnswer && (
+                      <AnswerWithCitations
+                        answer={streamingAnswer}
+                        citations={streamingCitations}
+                      />
+                      {querying && (
                         <span className="inline-block w-2 h-4 bg-gray-400 animate-pulse ml-1" />
                       )}
                     </div>
@@ -447,7 +435,7 @@ const HomePage: React.FC = () => {
                 )}
 
                 {/* 加载状态 */}
-                {querying && !streamingAnswer && !queryResult && (
+                {querying && !streamingAnswer && (
                   <Card className="mt-6">
                     <div className="flex items-center justify-center py-8">
                       <Spin />
@@ -458,7 +446,7 @@ const HomePage: React.FC = () => {
               </div>
             )}
 
-            {!queryResult && !streamingAnswer && !querying && (
+            {!streamingAnswer && !querying && (
               <div className="text-center text-gray-400 mt-8">
                 <Typography.Text>
                   在知识库中搜索您的问题，或选择左侧文档进行编辑

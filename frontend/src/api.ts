@@ -158,6 +158,8 @@ export interface Citation {
   snippet: string;
   doc_id?: string;
   page?: number;
+  chunk_index?: number; // Chunk 索引
+  chunk_position?: string; // Chunk 位置描述
 }
 
 export interface QueryResponse {

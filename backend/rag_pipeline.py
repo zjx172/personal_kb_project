@@ -190,6 +190,11 @@ class RAGPipeline:
             context_part = f"[{index}] {content}"
             context_parts.append(context_part)
             
+            chunk_index = result.get("chunk_index")
+            chunk_position = None
+            if chunk_index is not None:
+                chunk_position = f"第 {chunk_index + 1} 段"  # chunk_index 从 0 开始，显示时 +1
+            
             citations.append({
                 "index": index,
                 "source": source,
@@ -197,6 +202,8 @@ class RAGPipeline:
                 "snippet": content[:200] + "..." if len(content) > 200 else content,
                 "doc_id": result.get("doc_id"),
                 "page": result.get("page"),
+                "chunk_index": chunk_index,
+                "chunk_position": chunk_position,
             })
         
         context = "\n\n".join(context_parts)
@@ -214,6 +221,7 @@ class RAGPipeline:
         )
         
         answer_chunks = []
+        # 流式生成回答
         for chunk in self.llm.stream(messages):
             if hasattr(chunk, "content") and chunk.content:
                 content = chunk.content

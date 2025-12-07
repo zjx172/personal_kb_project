@@ -3,7 +3,6 @@
 """
 from typing import List, Dict, Any, Optional
 from langchain_chroma import Chroma
-from langchain.schema import Document as LCDocument
 from sqlalchemy.orm import Session
 from models import MarkdownDoc
 import json

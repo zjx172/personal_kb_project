@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import ReactMarkdown from "react-markdown";
+import { markdownToHtml } from "../../utils/markdown";
 import {
   Layout,
   Button,
@@ -212,11 +212,12 @@ const DocEditor: React.FC = () => {
                   预览
                 </div>
                 <div className="overflow-y-auto px-4 py-3 h-full">
-                  <div className="prose prose-sm max-w-none">
-                    <ReactMarkdown>
-                      {contentDraft || "*（暂无内容）*"}
-                    </ReactMarkdown>
-                  </div>
+                  <div
+                    className="prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{
+                      __html: markdownToHtml(contentDraft || "*（暂无内容）*"),
+                    }}
+                  />
                 </div>
               </Content>
             </Layout>
