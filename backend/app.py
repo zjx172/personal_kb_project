@@ -16,7 +16,7 @@ from urllib.parse import urlencode
 from sqlalchemy.orm import Session
 
 from db import get_db
-from models import Highlight, DocumentStat, MarkdownDoc, User, SearchHistory
+from models import Highlight, DocumentStat, MarkdownDoc, User, SearchHistory, Conversation
 from config import (
     DOCS_DIR, VECTOR_STORE_DIR, COLLECTION_NAME, OPENAI_API_KEY, OPENAI_BASE_URL,
     GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
@@ -240,17 +240,56 @@ def logout():
 @app.post("/query")
 def query_kb(req: QueryRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """使用新的 RAG pipeline 进行查询，支持混合搜索和过滤"""
+    # 处理对话 ID
+    conversation_id = req.conversation_id
+    if not conversation_id:
+        # 如果没有提供对话 ID，创建新对话
+        conversation = Conversation(
+            user_id=current_user.id,
+            title=req.question.strip()[:50] if req.question else "新对话",  # 使用第一个问题作为标题
+        )
+        db.add(conversation)
+        db.commit()
+        db.refresh(conversation)
+        conversation_id = conversation.id
+    else:
+        # 验证对话是否存在且属于当前用户
+        conversation = (
+            db.query(Conversation)
+            .filter(
+                Conversation.id == conversation_id,
+                Conversation.user_id == current_user.id,
+            )
+            .first()
+        )
+        if not conversation:
+            raise HTTPException(status_code=404, detail="对话不存在")
+        # 更新对话的更新时间
+        conversation.updated_at = datetime.utcnow()
+        db.commit()
+
     # 创建搜索记录（先不保存答案）
     search_history_id = None
     if req.question and req.question.strip():
         search_history = SearchHistory(
             user_id=current_user.id,
+            conversation_id=conversation_id,
             query=req.question.strip(),
         )
         db.add(search_history)
         db.commit()
         db.refresh(search_history)
         search_history_id = search_history.id
+        
+        # 如果是对话的第一条消息，更新对话标题
+        message_count = (
+            db.query(SearchHistory)
+            .filter(SearchHistory.conversation_id == conversation_id)
+            .count()
+        )
+        if message_count == 1 and not conversation.title or conversation.title == "新对话":
+            conversation.title = req.question.strip()[:50]
+            db.commit()
     
     def generate():
         final_answer = ""
@@ -1026,10 +1065,179 @@ def get_docs_graph(db: Session = Depends(get_db), current_user: User = Depends(g
     }
 
 
+# ---- Conversations ----
+
+class ConversationCreate(BaseModel):
+    title: Optional[str] = None  # 如果不提供，使用第一个问题作为标题
+
+
+class ConversationOut(BaseModel):
+    id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ConversationDetail(BaseModel):
+    id: str
+    title: str
+    created_at: datetime
+    updated_at: datetime
+    messages: List["SearchHistoryOut"]  # 对话中的消息列表
+
+    class Config:
+        from_attributes = True
+
+
+@app.post("/conversations", response_model=ConversationOut)
+def create_conversation(
+    req: ConversationCreate = ConversationCreate(),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """创建新对话"""
+    title = req.title or "新对话"
+    conversation = Conversation(
+        user_id=current_user.id,
+        title=title,
+    )
+    db.add(conversation)
+    db.commit()
+    db.refresh(conversation)
+    return conversation
+
+
+@app.get("/conversations", response_model=List[ConversationOut])
+def list_conversations(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """获取用户的对话列表"""
+    conversations = (
+        db.query(Conversation)
+        .filter(Conversation.user_id == current_user.id)
+        .order_by(Conversation.updated_at.desc())
+        .all()
+    )
+    return conversations
+
+
+@app.get("/conversations/{conversation_id}", response_model=ConversationDetail)
+def get_conversation(
+    conversation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """获取对话详情（包含消息）"""
+    conversation = (
+        db.query(Conversation)
+        .filter(
+            Conversation.id == conversation_id,
+            Conversation.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not conversation:
+        raise HTTPException(status_code=404, detail="对话不存在")
+
+    # 获取对话中的消息
+    messages = (
+        db.query(SearchHistory)
+        .filter(SearchHistory.conversation_id == conversation_id)
+        .order_by(SearchHistory.created_at.asc())
+        .all()
+    )
+
+    message_list = []
+    for msg in messages:
+        citations = None
+        if msg.citations:
+            try:
+                citations = json.loads(msg.citations)
+            except:
+                citations = None
+        message_list.append(SearchHistoryOut(
+            id=msg.id,
+            conversation_id=msg.conversation_id,
+            query=msg.query,
+            answer=msg.answer,
+            citations=citations,
+            sources_count=msg.sources_count,
+            created_at=msg.created_at,
+        ))
+
+    return ConversationDetail(
+        id=conversation.id,
+        title=conversation.title,
+        created_at=conversation.created_at,
+        updated_at=conversation.updated_at,
+        messages=message_list,
+    )
+
+
+@app.put("/conversations/{conversation_id}", response_model=ConversationOut)
+def update_conversation(
+    conversation_id: str,
+    title: str = Query(..., description="新标题"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """更新对话标题"""
+    conversation = (
+        db.query(Conversation)
+        .filter(
+            Conversation.id == conversation_id,
+            Conversation.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not conversation:
+        raise HTTPException(status_code=404, detail="对话不存在")
+
+    conversation.title = title
+    conversation.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(conversation)
+    return conversation
+
+
+@app.delete("/conversations/{conversation_id}")
+def delete_conversation(
+    conversation_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """删除对话（同时删除对话中的所有消息）"""
+    conversation = (
+        db.query(Conversation)
+        .filter(
+            Conversation.id == conversation_id,
+            Conversation.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not conversation:
+        raise HTTPException(status_code=404, detail="对话不存在")
+
+    # 删除对话中的所有消息
+    db.query(SearchHistory).filter(
+        SearchHistory.conversation_id == conversation_id
+    ).delete()
+
+    # 删除对话
+    db.delete(conversation)
+    db.commit()
+    return {"message": "对话已删除"}
+
+
 # ---- Search History ----
 
 class SearchHistoryOut(BaseModel):
     id: int
+    conversation_id: str
     query: str
     answer: Optional[str] = None
     citations: Optional[List[Citation]] = None
@@ -1064,6 +1272,7 @@ def list_search_history(
                 citations = None
         result.append(SearchHistoryOut(
             id=row.id,
+            conversation_id=row.conversation_id,
             query=row.query,
             answer=row.answer,
             citations=citations,

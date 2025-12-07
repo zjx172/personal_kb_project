@@ -211,6 +211,7 @@ export async function queryKnowledgeBaseStream(
   question: string,
   onChunk: (chunk: StreamChunk) => void,
   options?: {
+    conversation_id?: string;
     doc_type?: string;
     tags?: string[];
     start_date?: string;
@@ -233,7 +234,14 @@ export async function queryKnowledgeBaseStream(
     headers,
     body: JSON.stringify({
       question,
-      ...options,
+      conversation_id: options?.conversation_id,
+      doc_type: options?.doc_type,
+      tags: options?.tags,
+      start_date: options?.start_date,
+      end_date: options?.end_date,
+      use_keyword_search: options?.use_keyword_search,
+      k: options?.k,
+      rerank_k: options?.rerank_k,
     }),
   });
 
@@ -377,6 +385,7 @@ export async function queryKnowledgeBase(
 
 export interface SearchHistoryItem {
   id: number;
+  conversation_id: string;
   query: string;
   answer?: string;
   citations?: Citation[];
@@ -384,12 +393,65 @@ export interface SearchHistoryItem {
   created_at: string;
 }
 
+export interface Conversation {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConversationDetail extends Conversation {
+  messages: SearchHistoryItem[];
+}
+
+export async function listConversations(): Promise<Conversation[]> {
+  const resp = await axios.get<Conversation[]>(`${API_BASE_URL}/conversations`);
+  return resp.data;
+}
+
+export async function createConversation(
+  title?: string
+): Promise<Conversation> {
+  const resp = await axios.post<Conversation>(`${API_BASE_URL}/conversations`, {
+    title,
+  });
+  return resp.data;
+}
+
+export async function getConversation(
+  conversationId: string
+): Promise<ConversationDetail> {
+  const resp = await axios.get<ConversationDetail>(
+    `${API_BASE_URL}/conversations/${conversationId}`
+  );
+  return resp.data;
+}
+
+export async function updateConversation(
+  conversationId: string,
+  title: string
+): Promise<Conversation> {
+  const resp = await axios.put<Conversation>(
+    `${API_BASE_URL}/conversations/${conversationId}`,
+    null,
+    { params: { title } }
+  );
+  return resp.data;
+}
+
+export async function deleteConversation(
+  conversationId: string
+): Promise<void> {
+  await axios.delete(`${API_BASE_URL}/conversations/${conversationId}`);
+}
+
 export async function listSearchHistory(
+  conversationId?: string,
   limit: number = 20
 ): Promise<SearchHistoryItem[]> {
   const resp = await axios.get<SearchHistoryItem[]>(
     `${API_BASE_URL}/search-history`,
-    { params: { limit } }
+    { params: { conversation_id: conversationId, limit } }
   );
   return resp.data;
 }

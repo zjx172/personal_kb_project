@@ -23,9 +23,13 @@ import {
   queryKnowledgeBaseStream,
   QueryResponse,
   extractWebContent,
-  listSearchHistory,
-  deleteSearchHistory,
-  clearSearchHistory,
+  listConversations,
+  createConversation,
+  getConversation,
+  deleteConversation,
+  updateConversation,
+  Conversation,
+  ConversationDetail,
   SearchHistoryItem,
 } from "../api";
 import { AnswerWithCitations } from "../components/AnswerWithCitations";
@@ -81,8 +85,11 @@ const HomePage: React.FC = () => {
   const [currentSourcesCount, setCurrentSourcesCount] = useState(0);
   const [searchFilters, setSearchFilters] = useState<SearchFilterOptions>({});
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [searchHistory, setSearchHistory] = useState<SearchHistoryItem[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [currentConversationId, setCurrentConversationId] = useState<
+    string | null
+  >(null);
+  const [loadingConversations, setLoadingConversations] = useState(false);
   const [abortController, setAbortController] =
     useState<AbortController | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -104,18 +111,35 @@ const HomePage: React.FC = () => {
     }
   };
 
-  const loadSearchHistory = async () => {
-    setLoadingHistory(true);
+  const loadConversations = async () => {
+    setLoadingConversations(true);
     try {
-      const history = await listSearchHistory(50); // 加载更多历史记录
-      setSearchHistory(history);
+      const convs = await listConversations();
+      setConversations(convs);
 
-      // 将历史记录转换为对话消息
-      const historyMessages: Message[] = [];
-      for (const item of history.reverse()) {
-        // 反转顺序，从旧到新
+      // 如果有对话但没有当前对话，选择最新的对话
+      if (convs.length > 0 && !currentConversationId) {
+        setCurrentConversationId(convs[0].id);
+        await loadConversationMessages(convs[0].id);
+      } else if (currentConversationId) {
+        await loadConversationMessages(currentConversationId);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingConversations(false);
+    }
+  };
+
+  const loadConversationMessages = async (conversationId: string) => {
+    try {
+      const detail = await getConversation(conversationId);
+
+      // 将消息转换为对话消息格式
+      const conversationMessages: Message[] = [];
+      for (const item of detail.messages) {
         // 添加用户消息
-        historyMessages.push({
+        conversationMessages.push({
           id: `user-${item.id}`,
           role: "user",
           content: item.query,
@@ -124,7 +148,7 @@ const HomePage: React.FC = () => {
 
         // 如果有答案，添加助手消息
         if (item.answer) {
-          historyMessages.push({
+          conversationMessages.push({
             id: `assistant-${item.id}`,
             role: "assistant",
             content: item.answer,
@@ -134,11 +158,50 @@ const HomePage: React.FC = () => {
           });
         }
       }
-      setMessages(historyMessages);
+      setMessages(conversationMessages);
     } catch (e) {
       console.error(e);
-    } finally {
-      setLoadingHistory(false);
+    }
+  };
+
+  const handleCreateConversation = async () => {
+    try {
+      const newConv = await createConversation();
+      setCurrentConversationId(newConv.id);
+      setMessages([]);
+      await loadConversations();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "创建对话失败");
+    }
+  };
+
+  const handleSelectConversation = async (conversationId: string) => {
+    setCurrentConversationId(conversationId);
+    await loadConversationMessages(conversationId);
+  };
+
+  const handleDeleteConversation = async (conversationId: string) => {
+    try {
+      await deleteConversation(conversationId);
+      toast.success("对话已删除");
+
+      // 如果删除的是当前对话，切换到其他对话或创建新对话
+      if (conversationId === currentConversationId) {
+        const remaining = conversations.filter((c) => c.id !== conversationId);
+        if (remaining.length > 0) {
+          setCurrentConversationId(remaining[0].id);
+          await loadConversationMessages(remaining[0].id);
+        } else {
+          setCurrentConversationId(null);
+          setMessages([]);
+        }
+      }
+
+      await loadConversations();
+    } catch (e: any) {
+      console.error(e);
+      toast.error(e?.message || "删除对话失败");
     }
   };
 
@@ -150,7 +213,7 @@ const HomePage: React.FC = () => {
     }
     if (user) {
       loadDocs();
-      loadSearchHistory();
+      loadConversations();
     }
   }, [user, authLoading, navigate]);
 
@@ -350,7 +413,10 @@ const HomePage: React.FC = () => {
             streamBufferRef.current = "";
           }
         },
-        searchFilters
+        {
+          ...searchFilters,
+          conversation_id: currentConversationId || undefined,
+        }
       );
 
       // 等待流式显示完成（最多等待2秒）
@@ -363,9 +429,14 @@ const HomePage: React.FC = () => {
         waitCount++;
       }
 
-      // 搜索完成后，重新加载历史记录（包含新保存的答案）
-      // 这样可以从数据库获取完整的对话记录
-      await loadSearchHistory();
+      // 搜索完成后，重新加载当前对话的消息
+      if (currentConversationId) {
+        await loadConversationMessages(currentConversationId);
+        await loadConversations(); // 更新对话列表（更新时间）
+      } else {
+        // 如果没有当前对话，重新加载对话列表（会创建新对话）
+        await loadConversations();
+      }
     } catch (e: any) {
       console.error(e);
       if (e.name !== "AbortError") {
@@ -391,8 +462,6 @@ const HomePage: React.FC = () => {
       setCurrentSourcesCount(0);
       streamBufferRef.current = "";
       streamDisplayRef.current = "";
-      // 搜索完成后刷新搜索记录
-      loadSearchHistory();
     }
   };
 
@@ -415,40 +484,6 @@ const HomePage: React.FC = () => {
     logout();
     navigate("/login");
     toast.success("已登出");
-  };
-
-  const handleHistoryClick = (historyQuery: string) => {
-    setQuery(historyQuery);
-    // 触发搜索
-    setTimeout(() => {
-      handleQuery();
-    }, 100);
-  };
-
-  const handleDeleteHistory = async (
-    historyId: number,
-    e: React.MouseEvent
-  ) => {
-    e.stopPropagation();
-    try {
-      await deleteSearchHistory(historyId);
-      toast.success("搜索记录已删除");
-      await loadSearchHistory();
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e?.message || "删除失败");
-    }
-  };
-
-  const handleClearHistory = async () => {
-    try {
-      await clearSearchHistory();
-      toast.success("搜索记录已清空");
-      setSearchHistory([]);
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e?.message || "清空失败");
-    }
   };
 
   if (authLoading) {
@@ -523,6 +558,84 @@ const HomePage: React.FC = () => {
         >
           {sidebarOpen && (
             <>
+              {/* 对话列表 */}
+              <div className="space-y-1 mb-4">
+                {loadingConversations ? (
+                  <div className="flex items-center justify-center py-4">
+                    <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  </div>
+                ) : conversations.length === 0 ? (
+                  <div className="text-center text-xs text-muted-foreground py-4">
+                    暂无对话
+                  </div>
+                ) : (
+                  conversations.map((conv) => (
+                    <div
+                      key={conv.id}
+                      className={`group flex items-center justify-between p-2 rounded-md hover:bg-accent cursor-pointer transition-colors ${
+                        currentConversationId === conv.id ? "bg-accent" : ""
+                      }`}
+                    >
+                      <div
+                        className="flex items-center gap-2 flex-1 min-w-0"
+                        onClick={() => handleSelectConversation(conv.id)}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">
+                            {conv.title}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {new Date(conv.updated_at).toLocaleDateString(
+                              "zh-CN",
+                              {
+                                month: "2-digit",
+                                day: "2-digit",
+                              }
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              确定要删除这个对话吗？
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              此操作无法撤销，对话及其所有消息将被永久删除。
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>取消</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteConversation(conv.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              删除
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              <div className="border-t my-2" />
+
+              {/* 文档列表 */}
               {loading ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -663,44 +776,10 @@ const HomePage: React.FC = () => {
                 <p className="text-lg text-muted-foreground mb-8">
                   在您的知识库中搜索答案，或创建新文档
                 </p>
-
-                {/* 搜索记录 */}
-                {searchHistory.length > 0 && (
-                  <div className="w-full max-w-2xl">
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Clock className="h-4 w-4" />
-                        <span>最近搜索</span>
-                      </div>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleClearHistory}
-                        className="h-7 text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        清空
-                      </Button>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {searchHistory.map((item) => (
-                        <div
-                          key={item.id}
-                          onClick={() => handleHistoryClick(item.query)}
-                          className="group flex items-center gap-2 px-3 py-1.5 rounded-full bg-muted hover:bg-accent cursor-pointer transition-colors text-sm"
-                        >
-                          <span className="text-muted-foreground group-hover:text-foreground">
-                            {item.query}
-                          </span>
-                          <button
-                            onClick={(e) => handleDeleteHistory(item.id, e)}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive/10 rounded-full p-0.5"
-                          >
-                            <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                {conversations.length === 0 && (
+                  <p className="text-sm text-muted-foreground">
+                    点击左侧"新建对话"开始对话
+                  </p>
                 )}
               </div>
             )}

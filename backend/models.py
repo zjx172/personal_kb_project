@@ -70,10 +70,27 @@ class MarkdownDoc(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
 
+# 对话会话
+# Conversation: 对话会话，每次对话是一个会话
+# id: 会话 ID
+# user_id: 用户 ID
+# title: 会话标题（自动生成或用户设置）
+# created_at: 创建时间
+# updated_at: 更新时间
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, nullable=False, index=True)
+    title = Column(String, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 # 搜索记录（对话消息记录）
 # SearchHistory: 搜索记录，用于记录用户的搜索历史和对话消息
 # id: 记录 ID
 # user_id: 用户 ID
+# conversation_id: 所属对话会话 ID
 # query: 搜索关键词（用户问题）
 # answer: AI 回答内容
 # citations: 引用信息（JSON 格式存储）
@@ -84,6 +101,7 @@ class SearchHistory(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(String, nullable=False, index=True)
+    conversation_id = Column(String, nullable=False, index=True)  # 所属对话会话
     query = Column(String, nullable=False)
     answer = Column(Text, nullable=True)  # AI 回答
     citations = Column(Text, nullable=True)  # 引用信息，JSON 格式
