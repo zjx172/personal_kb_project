@@ -74,7 +74,7 @@ export function useConversations() {
       }
       return conversationMessages;
     } catch (e) {
-      console.error(e);
+      console.error("loadConversationMessages 错误:", e);
       return [];
     }
   };

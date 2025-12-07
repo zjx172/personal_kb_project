@@ -174,9 +174,9 @@ const HomePage: React.FC = () => {
         onExtractWeb={handleExtractWeb}
         onUploadPdf={handleUploadPdf}
         onSelectConversation={async (id) => {
-          await handleSelectConversation(id);
-          const msgs = await loadConversationMessages(id);
-          setMessages(msgs);
+          console.log("选择对话，ID:", id);
+          setCurrentConversationId(id);
+          // 消息加载由 useEffect 自动处理
         }}
         onCreateConversation={async () => {
           const newId = await handleCreateConversation();

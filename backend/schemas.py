@@ -1,6 +1,8 @@
 """
 API 请求和响应的 Pydantic 模型
 """
+from __future__ import annotations
+
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
@@ -177,7 +179,7 @@ class ConversationDetail(BaseModel):
     title: str
     created_at: datetime
     updated_at: datetime
-    messages: List[dict]
+    messages: List["SearchHistoryOut"]
 
     class Config:
         from_attributes = True
