@@ -16,6 +16,7 @@ import { DataSourceList } from "./DataSourceList";
 import { DataSourceDialog } from "./DataSourceDialog";
 import { FileUploadDialog } from "./FileUploadDialog";
 import { TableDataDialog } from "./TableDataDialog";
+import { toast } from "sonner";
 
 interface SidebarProps {
   open: boolean;
@@ -95,25 +96,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const [showTableDataDialog, setShowTableDataDialog] = React.useState(false);
 
   // 加载数据源列表
-  React.useEffect(() => {
-    const loadDataSources = async () => {
-      if (currentKnowledgeBaseId && currentKnowledgeBaseType === "table") {
-        setLoadingDataSources(true);
-        try {
-          const { listDataSources } = await import("../../api");
-          const data = await listDataSources(currentKnowledgeBaseId);
-          setDataSources(data);
-        } catch (error) {
-          console.error("加载数据源失败:", error);
-        } finally {
-          setLoadingDataSources(false);
-        }
-      } else {
-        setDataSources([]);
+  const loadDataSources = React.useCallback(async () => {
+    if (currentKnowledgeBaseId && currentKnowledgeBaseType === "table") {
+      setLoadingDataSources(true);
+      try {
+        const { listDataSources } = await import("../../api");
+        const data = await listDataSources(currentKnowledgeBaseId);
+        setDataSources(data);
+      } catch (error) {
+        console.error("加载数据源失败:", error);
+        toast.error("加载数据源失败");
+      } finally {
+        setLoadingDataSources(false);
       }
-    };
-    loadDataSources();
+    } else {
+      setDataSources([]);
+    }
   }, [currentKnowledgeBaseId, currentKnowledgeBaseType]);
+
+  React.useEffect(() => {
+    loadDataSources();
+  }, [loadDataSources]);
+
+  // 删除数据源的处理函数
+  const handleDeleteDataSource = React.useCallback(
+    async (id: string) => {
+      try {
+        const { deleteDataSource } = await import("../../api");
+        await deleteDataSource(id);
+        // 重新加载数据源列表
+        await loadDataSources();
+        toast.success("数据源已删除");
+      } catch (error: any) {
+        console.error("删除数据源失败:", error);
+        toast.error(
+          error?.response?.data?.detail || error?.message || "删除数据源失败"
+        );
+        throw error; // 重新抛出错误，让调用者知道删除失败
+      }
+    },
+    [loadDataSources]
+  );
   const sidebarRef = useRef<HTMLDivElement>(null);
   const resizeHandleRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
@@ -303,18 +326,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                       loading={loadingDataSources}
                       knowledgeBaseId={currentKnowledgeBaseId}
                       onAdd={() => setShowDataSourceDialog(true)}
-                      onDelete={async (id) => {
-                        try {
-                          const { deleteDataSource } =
-                            await import("../../api");
-                          await deleteDataSource(id);
-                          setDataSources((prev) =>
-                            prev.filter((ds) => ds.id !== id)
-                          );
-                        } catch (error) {
-                          console.error("删除数据源失败:", error);
-                        }
-                      }}
+                      onDelete={handleDeleteDataSource}
                     />
                     <div className="border-t my-4" />
                   </>

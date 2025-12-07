@@ -225,21 +225,50 @@ def delete_data_source(
     current_user: User = Depends(get_current_user),
 ):
     """删除数据源"""
-    data_source = (
-        db.query(DataSource)
-        .join(KnowledgeBase)
-        .filter(
-            DataSource.id == data_source_id,
-            KnowledgeBase.user_id == current_user.id,
-        )
-        .first()
-    )
-    if not data_source:
-        raise HTTPException(status_code=404, detail="数据源不存在")
+    logger = logging.getLogger(__name__)
     
-    db.delete(data_source)
-    db.commit()
-    return {"message": "数据源已删除"}
+    try:
+        # 先查询数据源
+        data_source = (
+            db.query(DataSource)
+            .filter(DataSource.id == data_source_id)
+            .first()
+        )
+        
+        if not data_source:
+            raise HTTPException(status_code=404, detail="数据源不存在")
+        
+        # 验证知识库是否存在且属于当前用户
+        kb = (
+            db.query(KnowledgeBase)
+            .filter(
+                KnowledgeBase.id == data_source.knowledge_base_id,
+                KnowledgeBase.user_id == current_user.id,
+            )
+            .first()
+        )
+        
+        if not kb:
+            raise HTTPException(status_code=403, detail="无权删除此数据源")
+        
+        # 记录删除操作
+        logger.info(
+            f"用户 {current_user.id} 正在删除数据源 {data_source_id} (名称: {data_source.name})"
+        )
+        
+        # 从数据库中删除
+        db.delete(data_source)
+        db.commit()
+        
+        logger.info(f"数据源 {data_source_id} 已成功删除")
+        return {"message": "数据源已删除"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"删除数据源失败: {str(e)}", exc_info=True)
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"删除数据源失败: {str(e)}")
 
 
 @router.post("/{data_source_id}/data", response_model=DataSourceDataResponse)

@@ -20,7 +20,7 @@ interface DataSourceListProps {
   loading: boolean;
   knowledgeBaseId: string;
   onAdd: () => void;
-  onDelete: (id: string) => void;
+  onDelete: (id: string) => Promise<void>;
 }
 
 export const DataSourceList: React.FC<DataSourceListProps> = ({
@@ -84,21 +84,18 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
                 )}
                 <span className="text-sm truncate">{ds.name}</span>
               </div>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                    }}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
+              <div onClick={(e) => e.stopPropagation()}>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </AlertDialogTrigger>
+                <AlertDialogContent onClick={(e) => e.stopPropagation()}>
                   <AlertDialogHeader>
                     <AlertDialogTitle>
                       确定要删除这个数据源吗？
@@ -108,9 +105,18 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
-                    <AlertDialogCancel>取消</AlertDialogCancel>
+                    <AlertDialogCancel onClick={(e) => e.stopPropagation()}>
+                      取消
+                    </AlertDialogCancel>
                     <AlertDialogAction
-                      onClick={() => onDelete(ds.id)}
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          await onDelete(ds.id);
+                        } catch (error) {
+                          // 错误已在 handleDeleteDataSource 中处理
+                        }
+                      }}
                       className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
                       删除
@@ -118,6 +124,7 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+            </div>
             </div>
           ))}
         </div>

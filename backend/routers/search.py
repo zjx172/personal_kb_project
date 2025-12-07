@@ -9,7 +9,7 @@ from datetime import datetime
 import json
 
 from db import get_db
-from models import User, Conversation, SearchHistory
+from models import User, Conversation, SearchHistory, KnowledgeBase, DataSource
 from auth import get_current_user
 from schemas import QueryRequest, Citation
 from services.vector_store import (
@@ -19,6 +19,7 @@ from services.vector_store import (
     llm,
 )
 from langchain.prompts import ChatPromptTemplate
+import json
 
 router = APIRouter(tags=["search"])
 
