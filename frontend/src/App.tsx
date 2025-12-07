@@ -6,6 +6,7 @@ import HomePage from "./pages/HomePage";
 import DocPage from "./pages/DocPage";
 import GraphPage from "./pages/GraphPage";
 import LoginPage from "./pages/LoginPage";
+import { KnowledgeBaseRedirect } from "./components/KnowledgeBaseRedirect";
 
 const App: React.FC = () => {
   return (
@@ -14,7 +15,11 @@ const App: React.FC = () => {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/auth/callback" element={<LoginPage />} />
-          <Route path="/" element={<HomePage />} />
+          <Route path="/kb/:knowledgeBaseId" element={<HomePage />} />
+          <Route path="/kb/:knowledgeBaseId/doc/:id" element={<DocPage />} />
+          <Route path="/kb/:knowledgeBaseId/graph" element={<GraphPage />} />
+          <Route path="/" element={<KnowledgeBaseRedirect />} />
+          {/* 保留旧路由以兼容 */}
           <Route path="/doc/:id" element={<DocPage />} />
           <Route path="/graph" element={<GraphPage />} />
         </Routes>

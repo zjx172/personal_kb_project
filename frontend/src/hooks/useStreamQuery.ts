@@ -127,9 +127,10 @@ export function useStreamQuery(
     setAbortController(controller);
 
     // 使用传入的 conversationId 或默认的 currentConversationId
-    const effectiveConversationId = overrideConversationId !== undefined 
-      ? overrideConversationId 
-      : currentConversationId;
+    const effectiveConversationId =
+      overrideConversationId !== undefined
+        ? overrideConversationId
+        : currentConversationId;
 
     try {
       let finalAnswer = "";

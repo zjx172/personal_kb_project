@@ -155,7 +155,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       >
         {open && (
           <>
-            <DocList docs={docs} loading={loadingDocs} onDelete={onDeleteDoc} />
+            <DocList
+              docs={docs}
+              loading={loadingDocs}
+              currentKnowledgeBaseId={currentKnowledgeBaseId}
+              onDelete={onDeleteDoc}
+            />
 
             {currentKnowledgeBaseId && (
               <>

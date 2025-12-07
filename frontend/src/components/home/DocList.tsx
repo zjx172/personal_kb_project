@@ -18,18 +18,24 @@ import { MarkdownDocItem } from "../../api";
 interface DocListProps {
   docs: MarkdownDocItem[];
   loading: boolean;
+  currentKnowledgeBaseId: string | null;
   onDelete: (id: string) => void;
 }
 
 export const DocList: React.FC<DocListProps> = ({
   docs,
   loading,
+  currentKnowledgeBaseId,
   onDelete,
 }) => {
   const navigate = useNavigate();
 
   const handleDocClick = (id: string) => {
-    navigate(`/doc/${id}`);
+    if (currentKnowledgeBaseId) {
+      navigate(`/kb/${currentKnowledgeBaseId}/doc/${id}`);
+    } else {
+      navigate(`/doc/${id}`);
+    }
   };
 
   if (loading) {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAuth } from "../contexts/AuthContext";
@@ -20,6 +20,9 @@ import { ChevronLeft, Menu, LogOut, User, Loader2 } from "lucide-react";
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
+  const { knowledgeBaseId: urlKnowledgeBaseId } = useParams<{
+    knowledgeBaseId?: string;
+  }>();
   const { user, loading: authLoading, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -35,6 +38,36 @@ const HomePage: React.FC = () => {
     loadKnowledgeBases,
     handleUpdateKnowledgeBase,
   } = useKnowledgeBases();
+
+  // 从 URL 参数同步知识库 ID
+  useEffect(() => {
+    if (urlKnowledgeBaseId && urlKnowledgeBaseId !== currentKnowledgeBaseId) {
+      setCurrentKnowledgeBaseId(urlKnowledgeBaseId);
+    } else if (
+      !urlKnowledgeBaseId &&
+      knowledgeBases.length > 0 &&
+      !currentKnowledgeBaseId
+    ) {
+      // 如果 URL 中没有知识库 ID，但有知识库列表，导航到第一个知识库
+      navigate(`/kb/${knowledgeBases[0].id}`, { replace: true });
+    }
+  }, [
+    urlKnowledgeBaseId,
+    currentKnowledgeBaseId,
+    knowledgeBases,
+    navigate,
+    setCurrentKnowledgeBaseId,
+  ]);
+
+  // 当知识库 ID 变化时，更新 URL（但不包括从 URL 读取的情况）
+  useEffect(() => {
+    if (
+      currentKnowledgeBaseId &&
+      currentKnowledgeBaseId !== urlKnowledgeBaseId
+    ) {
+      navigate(`/kb/${currentKnowledgeBaseId}`, { replace: true });
+    }
+  }, [currentKnowledgeBaseId, urlKnowledgeBaseId, navigate]);
 
   const {
     docs,
@@ -165,16 +198,22 @@ const HomePage: React.FC = () => {
       await loadConversations(currentKnowledgeBaseId);
     }
 
-    await handleQuery(messages, setMessages, async () => {
-      // 查询完成后重新加载对话消息
-      if (conversationId) {
-        const updatedMessages = await loadConversationMessages(conversationId);
-        setMessages(updatedMessages);
-        await loadConversations(currentKnowledgeBaseId);
-      } else {
-        await loadConversations(currentKnowledgeBaseId);
-      }
-    }, conversationId);
+    await handleQuery(
+      messages,
+      setMessages,
+      async () => {
+        // 查询完成后重新加载对话消息
+        if (conversationId) {
+          const updatedMessages =
+            await loadConversationMessages(conversationId);
+          setMessages(updatedMessages);
+          await loadConversations(currentKnowledgeBaseId);
+        } else {
+          await loadConversations(currentKnowledgeBaseId);
+        }
+      },
+      conversationId
+    );
   };
 
   const handleLogout = () => {
@@ -265,7 +304,7 @@ const HomePage: React.FC = () => {
             loading={loadingKnowledgeBases}
             currentKnowledgeBaseId={currentKnowledgeBaseId}
             onSelect={(id) => {
-              setCurrentKnowledgeBaseId(id);
+              navigate(`/kb/${id}`);
               setCurrentConversationId(null);
               setMessages([]);
             }}
@@ -276,7 +315,7 @@ const HomePage: React.FC = () => {
                   description: null,
                 });
                 await loadKnowledgeBases();
-                setCurrentKnowledgeBaseId(newKb.id);
+                navigate(`/kb/${newKb.id}`);
                 toast.success("知识库创建成功");
               } catch (error: any) {
                 console.error("创建知识库失败:", error);

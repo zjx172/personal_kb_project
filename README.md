@@ -26,7 +26,15 @@
 - 支持流式返回
 - 支持严格模式（相关性低于阈值时拒绝回答）
 
-### 4. 文档管理
+### 4. 多知识库管理
+
+- 支持创建多个独立的知识库
+- 每个知识库拥有独立的文档和对话
+- 知识库切换和编辑功能
+- 默认知识库自动创建
+- 基于知识库的路由系统（`/kb/:knowledgeBaseId`）
+
+### 5. 文档管理
 
 - 在线编辑 Markdown 文档（飞书风格）
 - 支持主题标签和文档类型分类
@@ -34,8 +42,9 @@
 - 文档自动同步到向量库
 - AI 自动生成摘要和推荐标签
 - 文档关系图谱可视化
+- 文档按知识库隔离管理
 
-### 5. 前端功能
+### 6. 前端功能
 
 - Google 登录界面
 - 对话式检索界面
@@ -43,8 +52,10 @@
 - 支持按引用高亮对应原文段落
 - 文档列表和编辑界面
 - 知识图谱可视化
+- 知识库选择器和切换功能
+- 基于知识库的路由导航
 
-### 6. Chrome 浏览器插件
+### 7. Chrome 浏览器插件
 
 - 🔐 Google OAuth 登录集成
 - 📄 一键保存当前网页到知识库
@@ -156,7 +167,7 @@ python3 -m uvicorn app:app --reload --port 8000
 
 ### 3. 前端设置
 
-#### 安装依赖
+#### 安装前端依赖
 
 ```bash
 cd frontend
@@ -173,7 +184,7 @@ pnpm run dev
 
 ### 4. Chrome 插件设置
 
-#### 安装依赖
+#### 安装插件依赖
 
 ```bash
 cd chrome-extension
@@ -212,11 +223,28 @@ pnpm build
 
 ### Web 应用功能
 
-1. **创建文档**：在左侧边栏点击"新建文档"或使用"提取网页内容"功能
-2. **编辑文档**：点击文档列表中的文档进行编辑，支持设置主题标签和文档类型
-3. **搜索知识库**：在主界面输入问题，系统会从知识库中检索相关文档并生成答案
-4. **查看引用**：答案中的引用标号（如 [1], [2]）可点击，会跳转到对应文档并高亮相关段落
-5. **知识图谱**：访问 `/graph` 页面查看文档关系图谱
+1. **管理知识库**：
+
+   - 在左上角的知识库选择器中切换知识库
+   - 点击"新建知识库"创建新的知识库
+   - 悬停在知识库名称上，点击编辑图标可修改名称
+   - 每个知识库拥有独立的文档和对话列表
+
+2. **创建文档**：在左侧边栏点击"新建文档"或使用"提取网页内容"功能（文档会保存到当前选中的知识库）
+
+3. **编辑文档**：点击文档列表中的文档进行编辑，支持设置主题标签和文档类型
+
+4. **搜索知识库**：在主界面输入问题，系统会从当前知识库中检索相关文档并生成答案。如果没有选中对话，系统会自动创建新对话
+
+5. **查看引用**：答案中的引用标号（如 [1], [2]）可点击，会跳转到对应文档并高亮相关段落
+
+6. **知识图谱**：访问 `/kb/:knowledgeBaseId/graph` 页面查看当前知识库的文档关系图谱
+
+7. **路由结构**：
+   - `/kb/:knowledgeBaseId` - 知识库主页（对话界面）
+   - `/kb/:knowledgeBaseId/doc/:id` - 文档编辑页
+   - `/kb/:knowledgeBaseId/graph` - 知识图谱页
+   - 访问根路径 `/` 会自动重定向到默认知识库
 
 ### Chrome 插件使用
 
@@ -242,19 +270,26 @@ pnpm build
 
 ## 项目结构
 
-```
+```text
 personal_kb_project/
 ├── backend/
 │   ├── app.py              # FastAPI 主应用
 │   ├── auth.py              # 认证相关函数（JWT、用户管理）
-│   ├── models.py            # 数据模型（User, MarkdownDoc, Highlight 等）
+│   ├── models.py            # 数据模型（User, KnowledgeBase, MarkdownDoc, Conversation, Highlight 等）
 │   ├── db.py                # 数据库配置
 │   ├── config.py             # 配置文件
+│   ├── routers/              # API 路由模块
+│   │   ├── knowledge_bases.py  # 知识库路由
+│   │   ├── conversations.py    # 对话路由
+│   │   ├── docs.py              # 文档路由
+│   │   ├── pdf.py               # PDF 路由
+│   │   └── search.py            # 搜索路由
 │   ├── retrieval.py          # 向量检索服务层
 │   ├── rag_pipeline.py       # RAG Pipeline
 │   ├── hybrid_search.py      # 混合搜索服务
 │   ├── ai_services.py        # AI 服务（摘要、标签推荐等）
 │   ├── ingest.py             # 文档导入脚本
+│   ├── migrate_knowledge_bases.py  # 知识库数据库迁移脚本
 │   ├── requirements.txt      # Python 依赖
 │   ├── .env                  # 环境变量（需自行创建）
 │   └── kb.db                 # SQLite 数据库
@@ -262,14 +297,27 @@ personal_kb_project/
 └── frontend/
     ├── src/
     │   ├── pages/            # 页面组件
-    │   │   ├── HomePage.tsx  # 首页（搜索界面）
-    │   │   ├── DocPage.tsx   # 文档编辑页
-    │   │   ├── GraphPage.tsx # 知识图谱页
+    │   │   ├── HomePage.tsx  # 首页（搜索界面，支持知识库路由）
+    │   │   ├── DocPage.tsx   # 文档编辑页（支持知识库路由）
+    │   │   ├── GraphPage.tsx # 知识图谱页（支持知识库路由）
     │   │   └── LoginPage.tsx # 登录页
     │   ├── components/       # 通用组件
+    │   │   ├── home/         # 首页相关组件
+    │   │   │   ├── Sidebar.tsx
+    │   │   │   ├── DocList.tsx
+    │   │   │   ├── ConversationList.tsx
+    │   │   │   └── KnowledgeBaseSelector.tsx
     │   │   ├── AnswerWithCitations.tsx
     │   │   ├── SearchFilters.tsx
+    │   │   ├── KnowledgeBaseRedirect.tsx  # 知识库重定向组件
     │   │   └── ui/           # UI 组件库
+    │   ├── hooks/            # React Hooks
+    │   │   ├── useKnowledgeBases.ts  # 知识库管理 Hook
+    │   │   ├── useConversations.ts   # 对话管理 Hook
+    │   │   ├── useDocs.ts            # 文档管理 Hook
+    │   │   ├── useStreamQuery.ts     # 流式查询 Hook
+    │   │   ├── useWebExtract.ts      # 网页提取 Hook
+    │   │   └── usePdfUpload.ts       # PDF 上传 Hook
     │   ├── contexts/         # React Context
     │   │   └── AuthContext.tsx  # 认证上下文
     │   ├── api.ts            # API 接口封装
@@ -299,18 +347,35 @@ personal_kb_project/
 - `GET /auth/me` - 获取当前用户信息
 - `POST /auth/logout` - 登出
 
+### 知识库相关
+
+- `GET /knowledge-bases` - 获取知识库列表（当前用户）
+- `POST /knowledge-bases` - 创建知识库
+- `GET /knowledge-bases/{kb_id}` - 获取知识库详情
+- `PUT /knowledge-bases/{kb_id}` - 更新知识库
+- `DELETE /knowledge-bases/{kb_id}` - 删除知识库
+
+### 对话相关
+
+- `GET /conversations` - 获取对话列表（支持按知识库过滤）
+- `POST /conversations` - 创建对话（需指定知识库 ID）
+- `GET /conversations/{conv_id}` - 获取对话详情
+- `PUT /conversations/{conv_id}` - 更新对话
+- `DELETE /conversations/{conv_id}` - 删除对话
+
 ### 文档相关
 
-- `GET /all/docs` - 获取文档列表（当前用户）
-- `POST /docs` - 创建文档
+- `GET /docs` - 获取文档列表（支持按知识库过滤）
+- `POST /docs` - 创建文档（需指定知识库 ID）
 - `GET /docs/{doc_id}` - 获取文档详情
 - `PUT /docs/{doc_id}` - 更新文档
 - `DELETE /docs/{doc_id}` - 删除文档
-- `POST /extract-web` - 提取网页内容
+- `POST /extract-web` - 提取网页内容（需指定知识库 ID）
+- `POST /upload-pdf` - 上传 PDF 文档（需指定知识库 ID）
 
 ### 知识库查询
 
-- `POST /query` - 查询知识库（流式返回）
+- `POST /query` - 查询知识库（流式返回，需指定知识库 ID 和可选的对话 ID）
 
 ### 智能功能
 
@@ -354,7 +419,9 @@ const API_BASE_URL = "http://localhost:8000";
 
 ### 数据库迁移
 
-如果修改了数据模型，需要重新初始化数据库：
+#### 初始化数据库
+
+首次使用或需要清空数据时：
 
 ```bash
 cd backend
@@ -362,6 +429,22 @@ python3 init_db.py
 ```
 
 **注意**：这会清空现有数据，生产环境请使用数据库迁移工具。
+
+#### 知识库功能迁移
+
+如果从旧版本升级到支持多知识库的版本，需要运行迁移脚本：
+
+```bash
+cd backend
+python3 migrate_knowledge_bases.py
+```
+
+这个脚本会：
+
+- 创建 `knowledge_bases` 表
+- 为每个现有用户创建默认知识库
+- 将现有的对话和文档关联到默认知识库
+- 添加 `knowledge_base_id` 字段到相关表
 
 ### 添加新功能
 

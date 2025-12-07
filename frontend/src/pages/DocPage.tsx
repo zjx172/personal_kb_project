@@ -27,7 +27,10 @@ import {
 } from "../components/doc-editor/formatUtils";
 
 const DocPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+  const { id, knowledgeBaseId } = useParams<{
+    id: string;
+    knowledgeBaseId?: string;
+  }>();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useAuth();
   const [searchParams] = useSearchParams();
@@ -287,7 +290,13 @@ const DocPage: React.FC = () => {
         lastSaved={lastSaved}
         currentDoc={currentDoc}
         showReviewPanel={showReviewPanel}
-        onBack={() => navigate("/")}
+        onBack={() => {
+          if (knowledgeBaseId) {
+            navigate(`/kb/${knowledgeBaseId}`);
+          } else {
+            navigate("/");
+          }
+        }}
         onSave={handleManualSave}
         onDelete={handleDelete}
         onToggleReviewPanel={() => setShowReviewPanel(!showReviewPanel)}
