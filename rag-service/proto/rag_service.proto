@@ -1,0 +1,93 @@
+syntax = "proto3";
+
+package rag_service;
+
+// RAG 服务定义
+service RAGService {
+  // 查询（非流式）
+  rpc Query(QueryRequest) returns (QueryResponse);
+  
+  // 流式查询
+  rpc StreamQuery(QueryRequest) returns (stream StreamChunk);
+  
+  // 仅检索
+  rpc Retrieve(RetrieveRequest) returns (RetrieveResponse);
+}
+
+// 查询请求
+message QueryRequest {
+  string question = 1;
+  optional string doc_type = 2;
+  int32 k = 3;
+  int32 rerank_k = 4;
+}
+
+// 查询响应
+message QueryResponse {
+  string answer = 1;
+  repeated Citation citations = 2;
+}
+
+// 流式块
+message StreamChunk {
+  oneof chunk_type {
+    CitationsChunk citations = 1;
+    TextChunk text = 2;
+    FinalChunk final = 3;
+    ErrorChunk error = 4;
+  }
+}
+
+message CitationsChunk {
+  repeated Citation citations = 1;
+}
+
+message TextChunk {
+  string chunk = 1;
+}
+
+message FinalChunk {
+  string answer = 1;
+  repeated Citation citations = 2;
+}
+
+message ErrorChunk {
+  string message = 1;
+}
+
+// 引用信息
+message Citation {
+  int32 index = 1;
+  string source = 2;
+  string title = 3;
+  string snippet = 4;
+  optional string doc_id = 5;
+  optional int32 page = 6;
+  optional int32 chunk_index = 7;
+  optional string chunk_position = 8;
+}
+
+// 检索请求
+message RetrieveRequest {
+  string query = 1;
+  optional string doc_type = 2;
+  int32 k = 3;
+  optional int32 rerank_k = 4;
+}
+
+// 检索响应
+message RetrieveResponse {
+  repeated RetrievalResult results = 1;
+}
+
+message RetrievalResult {
+  int32 index = 1;
+  string content = 2;
+  string source = 3;
+  string title = 4;
+  optional string doc_type = 5;
+  optional string doc_id = 6;
+  optional int32 page = 7;
+  optional int32 chunk_index = 8;
+}
+
