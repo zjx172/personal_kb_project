@@ -1,29 +1,50 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-  Layout,
-  Button,
-  Input,
-  Message,
-  Spin,
-  Empty,
-  Popconfirm,
-  Card,
-  Typography,
-  Divider,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   Tooltip,
-} from "@arco-design/web-react";
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "sonner";
 import { markdownToHtml } from "../utils/markdown";
 import {
-  IconBold,
-  IconItalic,
-  IconStrikethrough,
-  IconCode,
-  IconList,
-  IconOrderedList,
-  IconQuote,
-  IconLink,
-} from "@arco-design/web-react/icon";
+  Bold,
+  Italic,
+  Strikethrough,
+  Code,
+  List,
+  ListOrdered,
+  Quote,
+  Link as LinkIcon,
+  ArrowLeft,
+  Save,
+  Trash2,
+  Loader2,
+  Eye,
+  Edit,
+  SplitSquareHorizontal,
+  X,
+  Brain,
+  Search,
+  Highlighter,
+  Heading1,
+} from "lucide-react";
 import {
   getDoc,
   updateDoc,
@@ -36,8 +57,6 @@ import {
   queryKnowledgeBaseStream,
   Citation,
 } from "../api";
-
-const { Sider, Content, Header } = Layout;
 
 const DocPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -207,7 +226,7 @@ const DocPage: React.FC = () => {
         // 静默保存，不显示成功消息
       } catch (e: any) {
         console.error(e);
-        Message.error("自动保存失败");
+        toast.error("自动保存失败");
       } finally {
         setSaving(false);
       }
@@ -456,7 +475,7 @@ const DocPage: React.FC = () => {
           setLastSaved(new Date());
         } catch (e: any) {
           console.error(e);
-          Message.error("自动保存失败");
+          toast.error("自动保存失败");
         } finally {
           setSaving(false);
         }
@@ -482,11 +501,11 @@ const DocPage: React.FC = () => {
       });
       setCurrentDoc(detail);
       setLastSaved(new Date());
-      Message.success("保存成功");
+      toast.success("保存成功");
     } catch (e: any) {
       console.error(e);
       setError(e?.message || "保存失败");
-      Message.error(e?.message || "保存失败");
+      toast.error(e?.message || "保存失败");
     } finally {
       setSaving(false);
     }
@@ -519,10 +538,10 @@ const DocPage: React.FC = () => {
     if (!docId) return;
     try {
       const result = await generateDocSummary(docId);
-      Message.success("摘要生成成功");
+      toast.success("摘要生成成功");
       await loadDoc(); // 重新加载文档
     } catch (e: any) {
-      Message.error(e?.message || "生成摘要失败");
+      toast.error(e?.message || "生成摘要失败");
     }
   };
 
@@ -531,10 +550,10 @@ const DocPage: React.FC = () => {
     if (!docId) return;
     try {
       const result = await recommendDocTags(docId);
-      Message.success("标签推荐成功");
+      toast.success("标签推荐成功");
       await loadDoc(); // 重新加载文档
     } catch (e: any) {
-      Message.error(e?.message || "推荐标签失败");
+      toast.error(e?.message || "推荐标签失败");
     }
   };
 
@@ -542,18 +561,18 @@ const DocPage: React.FC = () => {
     if (!docId) return;
     try {
       await deleteDoc(docId);
-      Message.success("文档已删除");
+      toast.success("文档已删除");
       navigate("/"); // 删除后返回主页
     } catch (e: any) {
       console.error(e);
-      Message.error(e?.message || "删除失败");
+      toast.error(e?.message || "删除失败");
     }
   };
 
   // 复习知识功能
   const handleReviewQuery = async () => {
     if (!reviewQuery.trim()) {
-      Message.warning("请输入问题");
+      toast.warning("请输入问题");
       return;
     }
 
@@ -586,7 +605,7 @@ const DocPage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      Message.error(e?.message || "搜索失败");
+      toast.error(e?.message || "搜索失败");
       setReviewAnswer("搜索失败，请稍后重试");
     } finally {
       setReviewing(false);
@@ -662,13 +681,13 @@ const DocPage: React.FC = () => {
           return (
             <span key={index} className="inline-flex items-center gap-1">
               <span
-                className="text-blue-600 font-medium cursor-pointer hover:underline hover:text-blue-800 relative group"
+                className="text-primary font-medium cursor-pointer hover:underline relative group"
                 onClick={() => handleCitationNumberClick(citationIndex)}
                 title={`点击查看引用来源: ${citationInfo}`}
               >
                 {part}
                 {/* 悬停时显示详细信息 */}
-                <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+                <span className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-popover text-popover-foreground border border-border text-xs rounded whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-md">
                   {citationInfo}
                 </span>
               </span>
@@ -682,199 +701,307 @@ const DocPage: React.FC = () => {
 
   if (!docId) {
     return (
-      <Layout className="h-screen">
-        <Content className="flex items-center justify-center">
-          <Empty description="文档 ID 无效" />
-        </Content>
-      </Layout>
+      <div className="h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-muted-foreground">文档 ID 无效</p>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Layout className="h-screen">
-      <Header className="h-14 px-4 border-b flex items-center justify-between">
-        <Button type="text" onClick={() => navigate("/")}>
-          ← 返回
-        </Button>
-        <div className="flex items-center gap-2">
-          <Input
-            placeholder="文档标题"
-            value={titleDraft}
-            onChange={setTitleDraft}
-            style={{ width: 200 }}
-            size="small"
-          />
-        </div>
-        <div className="flex items-center gap-3">
-          <Button
-            type="outline"
-            size="small"
-            onClick={() => setShowReviewPanel(!showReviewPanel)}
-          >
-            {showReviewPanel ? "隐藏" : "复习知识"}
-          </Button>
-          {saving && <span className="text-xs text-gray-400">保存中...</span>}
-          {lastSaved && !saving && (
-            <span className="text-xs text-gray-400">
-              已保存：{lastSaved.toLocaleTimeString()}
-            </span>
-          )}
-          {!lastSaved && currentDoc && !saving && (
-            <span className="text-xs text-gray-400">
-              最后保存：
-              {new Date(currentDoc.updated_at).toLocaleString()}
-            </span>
-          )}
-          <Button
-            type="primary"
-            size="small"
-            onClick={handleManualSave}
-            loading={saving}
-          >
-            手动保存
-          </Button>
-          <Popconfirm
-            title="确定要删除这个文档吗？"
-            onOk={handleDelete}
-            okButtonProps={{ status: "danger" }}
-          >
-            <Button type="outline" size="small" status="danger">
-              删除
+    <div className="h-screen flex flex-col bg-background">
+      {/* 顶部导航栏 */}
+      <header className="border-b bg-card flex flex-col flex-shrink-0">
+        <div className="h-14 px-6 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => navigate("/")}
+              className="gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              返回
             </Button>
-          </Popconfirm>
+          </div>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowReviewPanel(!showReviewPanel)}
+              className="gap-2"
+            >
+              <Brain className="h-4 w-4" />
+              {showReviewPanel ? "隐藏" : "复习知识"}
+            </Button>
+            {saving && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span>保存中...</span>
+              </div>
+            )}
+            {lastSaved && !saving && (
+              <span className="text-xs text-muted-foreground">
+                已保存：{lastSaved.toLocaleTimeString()}
+              </span>
+            )}
+            {!lastSaved && currentDoc && !saving && (
+              <span className="text-xs text-muted-foreground">
+                最后保存：{new Date(currentDoc.updated_at).toLocaleString()}
+              </span>
+            )}
+            <Button
+              size="sm"
+              onClick={handleManualSave}
+              disabled={saving}
+              className="gap-2"
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              保存
+            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2 text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  删除
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>确定要删除这个文档吗？</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    此操作无法撤销，文档将被永久删除。
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>取消</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    删除
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
         </div>
-      </Header>
+        {/* 标题区域 */}
+        {currentDoc && (
+          <div className="px-6 py-6 border-t bg-gradient-to-b from-card to-background">
+            <input
+              type="text"
+              placeholder="输入文档标题..."
+              value={titleDraft}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setTitleDraft(e.target.value)
+              }
+              className="w-full text-4xl font-bold bg-transparent border-none outline-none focus:outline-none placeholder:text-muted-foreground/40 resize-none transition-all"
+              style={{
+                lineHeight: "1.3",
+                letterSpacing: "-0.02em",
+              }}
+            />
+            {currentDoc.updated_at && (
+              <p className="text-sm text-muted-foreground mt-2">
+                最后更新：
+                {new Date(currentDoc.updated_at).toLocaleString("zh-CN")}
+              </p>
+            )}
+          </div>
+        )}
+      </header>
 
       {error && (
-        <div className="px-4 py-2">
-          <Message type="error" content={error} />
+        <div className="px-4 py-2 bg-destructive/10 border-b border-destructive/20">
+          <p className="text-sm text-destructive">{error}</p>
         </div>
       )}
 
-      <Layout className="flex-1 overflow-hidden">
-        <Content className="flex-1 overflow-hidden flex flex-col">
+      {/* 主内容区 */}
+      <div className="flex-1 flex overflow-hidden">
+        <div className="flex-1 flex flex-col overflow-hidden">
           {loading ? (
             <div className="h-full flex items-center justify-center">
-              <Spin />
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
           ) : !currentDoc ? (
             <div className="h-full flex items-center justify-center">
-              <Empty description="文档不存在" />
+              <div className="text-center">
+                <p className="text-muted-foreground">文档不存在</p>
+              </div>
             </div>
           ) : (
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* 工具栏 */}
-              <div className="border-b bg-white px-4 py-2 flex items-center gap-2 flex-shrink-0">
-                <div className="flex items-center gap-1 border-r pr-2 mr-2">
-                  <Tooltip content="粗体">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<IconBold />}
-                      onClick={() => handleFormat("bold")}
-                    />
-                  </Tooltip>
-                  <Tooltip content="斜体">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<IconItalic />}
-                      onClick={() => handleFormat("italic")}
-                    />
-                  </Tooltip>
-                  <Tooltip content="删除线">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<IconStrikethrough />}
-                      onClick={() => handleFormat("strikethrough")}
-                    />
-                  </Tooltip>
-                  <Tooltip content="行内代码">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<IconCode />}
-                      onClick={() => handleFormat("code")}
-                    />
-                  </Tooltip>
-                  <Tooltip content="高亮">
-                    <Button
-                      type="text"
-                      size="small"
-                      onClick={() => handleFormat("highlight")}
+              <TooltipProvider>
+                <div className="border-b bg-card px-4 py-2 flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-1 border-r pr-2 mr-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleFormat("bold")}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Bold className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>粗体</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleFormat("italic")}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Italic className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>斜体</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleFormat("strikethrough")}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Strikethrough className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>删除线</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleFormat("code")}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Code className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>行内代码</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleFormat("highlight")}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Highlighter className="h-4 w-4 text-yellow-600" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>高亮</TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="flex items-center gap-1 border-r pr-2 mr-2">
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleFormat("heading")}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Heading1 className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>标题</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleFormat("quote")}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Quote className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>引用</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleFormat("ul")}
+                          className="h-8 w-8 p-0"
+                        >
+                          <List className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>无序列表</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleFormat("ol")}
+                          className="h-8 w-8 p-0"
+                        >
+                          <ListOrdered className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>有序列表</TooltipContent>
+                    </Tooltip>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleFormat("link")}
+                          className="h-8 w-8 p-0"
+                        >
+                          <LinkIcon className="h-4 w-4" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>链接</TooltipContent>
+                    </Tooltip>
+                  </div>
+                  <div className="flex items-center gap-1 ml-auto">
+                    <Tabs
+                      value={viewMode}
+                      onValueChange={(v) => setViewMode(v as any)}
                     >
-                      <span className="text-yellow-600 font-bold">高</span>
-                    </Button>
-                  </Tooltip>
+                      <TabsList>
+                        <TabsTrigger value="edit" className="gap-2">
+                          <Edit className="h-4 w-4" />
+                          编辑
+                        </TabsTrigger>
+                        <TabsTrigger value="preview" className="gap-2">
+                          <Eye className="h-4 w-4" />
+                          预览
+                        </TabsTrigger>
+                        <TabsTrigger value="both" className="gap-2">
+                          <SplitSquareHorizontal className="h-4 w-4" />
+                          分屏
+                        </TabsTrigger>
+                      </TabsList>
+                    </Tabs>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 border-r pr-2 mr-2">
-                  <Tooltip content="标题">
-                    <Button
-                      type="text"
-                      size="small"
-                      onClick={() => handleFormat("heading")}
-                    >
-                      H
-                    </Button>
-                  </Tooltip>
-                  <Tooltip content="引用">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<IconQuote />}
-                      onClick={() => handleFormat("quote")}
-                    />
-                  </Tooltip>
-                  <Tooltip content="无序列表">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<IconList />}
-                      onClick={() => handleFormat("ul")}
-                    />
-                  </Tooltip>
-                  <Tooltip content="有序列表">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<IconOrderedList />}
-                      onClick={() => handleFormat("ol")}
-                    />
-                  </Tooltip>
-                  <Tooltip content="链接">
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<IconLink />}
-                      onClick={() => handleFormat("link")}
-                    />
-                  </Tooltip>
-                </div>
-                <div className="flex items-center gap-1 ml-auto">
-                  <Button
-                    type={viewMode === "edit" ? "primary" : "text"}
-                    size="small"
-                    onClick={() => setViewMode("edit")}
-                  >
-                    编辑
-                  </Button>
-                  <Button
-                    type={viewMode === "preview" ? "primary" : "text"}
-                    size="small"
-                    onClick={() => setViewMode("preview")}
-                  >
-                    预览
-                  </Button>
-                  <Button
-                    type={viewMode === "both" ? "primary" : "text"}
-                    size="small"
-                    onClick={() => setViewMode("both")}
-                  >
-                    分屏
-                  </Button>
-                </div>
-              </div>
+              </TooltipProvider>
 
               {/* 编辑器区域 */}
               <div className="flex-1 flex overflow-hidden">
@@ -882,18 +1009,15 @@ const DocPage: React.FC = () => {
                   <div
                     className={`${
                       viewMode === "both" ? "w-1/2" : "w-full"
-                    } flex flex-col border-r`}
+                    } flex flex-col border-r bg-background`}
                   >
                     <textarea
                       ref={editorRef}
                       value={contentDraft}
                       onChange={(e) => handleContentChange(e.target.value)}
-                      className="flex-1 w-full p-6 resize-none outline-none text-sm leading-relaxed bg-white"
+                      className="flex-1 w-full p-6 resize-none outline-none text-sm leading-relaxed bg-background font-mono"
                       placeholder="开始输入...支持 Markdown 语法"
                       style={{
-                        fontFamily:
-                          '-apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Helvetica, Arial, sans-serif',
-                        color: "#1f2329",
                         fontSize: "14px",
                         lineHeight: "1.75",
                       }}
@@ -905,14 +1029,14 @@ const DocPage: React.FC = () => {
                     ref={previewRef}
                     className={`${
                       viewMode === "both" ? "w-1/2" : "w-full"
-                    } overflow-y-auto p-6 bg-white`}
+                    } overflow-y-auto p-6 bg-background`}
                     style={{
                       maxWidth: viewMode === "both" ? "100%" : "900px",
                       margin: viewMode === "both" ? "0" : "0 auto",
                     }}
                   >
                     <div
-                      className="prose prose-sm max-w-none"
+                      className="prose prose-sm max-w-none dark:prose-invert"
                       dangerouslySetInnerHTML={{
                         __html: markdownToHtml(contentDraft || "*暂无内容*"),
                       }}
@@ -922,49 +1046,64 @@ const DocPage: React.FC = () => {
               </div>
             </div>
           )}
-        </Content>
+        </div>
 
         {/* 复习知识侧边栏 */}
         {showReviewPanel && (
-          <div
-            className="w-96 border-l bg-white overflow-y-auto"
-            style={{ height: "calc(100vh - 56px)" }}
-          >
-            <div className="p-4">
-              <Typography.Title heading={6} className="mb-4">
-                复习知识
-              </Typography.Title>
+          <div className="w-96 border-l bg-card overflow-y-auto flex flex-col">
+            <div className="p-4 border-b flex items-center justify-between">
+              <h3 className="text-lg font-semibold">复习知识</h3>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowReviewPanel(false)}
+                className="h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="p-4 flex-1 overflow-y-auto">
               <div className="mb-4">
-                <Input
-                  placeholder="输入问题，在知识库中查找答案..."
-                  value={reviewQuery}
-                  onChange={setReviewQuery}
-                  onKeyPress={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleReviewQuery();
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="输入问题，在知识库中查找答案..."
+                    value={reviewQuery}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                      setReviewQuery(e.target.value)
                     }
-                  }}
-                  suffix={
-                    <Button
-                      type="primary"
-                      size="small"
-                      loading={reviewing}
-                      onClick={handleReviewQuery}
-                    >
-                      搜索
-                    </Button>
-                  }
-                />
+                    onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        handleReviewQuery();
+                      }
+                    }}
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={handleReviewQuery}
+                    disabled={reviewing}
+                    size="sm"
+                    className="gap-2"
+                  >
+                    {reviewing ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                    搜索
+                  </Button>
+                </div>
               </div>
 
               {/* 搜索结果 */}
               {(reviewAnswer || reviewing) && (
-                <div className="mt-4">
+                <div className="mt-4 space-y-4">
                   {reviewing && !reviewAnswer && (
                     <div className="flex items-center justify-center py-8">
-                      <Spin />
-                      <span className="ml-3 text-gray-500">正在搜索...</span>
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                      <span className="ml-3 text-muted-foreground">
+                        正在搜索...
+                      </span>
                     </div>
                   )}
 
@@ -973,49 +1112,57 @@ const DocPage: React.FC = () => {
                       {/* 答案部分 - 只在有引用时显示 */}
                       {reviewCitations.length > 0 &&
                         !isNoAnswerFound(reviewAnswer) && (
-                          <Card className="mb-4">
-                            <div className="mb-3">
-                              <Typography.Text className="text-sm font-semibold text-gray-700 mb-1 block">
-                                AI 回答：
-                              </Typography.Text>
-                              {/* 引用来源统计 */}
-                              <div className="text-xs text-gray-500 mb-2 flex flex-wrap items-center gap-2">
-                                <span className="font-medium">引用来源：</span>
-                                {reviewCitations.map((c) => (
-                                  <span
-                                    key={c.index}
-                                    className="inline-flex items-center gap-1"
-                                  >
-                                    <span className="text-blue-600 font-medium">
-                                      [{c.index}]
-                                    </span>
-                                    {c.chunk_position && (
-                                      <span className="text-gray-400">
-                                        {c.chunk_position}
-                                        {c.page && `, 第 ${c.page} 页`}
-                                      </span>
-                                    )}
+                          <Card>
+                            <CardContent className="p-4">
+                              <div className="mb-3">
+                                <h4 className="text-sm font-semibold mb-2">
+                                  AI 回答
+                                </h4>
+                                {/* 引用来源统计 */}
+                                <div className="text-xs text-muted-foreground mb-2 flex flex-wrap items-center gap-2">
+                                  <span className="font-medium">
+                                    引用来源：
                                   </span>
-                                ))}
+                                  {reviewCitations.map((c) => (
+                                    <span
+                                      key={c.index}
+                                      className="inline-flex items-center gap-1"
+                                    >
+                                      <span className="text-primary font-medium">
+                                        [{c.index}]
+                                      </span>
+                                      {c.chunk_position && (
+                                        <span className="text-muted-foreground">
+                                          {c.chunk_position}
+                                          {c.page && `, 第 ${c.page} 页`}
+                                        </span>
+                                      )}
+                                    </span>
+                                  ))}
+                                </div>
                               </div>
-                            </div>
-                            <div className="text-sm text-gray-800 leading-relaxed">
-                              {renderAnswerWithClickableCitations(reviewAnswer)}
-                              {reviewing && (
-                                <span className="inline-block w-2 h-4 bg-gray-400 animate-pulse ml-1" />
-                              )}
-                            </div>
+                              <div className="text-sm leading-relaxed">
+                                {renderAnswerWithClickableCitations(
+                                  reviewAnswer
+                                )}
+                                {reviewing && (
+                                  <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-1" />
+                                )}
+                              </div>
+                            </CardContent>
                           </Card>
                         )}
 
                       {/* 如果没有找到相关内容 */}
                       {isNoAnswerFound(reviewAnswer) && (
-                        <Card className="mb-4">
-                          <div className="text-orange-600 text-center py-4">
-                            <Typography.Text type="warning">
-                              知识库中没有找到相关内容
-                            </Typography.Text>
-                          </div>
+                        <Card>
+                          <CardContent className="p-4">
+                            <div className="text-center py-4">
+                              <p className="text-sm text-orange-600">
+                                知识库中没有找到相关内容
+                              </p>
+                            </div>
+                          </CardContent>
                         </Card>
                       )}
 
@@ -1023,9 +1170,9 @@ const DocPage: React.FC = () => {
                       {reviewCitations.length > 0 &&
                         !isNoAnswerFound(reviewAnswer) && (
                           <div>
-                            <Typography.Text className="text-sm font-semibold text-gray-700 mb-2 block">
-                              原文引用：
-                            </Typography.Text>
+                            <h4 className="text-sm font-semibold mb-2">
+                              原文引用
+                            </h4>
                             <div className="space-y-3">
                               {reviewCitations.map((citation) => {
                                 const isMarkdownDoc =
@@ -1037,75 +1184,76 @@ const DocPage: React.FC = () => {
                                 return (
                                   <Card
                                     key={citation.index}
-                                    hoverable={!!docId}
                                     className={`cursor-pointer transition-all ${
                                       docId
-                                        ? "hover:shadow-md hover:border-blue-400"
+                                        ? "hover:shadow-md hover:border-primary"
                                         : ""
                                     }`}
                                     onClick={() =>
                                       handleCitationClick(citation)
                                     }
                                   >
-                                    <div className="flex flex-col">
-                                      {/* 引用标号和标题 */}
-                                      <div className="mb-2 flex items-center gap-2">
-                                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-600 text-xs font-semibold flex-shrink-0">
-                                          {citation.index}
-                                        </span>
-                                        <div className="flex-1">
-                                          {citation.title && (
-                                            <Typography.Text className="text-base font-medium text-gray-800 block">
-                                              {citation.title}
-                                            </Typography.Text>
-                                          )}
-                                          {/* 引用来源详细信息 */}
-                                          <div className="flex items-center gap-2 mt-1 text-xs text-gray-500">
-                                            <span className="text-gray-600 font-medium">
-                                              引用来源：
-                                            </span>
-                                            {citation.chunk_position && (
-                                              <span className="bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
-                                                {citation.chunk_position}
-                                              </span>
+                                    <CardContent className="p-4">
+                                      <div className="flex flex-col">
+                                        {/* 引用标号和标题 */}
+                                        <div className="mb-2 flex items-center gap-2">
+                                          <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-semibold flex-shrink-0">
+                                            {citation.index}
+                                          </span>
+                                          <div className="flex-1">
+                                            {citation.title && (
+                                              <p className="text-base font-medium block">
+                                                {citation.title}
+                                              </p>
                                             )}
-                                            {citation.chunk_index !==
-                                              undefined && (
-                                              <span className="text-gray-500">
-                                                (Chunk #
-                                                {citation.chunk_index + 1})
+                                            {/* 引用来源详细信息 */}
+                                            <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground">
+                                              <span className="font-medium">
+                                                引用来源：
                                               </span>
-                                            )}
-                                            {citation.page && (
-                                              <span className="text-gray-500">
-                                                第 {citation.page} 页
-                                              </span>
-                                            )}
+                                              {citation.chunk_position && (
+                                                <span className="bg-primary/10 text-primary px-2 py-0.5 rounded">
+                                                  {citation.chunk_position}
+                                                </span>
+                                              )}
+                                              {citation.chunk_index !==
+                                                undefined && (
+                                                <span>
+                                                  (Chunk #
+                                                  {citation.chunk_index + 1})
+                                                </span>
+                                              )}
+                                              {citation.page && (
+                                                <span>
+                                                  第 {citation.page} 页
+                                                </span>
+                                              )}
+                                            </div>
                                           </div>
                                         </div>
-                                      </div>
 
-                                      {/* 原文内容 */}
-                                      <div className="text-sm text-gray-700 leading-relaxed bg-gray-50 p-3 rounded border-l-4 border-blue-400 mb-2">
-                                        <span>{citation.snippet}</span>
-                                      </div>
+                                        {/* 原文内容 */}
+                                        <div className="text-sm leading-relaxed bg-muted p-3 rounded border-l-4 border-primary mb-2">
+                                          <span>{citation.snippet}</span>
+                                        </div>
 
-                                      {/* 来源信息 */}
-                                      <div className="flex items-center gap-2 text-xs text-gray-500">
-                                        <span>
-                                          {isMarkdownDoc
-                                            ? "知识库文档"
-                                            : citation.source
-                                                .split("/")
-                                                .pop() || citation.source}
-                                        </span>
-                                        {docId && (
-                                          <span className="text-blue-600 hover:underline">
-                                            点击查看原文 →
+                                        {/* 来源信息 */}
+                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                          <span>
+                                            {isMarkdownDoc
+                                              ? "知识库文档"
+                                              : citation.source
+                                                  .split("/")
+                                                  .pop() || citation.source}
                                           </span>
-                                        )}
+                                          {docId && (
+                                            <span className="text-primary hover:underline">
+                                              点击查看原文 →
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
-                                    </div>
+                                    </CardContent>
                                   </Card>
                                 );
                               })}
@@ -1118,17 +1266,15 @@ const DocPage: React.FC = () => {
               )}
 
               {!reviewAnswer && !reviewing && (
-                <div className="text-center text-gray-400 mt-8">
-                  <Typography.Text>
-                    输入问题，在知识库中查找准确的答案
-                  </Typography.Text>
+                <div className="text-center text-muted-foreground mt-8">
+                  <p className="text-sm">输入问题，在知识库中查找准确的答案</p>
                 </div>
               )}
             </div>
           </div>
         )}
-      </Layout>
-    </Layout>
+      </div>
+    </div>
   );
 };
 

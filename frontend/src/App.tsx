@@ -1,5 +1,6 @@
 import React from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Toaster } from "sonner";
 import HomePage from "./pages/HomePage";
 import DocPage from "./pages/DocPage";
 import GraphPage from "./pages/GraphPage";
@@ -12,6 +13,7 @@ const App: React.FC = () => {
         <Route path="/doc/:id" element={<DocPage />} />
         <Route path="/graph" element={<GraphPage />} />
       </Routes>
+      <Toaster position="top-center" />
     </BrowserRouter>
   );
 };

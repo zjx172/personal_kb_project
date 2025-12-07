@@ -1,18 +1,20 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 import {
-  Layout,
-  Input,
-  Button,
-  List,
-  Spin,
-  Empty,
-  Typography,
-  Card,
-  Message,
-  Divider,
-  Popconfirm,
-} from "@arco-design/web-react";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
 import {
   listDocs,
   createDoc,
@@ -23,13 +25,8 @@ import {
   extractWebContent,
 } from "../api";
 import { AnswerWithCitations } from "../components/AnswerWithCitations";
-// import { SearchResultCard } from "../components/SearchResultCard";
-import {
-  SearchFilters,
-  SearchFilterOptions,
-} from "../components/SearchFilters";
-
-const { Sider, Content, Header } = Layout;
+import { SearchFilterOptions } from "../components/SearchFilters";
+import { Plus, Search, FileText, Trash2, Loader2, Globe } from "lucide-react";
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -48,14 +45,6 @@ const HomePage: React.FC = () => {
     QueryResponse["citations"]
   >([]);
   const [searchFilters, setSearchFilters] = useState<SearchFilterOptions>({});
-
-  // 提取所有标签和文档类型用于过滤器
-  // const allTags = Array.from(
-  //   new Set(docs.flatMap((doc) => doc.tags || []))
-  // ).sort();
-  // const allDocTypes = Array.from(
-  //   new Set(docs.map((doc) => doc.doc_type).filter(Boolean) as string[])
-  // ).sort();
 
   // 流式显示控制
   const streamBufferRef = useRef<string>("");
@@ -84,10 +73,11 @@ const HomePage: React.FC = () => {
         title: "未命名文档",
         content: "",
       });
-      // 在新标签页中打开文档编辑页面
       window.open(`/doc/${newDoc.id}`, "_blank");
+      toast.success("文档已创建");
     } catch (e) {
       console.error(e);
+      toast.error("创建文档失败");
     }
   };
 
@@ -95,29 +85,27 @@ const HomePage: React.FC = () => {
     navigate(`/doc/${id}`);
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation(); // 阻止事件冒泡，避免触发文档点击
+  const handleDelete = async (id: string) => {
     try {
       await deleteDoc(id);
-      Message.success("文档已删除");
-      await loadDocs(); // 重新加载文档列表
+      toast.success("文档已删除");
+      await loadDocs();
     } catch (e: any) {
       console.error(e);
-      Message.error(e?.message || "删除失败");
+      toast.error(e?.message || "删除失败");
     }
   };
 
   const handleExtractWeb = async () => {
     if (!webUrl.trim()) {
-      Message.warning("请输入网页 URL");
+      toast.warning("请输入网页 URL");
       return;
     }
 
-    // 验证 URL 格式
     try {
       new URL(webUrl);
     } catch {
-      Message.error("请输入有效的 URL");
+      toast.error("请输入有效的 URL");
       return;
     }
 
@@ -126,14 +114,13 @@ const HomePage: React.FC = () => {
       const newDoc = await extractWebContent({
         url: webUrl,
       });
-      Message.success("网页内容已提取并保存");
+      toast.success("网页内容已提取并保存");
       setWebUrl("");
-      await loadDocs(); // 重新加载文档列表
-      // 打开新创建的文档
+      await loadDocs();
       window.open(`/doc/${newDoc.id}`, "_blank");
     } catch (e: any) {
       console.error(e);
-      Message.error(e?.response?.data?.detail || e?.message || "提取失败");
+      toast.error(e?.response?.data?.detail || e?.message || "提取失败");
     } finally {
       setExtracting(false);
     }
@@ -142,12 +129,11 @@ const HomePage: React.FC = () => {
   // 匀速显示流式内容
   const startStreamDisplay = () => {
     if (streamTimerRef.current) {
-      return; // 已经在运行
+      return;
     }
 
     const displayChunk = () => {
       if (streamBufferRef.current.length > 0) {
-        // 每次显示 3-5 个字符，根据内容调整
         const chunkSize = Math.min(
           Math.max(3, Math.floor(streamBufferRef.current.length / 20)),
           10
@@ -158,7 +144,7 @@ const HomePage: React.FC = () => {
         setStreamingAnswer(streamDisplayRef.current);
 
         if (streamBufferRef.current.length > 0) {
-          streamTimerRef.current = window.setTimeout(displayChunk, 50); // 每 50ms 显示一次
+          streamTimerRef.current = window.setTimeout(displayChunk, 50);
         } else {
           streamTimerRef.current = null;
         }
@@ -172,11 +158,10 @@ const HomePage: React.FC = () => {
 
   const handleQuery = async () => {
     if (!query.trim()) {
-      Message.warning("请输入问题");
+      toast.warning("请输入问题");
       return;
     }
 
-    // 清理之前的定时器
     if (streamTimerRef.current) {
       clearTimeout(streamTimerRef.current);
       streamTimerRef.current = null;
@@ -193,40 +178,32 @@ const HomePage: React.FC = () => {
         query,
         (chunk) => {
           if (chunk.type === "chunk" && chunk.chunk) {
-            // 将接收到的 chunk 添加到缓冲区
             streamBufferRef.current += chunk.chunk;
-            // 如果定时器没有运行，启动显示
             if (!streamTimerRef.current) {
               startStreamDisplay();
             }
           } else if (chunk.type === "citations" && chunk.citations) {
-            // 保存 citations，以便在流式显示时也能使用
             setStreamingCitations(chunk.citations);
           } else if (chunk.type === "final") {
-            // 确保所有缓冲内容都显示完
             if (streamBufferRef.current.length > 0) {
               streamDisplayRef.current += streamBufferRef.current;
               streamBufferRef.current = "";
               setStreamingAnswer(streamDisplayRef.current);
             }
 
-            // 如果 final chunk 包含完整答案，使用它（可能更准确）
             if (chunk.answer) {
               setStreamingAnswer(chunk.answer);
             }
 
-            // 如果 final chunk 包含 citations，使用它
             if (chunk.citations) {
               setStreamingCitations(chunk.citations);
             }
 
-            // 清理定时器
             if (streamTimerRef.current) {
               clearTimeout(streamTimerRef.current);
               streamTimerRef.current = null;
             }
 
-            // 清理缓冲区（但保留显示的内容）
             streamBufferRef.current = "";
           }
         },
@@ -234,8 +211,7 @@ const HomePage: React.FC = () => {
       );
     } catch (e: any) {
       console.error(e);
-      Message.error(e?.message || "搜索失败");
-      // 清理定时器
+      toast.error(e?.message || "搜索失败");
       if (streamTimerRef.current) {
         clearTimeout(streamTimerRef.current);
         streamTimerRef.current = null;
@@ -245,7 +221,6 @@ const HomePage: React.FC = () => {
     }
   };
 
-  // 组件卸载时清理定时器
   useEffect(() => {
     return () => {
       if (streamTimerRef.current) {
@@ -261,202 +236,208 @@ const HomePage: React.FC = () => {
     }
   };
 
-  // 检查答案是否表示找不到相关内容
-  // const isNoAnswerFound = (
-  //   answer: string,
-  //   citations: QueryResponse["citations"]
-  // ): boolean => {
-  //   // 如果没有引用，直接返回找不到
-  //   if (!citations || citations.length === 0) {
-  //     return true;
-  //   }
-
-  //   const lowerAnswer = answer.toLowerCase();
-  //   return (
-  //     lowerAnswer.includes("知识库中没有相关内容") ||
-  //     lowerAnswer.includes("没有找到") ||
-  //     lowerAnswer.includes("找不到") ||
-  //     lowerAnswer.includes("未找到") ||
-  //     (lowerAnswer.includes("没有") && lowerAnswer.includes("信息"))
-  //   );
-  // };
-
   return (
-    <Layout className="h-screen">
-      <Layout className="flex-1">
-        <Sider width={300} className="border-r p-4">
-          <div className="mb-3">
-            <Button type="primary" long onClick={handleCreate}>
-              新建文档
-            </Button>
-          </div>
-          <div className="mb-3">
+    <div className="flex h-screen bg-background">
+      {/* 侧边栏 */}
+      <aside className="w-64 border-r bg-card flex flex-col">
+        <div className="p-4 space-y-4">
+          <Button onClick={handleCreate} className="w-full" size="sm">
+            <Plus className="mr-2 h-4 w-4" />
+            新建文档
+          </Button>
+
+          <div className="space-y-2">
             <Input
               placeholder="输入网页 URL..."
               value={webUrl}
-              onChange={setWebUrl}
-              size="small"
-              style={{ marginBottom: 8 }}
-              onKeyPress={(e) => {
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                setWebUrl(e.target.value)
+              }
+              onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
                 if (e.key === "Enter") {
                   handleExtractWeb();
                 }
               }}
+              className="h-9"
             />
             <Button
-              type="outline"
-              long
+              variant="outline"
               onClick={handleExtractWeb}
-              loading={extracting}
+              disabled={extracting}
+              className="w-full"
+              size="sm"
             >
-              提取网页内容
+              {extracting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <Globe className="mr-2 h-4 w-4" />
+              )}
+              提取网页
             </Button>
           </div>
-          <div className="text-sm font-semibold mb-2">知识库列表</div>
-          <div
-            className="overflow-y-auto"
-            style={{ height: "calc(100% - 80px)" }}
-          >
-            <Spin loading={loading} className="w-full">
-              {docs.length === 0 ? (
-                <Empty description="暂无文档" className="mt-8" />
-              ) : (
-                <List
-                  dataSource={docs}
-                  render={(item) => (
-                    <List.Item
-                      key={item.id}
-                      className="cursor-pointer hover:bg-gray-50 group"
-                      onClick={() => handleDocClick(item.id)}
-                    >
-                      <div className="flex items-center justify-between w-full">
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium truncate">
-                            {item.title}
-                          </div>
-                          <div className="flex justify-end mt-1 text-xs text-gray-400">
-                            <span>
-                              {new Date(item.updated_at).toLocaleDateString(
-                                "zh-CN",
-                                {
-                                  month: "2-digit",
-                                  day: "2-digit",
-                                }
-                              )}
-                            </span>
-                          </div>
-                        </div>
-                        <Popconfirm
-                          title="确定要删除这个文档吗？"
-                          onOk={(e) => handleDelete(item.id, e as any)}
-                          onCancel={(e) => e?.stopPropagation()}
-                        >
-                          <Button
-                            type="text"
-                            size="mini"
-                            status="danger"
-                            className="opacity-0 group-hover:opacity-100 ml-2"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            删除
-                          </Button>
-                        </Popconfirm>
-                      </div>
-                    </List.Item>
-                  )}
-                />
-              )}
-            </Spin>
-          </div>
-        </Sider>
-        <Content className="flex flex-col items-center justify-center bg-gray-50 p-8">
-          <div className="w-full max-w-3xl">
-            <div className="text-center mb-8">
-              <Typography.Title heading={2} className="mb-2">
-                个人学习助手
-              </Typography.Title>
-              <Typography.Text type="secondary">
-                在您的知识库中搜索答案
-              </Typography.Text>
-            </div>
 
-            <div className="mb-6">
+          <div className="text-sm font-semibold text-muted-foreground pt-2">
+            知识库
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto px-4 pb-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : docs.length === 0 ? (
+            <div className="text-center text-sm text-muted-foreground py-8">
+              暂无文档
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {docs.map((item) => (
+                <div
+                  key={item.id}
+                  className="group flex items-center justify-between p-2 rounded-md hover:bg-accent cursor-pointer transition-colors"
+                  onClick={() => handleDocClick(item.id)}
+                >
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">
+                        {item.title}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(item.updated_at).toLocaleDateString("zh-CN", {
+                          month: "2-digit",
+                          day: "2-digit",
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>
+                          确定要删除这个文档吗？
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                          此操作无法撤销，文档将被永久删除。
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>取消</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => handleDelete(item.id)}
+                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                          删除
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {/* 主内容区 */}
+      <main className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto">
+        <div className="w-full max-w-4xl">
+          {/* 标题区域 */}
+          <div className="text-center mb-12">
+            <h1 className="text-4xl font-bold tracking-tight mb-3">
+              个人知识库
+            </h1>
+            <p className="text-lg text-muted-foreground">
+              在您的知识库中搜索答案，或创建新文档
+            </p>
+          </div>
+
+          {/* 搜索框 */}
+          <div className="mb-8">
+            <div className="relative">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
-                size="large"
                 placeholder="输入您的问题，在知识库中搜索..."
                 value={query}
-                onChange={setQuery}
-                onKeyPress={handleQueryKeyPress}
-                style={{
-                  height: 56,
-                  fontSize: 16,
-                }}
-                suffix={
-                  <Button
-                    type="primary"
-                    loading={querying}
-                    onClick={handleQuery}
-                    style={{ marginRight: -8 }}
-                  >
-                    搜索
-                  </Button>
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  setQuery(e.target.value)
                 }
+                onKeyPress={handleQueryKeyPress}
+                className="pl-12 pr-24 h-14 text-base"
               />
-
-              {/* 搜索过滤器 */}
-              {/* <SearchFilters
-                onFilterChange={setSearchFilters}
-                availableTags={allTags}
-                availableDocTypes={allDocTypes}
-              /> */}
+              <Button
+                onClick={handleQuery}
+                disabled={querying}
+                className="absolute right-2 top-1/2 transform -translate-y-1/2"
+                size="sm"
+              >
+                {querying ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "搜索"
+                )}
+              </Button>
             </div>
+          </div>
 
-            {(streamingAnswer || querying) && (
-              <div className="mt-6">
-                {/* AI 回答部分 */}
-                {streamingAnswer && (
-                  <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200 shadow-sm">
-                    <div className="mb-3">
-                      <Typography.Text className="text-base font-semibold text-gray-800 flex items-center gap-2">
-                        <span>🤖</span>
-                        AI 智能回答：
-                      </Typography.Text>
+          {/* 搜索结果 */}
+          {(streamingAnswer || querying) && (
+            <div className="space-y-6">
+              {streamingAnswer && (
+                <Card className="border-2">
+                  <CardContent className="p-6">
+                    <div className="flex items-center gap-2 mb-4">
+                      <div className="h-2 w-2 rounded-full bg-primary" />
+                      <h2 className="text-lg font-semibold">AI 回答</h2>
                     </div>
-                    <div className="text-gray-700">
+                    <div className="prose prose-sm max-w-none">
                       <AnswerWithCitations
                         answer={streamingAnswer}
                         citations={streamingCitations}
                       />
                       {querying && (
-                        <span className="inline-block w-2 h-4 bg-gray-400 animate-pulse ml-1" />
+                        <span className="inline-block w-2 h-4 bg-primary animate-pulse ml-1" />
                       )}
                     </div>
-                  </Card>
-                )}
+                  </CardContent>
+                </Card>
+              )}
 
-                {/* 加载状态 */}
-                {querying && !streamingAnswer && (
-                  <Card className="mt-6">
-                    <div className="flex items-center justify-center py-8">
-                      <Spin />
-                      <span className="ml-3 text-gray-500">正在搜索...</span>
+              {querying && !streamingAnswer && (
+                <Card>
+                  <CardContent className="p-8">
+                    <div className="flex items-center justify-center gap-3">
+                      <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                      <span className="text-muted-foreground">正在搜索...</span>
                     </div>
-                  </Card>
-                )}
-              </div>
-            )}
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
 
-            {!streamingAnswer && !querying && (
-              <div className="text-center text-gray-400 mt-8">
-                <Typography.Text>
-                  在知识库中搜索您的问题，或选择左侧文档进行编辑
-                </Typography.Text>
-              </div>
-            )}
-          </div>
-        </Content>
-      </Layout>
-    </Layout>
+          {/* 空状态 */}
+          {!streamingAnswer && !querying && (
+            <div className="text-center py-16">
+              <p className="text-muted-foreground">
+                在知识库中搜索您的问题，或选择左侧文档进行编辑
+              </p>
+            </div>
+          )}
+        </div>
+      </main>
+    </div>
   );
 };
 
