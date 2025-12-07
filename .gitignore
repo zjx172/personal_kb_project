@@ -3,13 +3,5 @@ backend/venv
 backend/vector_store
 backend/kb.db
 backend/docs
-backend/logs
-backend/__pycache__
-backend/app.log
-backend/app.log.1
-backend/app.log.2
-backend/app.log.3
-backend/app.log.4
-backend/app.log.5
 backend/.env
 backend/uploads

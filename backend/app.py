@@ -20,7 +20,7 @@ logging.basicConfig(
 sentry = init_sentry()
 
 # 创建 FastAPI 应用
-app = FastAPI(title="WisdomVault Backend")
+app = FastAPI(title="WisdomVault（智慧宝库）Backend")
 
 # 添加 CORS 中间件
 app.add_middleware(

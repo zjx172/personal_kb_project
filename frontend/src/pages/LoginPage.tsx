@@ -194,6 +194,9 @@ const LoginPage: React.FC = () => {
           <h1 className="text-6xl font-bold tracking-tight mb-4 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
             WisdomVault
           </h1>
+          <h2 className="text-2xl font-semibold text-muted-foreground mb-4">
+            智慧宝库
+          </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-8">
             构建你的专属知识体系，让 AI 帮你快速找到答案
           </p>

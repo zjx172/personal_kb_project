@@ -126,6 +126,9 @@ function IndexPopup() {
       <div className="popup-container login-state">
         <div className="header">
           <h2>WisdomVault</h2>
+          <p className="subtitle" style={{ fontSize: "12px", color: "#666" }}>
+            智慧宝库
+          </p>
           <p className="subtitle">请先登录以使用</p>
         </div>
         <div className="content">
@@ -174,6 +177,9 @@ function IndexPopup() {
           )}
           <div className="user-details">
             <h2>WisdomVault</h2>
+            <p style={{ fontSize: "12px", color: "#666", margin: "2px 0" }}>
+              智慧宝库
+            </p>
             <p className="user-name">{user.name || user.email}</p>
           </div>
         </div>
