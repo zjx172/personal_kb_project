@@ -192,7 +192,7 @@ const LoginPage: React.FC = () => {
             </div>
           </div>
           <h1 className="text-6xl font-bold tracking-tight mb-4 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
-            个人知识库
+            WisdomVault
           </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-8">
             构建你的专属知识体系，让 AI 帮你快速找到答案

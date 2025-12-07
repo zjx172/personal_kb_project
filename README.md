@@ -1,6 +1,6 @@
-# Personal Knowledge Base Project
+# WisdomVault — 智慧宝库
 
-一个基于 RAG (Retrieval-Augmented Generation) 的个人知识库系统，支持文档管理、向量检索和智能问答，集成 Google OAuth 登录认证。
+一个基于 RAG (Retrieval-Augmented Generation) 的智能知识库系统，支持文档管理、向量检索和智能问答，集成 Google OAuth 登录认证。
 
 ## 主要功能
 

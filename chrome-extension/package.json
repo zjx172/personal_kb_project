@@ -1,9 +1,9 @@
 {
-  "name": "personal-kb-extension",
-  "displayName": "个人知识库",
+  "name": "wisdomvault-extension",
+  "displayName": "WisdomVault",
   "version": "1.0.0",
-  "description": "快速保存网页到个人知识库",
-  "author": "Personal KB",
+  "description": "快速保存网页到智慧宝库",
+  "author": "WisdomVault",
   "scripts": {
     "dev": "plasmo dev",
     "build": "plasmo build",

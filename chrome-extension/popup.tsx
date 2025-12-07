@@ -125,7 +125,7 @@ function IndexPopup() {
     return (
       <div className="popup-container login-state">
         <div className="header">
-          <h2>个人知识库</h2>
+          <h2>WisdomVault</h2>
           <p className="subtitle">请先登录以使用</p>
         </div>
         <div className="content">
@@ -173,7 +173,7 @@ function IndexPopup() {
             </div>
           )}
           <div className="user-details">
-            <h2>个人知识库</h2>
+            <h2>WisdomVault</h2>
             <p className="user-name">{user.name || user.email}</p>
           </div>
         </div>

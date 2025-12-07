@@ -27,5 +27,5 @@ JWT_EXPIRATION_HOURS = 24 * 7  # 7 days
 # LangSmith 配置
 LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY", "")
 LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false").lower() == "true"
-LANGCHAIN_PROJECT = os.getenv("LANGCHAIN_PROJECT", "personal-kb-rag")
+LANGCHAIN_PROJECT = os.getenv("LANGCHAIN_PROJECT", "wisdomvault-rag")
 LANGCHAIN_ENDPOINT = os.getenv("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com")

@@ -52,7 +52,7 @@ export const MessageList: React.FC<MessageListProps> = ({
 
             {/* 标题 */}
             <h1 className="text-5xl font-bold tracking-tight mb-4 bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">
-              个人知识库
+              WisdomVault
             </h1>
 
             {/* 描述文字 */}
