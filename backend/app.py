@@ -3,10 +3,16 @@ FastAPI 应用主文件（重构版）
 只负责应用初始化和路由注册
 """
 # 兼容 Python 3.9 的新类型语法（必须在所有导入之前）
+# 确保在任何可能使用新类型语法的库导入之前加载
+# 这样可以确保即使第三方库（如 chromadb, ragas）间接导入 instructor 等库时也能正常工作
 try:
     import eval_type_backport  # noqa: F401
 except ImportError:
-    pass
+    # 如果导入失败，尝试安装提示
+    import sys
+    if 'eval_type_backport' not in sys.modules:
+        print("警告: eval_type_backport 未安装，某些库可能无法正常工作")
+        print("请运行: pip install eval-type-backport")
 
 import asyncio
 import logging

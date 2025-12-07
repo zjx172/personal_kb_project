@@ -2,6 +2,12 @@
 监控系统配置
 支持 Sentry 错误监控和 Prometheus 性能监控
 """
+# 兼容 Python 3.9 的新类型语法
+try:
+    import eval_type_backport  # noqa: F401
+except ImportError:
+    pass
+
 import os
 import logging
 from typing import Optional

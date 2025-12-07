@@ -1,12 +1,6 @@
 """
 评估相关路由
 """
-# 兼容 Python 3.9 的新类型语法（必须在导入 evaluation 之前）
-try:
-    import eval_type_backport  # noqa: F401
-except ImportError:
-    pass
-
 import json
 import logging
 from typing import List, Optional
@@ -16,14 +10,11 @@ from datetime import datetime
 
 from db import get_db
 from models import (
-    User,
-    KnowledgeBase,
     EvaluationDataset,
     EvaluationDataItem,
     EvaluationRun,
     EvaluationResult,
 )
-from auth import get_current_user
 from schemas import (
     EvaluationDatasetCreate,
     EvaluationDatasetUpdate,
@@ -34,10 +25,10 @@ from schemas import (
     EvaluationRunCreate,
     EvaluationRunOut,
     EvaluationResultOut,
-    EvaluationRequest,
-    EvaluationResponse,
+    QuickEvaluationRequest,
+    QuickEvaluationResponse,
 )
-from evaluation import evaluation_service
+from evaluation_service import evaluation_service
 
 router = APIRouter(tags=["evaluation"])
 logger = logging.getLogger(__name__)
@@ -45,28 +36,13 @@ logger = logging.getLogger(__name__)
 
 # ========== 评估数据集管理 ==========
 
-@router.post("/evaluation/datasets", response_model=EvaluationDatasetOut)
+@router.post("/datasets", response_model=EvaluationDatasetOut)
 def create_dataset(
     dataset: EvaluationDatasetCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """创建评估数据集"""
-    # 验证知识库
-    kb = (
-        db.query(KnowledgeBase)
-        .filter(
-            KnowledgeBase.id == dataset.knowledge_base_id,
-            KnowledgeBase.user_id == current_user.id,
-        )
-        .first()
-    )
-    if not kb:
-        raise HTTPException(status_code=404, detail="知识库不存在")
-    
-    # 创建数据集
     db_dataset = EvaluationDataset(
-        user_id=current_user.id,
         knowledge_base_id=dataset.knowledge_base_id,
         name=dataset.name,
         description=dataset.description,
@@ -78,16 +54,13 @@ def create_dataset(
     return db_dataset
 
 
-@router.get("/evaluation/datasets", response_model=List[EvaluationDatasetOut])
+@router.get("/datasets", response_model=List[EvaluationDatasetOut])
 def list_datasets(
     knowledge_base_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """获取评估数据集列表"""
-    query = db.query(EvaluationDataset).filter(
-        EvaluationDataset.user_id == current_user.id
-    )
+    query = db.query(EvaluationDataset)
     
     if knowledge_base_id:
         query = query.filter(EvaluationDataset.knowledge_base_id == knowledge_base_id)
@@ -96,42 +69,30 @@ def list_datasets(
     return datasets
 
 
-@router.get("/evaluation/datasets/{dataset_id}", response_model=EvaluationDatasetOut)
+@router.get("/datasets/{dataset_id}", response_model=EvaluationDatasetOut)
 def get_dataset(
     dataset_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """获取评估数据集详情"""
-    dataset = (
-        db.query(EvaluationDataset)
-        .filter(
-            EvaluationDataset.id == dataset_id,
-            EvaluationDataset.user_id == current_user.id,
-        )
-        .first()
-    )
+    dataset = db.query(EvaluationDataset).filter(
+        EvaluationDataset.id == dataset_id
+    ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="数据集不存在")
     return dataset
 
 
-@router.put("/evaluation/datasets/{dataset_id}", response_model=EvaluationDatasetOut)
+@router.put("/datasets/{dataset_id}", response_model=EvaluationDatasetOut)
 def update_dataset(
     dataset_id: str,
     dataset_update: EvaluationDatasetUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """更新评估数据集"""
-    dataset = (
-        db.query(EvaluationDataset)
-        .filter(
-            EvaluationDataset.id == dataset_id,
-            EvaluationDataset.user_id == current_user.id,
-        )
-        .first()
-    )
+    dataset = db.query(EvaluationDataset).filter(
+        EvaluationDataset.id == dataset_id
+    ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="数据集不存在")
     
@@ -147,21 +108,15 @@ def update_dataset(
     return dataset
 
 
-@router.delete("/evaluation/datasets/{dataset_id}")
+@router.delete("/datasets/{dataset_id}")
 def delete_dataset(
     dataset_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """删除评估数据集"""
-    dataset = (
-        db.query(EvaluationDataset)
-        .filter(
-            EvaluationDataset.id == dataset_id,
-            EvaluationDataset.user_id == current_user.id,
-        )
-        .first()
-    )
+    dataset = db.query(EvaluationDataset).filter(
+        EvaluationDataset.id == dataset_id
+    ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="数据集不存在")
     
@@ -178,23 +133,17 @@ def delete_dataset(
 
 # ========== 评估数据项管理 ==========
 
-@router.post("/evaluation/datasets/{dataset_id}/items", response_model=EvaluationDataItemOut)
+@router.post("/datasets/{dataset_id}/items", response_model=EvaluationDataItemOut)
 def create_data_item(
     dataset_id: str,
     item: EvaluationDataItemCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """创建评估数据项"""
     # 验证数据集
-    dataset = (
-        db.query(EvaluationDataset)
-        .filter(
-            EvaluationDataset.id == dataset_id,
-            EvaluationDataset.user_id == current_user.id,
-        )
-        .first()
-    )
+    dataset = db.query(EvaluationDataset).filter(
+        EvaluationDataset.id == dataset_id
+    ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="数据集不存在")
     
@@ -209,34 +158,35 @@ def create_data_item(
     db.commit()
     db.refresh(db_item)
     
-    return db_item
+    # 解析 context_doc_ids
+    item_dict = {
+        "id": db_item.id,
+        "dataset_id": db_item.dataset_id,
+        "question": db_item.question,
+        "ground_truth": db_item.ground_truth,
+        "context_doc_ids": json.loads(db_item.context_doc_ids) if db_item.context_doc_ids else None,
+        "created_at": db_item.created_at,
+    }
+    
+    return EvaluationDataItemOut(**item_dict)
 
 
-@router.get("/evaluation/datasets/{dataset_id}/items", response_model=List[EvaluationDataItemOut])
+@router.get("/datasets/{dataset_id}/items", response_model=List[EvaluationDataItemOut])
 def list_data_items(
     dataset_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """获取评估数据项列表"""
     # 验证数据集
-    dataset = (
-        db.query(EvaluationDataset)
-        .filter(
-            EvaluationDataset.id == dataset_id,
-            EvaluationDataset.user_id == current_user.id,
-        )
-        .first()
-    )
+    dataset = db.query(EvaluationDataset).filter(
+        EvaluationDataset.id == dataset_id
+    ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="数据集不存在")
     
-    items = (
-        db.query(EvaluationDataItem)
-        .filter(EvaluationDataItem.dataset_id == dataset_id)
-        .order_by(EvaluationDataItem.created_at.asc())
-        .all()
-    )
+    items = db.query(EvaluationDataItem).filter(
+        EvaluationDataItem.dataset_id == dataset_id
+    ).order_by(EvaluationDataItem.created_at.asc()).all()
     
     # 解析 context_doc_ids
     result = []
@@ -254,36 +204,26 @@ def list_data_items(
     return result
 
 
-@router.put("/evaluation/datasets/{dataset_id}/items/{item_id}", response_model=EvaluationDataItemOut)
+@router.put("/datasets/{dataset_id}/items/{item_id}", response_model=EvaluationDataItemOut)
 def update_data_item(
     dataset_id: str,
     item_id: str,
     item_update: EvaluationDataItemUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """更新评估数据项"""
     # 验证数据集
-    dataset = (
-        db.query(EvaluationDataset)
-        .filter(
-            EvaluationDataset.id == dataset_id,
-            EvaluationDataset.user_id == current_user.id,
-        )
-        .first()
-    )
+    dataset = db.query(EvaluationDataset).filter(
+        EvaluationDataset.id == dataset_id
+    ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="数据集不存在")
     
     # 获取数据项
-    item = (
-        db.query(EvaluationDataItem)
-        .filter(
-            EvaluationDataItem.id == item_id,
-            EvaluationDataItem.dataset_id == dataset_id,
-        )
-        .first()
-    )
+    item = db.query(EvaluationDataItem).filter(
+        EvaluationDataItem.id == item_id,
+        EvaluationDataItem.dataset_id == dataset_id,
+    ).first()
     if not item:
         raise HTTPException(status_code=404, detail="数据项不存在")
     
@@ -310,34 +250,24 @@ def update_data_item(
     return EvaluationDataItemOut(**item_dict)
 
 
-@router.delete("/evaluation/datasets/{dataset_id}/items/{item_id}")
+@router.delete("/datasets/{dataset_id}/items/{item_id}")
 def delete_data_item(
     dataset_id: str,
     item_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """删除评估数据项"""
     # 验证数据集
-    dataset = (
-        db.query(EvaluationDataset)
-        .filter(
-            EvaluationDataset.id == dataset_id,
-            EvaluationDataset.user_id == current_user.id,
-        )
-        .first()
-    )
+    dataset = db.query(EvaluationDataset).filter(
+        EvaluationDataset.id == dataset_id
+    ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="数据集不存在")
     
-    item = (
-        db.query(EvaluationDataItem)
-        .filter(
-            EvaluationDataItem.id == item_id,
-            EvaluationDataItem.dataset_id == dataset_id,
-        )
-        .first()
-    )
+    item = db.query(EvaluationDataItem).filter(
+        EvaluationDataItem.id == item_id,
+        EvaluationDataItem.dataset_id == dataset_id,
+    ).first()
     if not item:
         raise HTTPException(status_code=404, detail="数据项不存在")
     
@@ -353,7 +283,6 @@ def run_evaluation_background(
     run_id: str,
     dataset_id: str,
     knowledge_base_id: str,
-    user_id: str,
 ):
     """后台执行评估任务"""
     from db import SessionLocal
@@ -368,11 +297,9 @@ def run_evaluation_background(
         db.commit()
         
         # 获取数据项
-        items = (
-            db.query(EvaluationDataItem)
-            .filter(EvaluationDataItem.dataset_id == dataset_id)
-            .all()
-        )
+        items = db.query(EvaluationDataItem).filter(
+            EvaluationDataItem.dataset_id == dataset_id
+        ).all()
         
         total_items = len(items)
         run.total_items = total_items
@@ -387,6 +314,7 @@ def run_evaluation_background(
                 # 执行评估
                 result = evaluation_service.evaluate_single_item(
                     question=item.question,
+                    knowledge_base_id=knowledge_base_id,
                     ground_truth=item.ground_truth,
                 )
                 
@@ -449,41 +377,22 @@ def run_evaluation_background(
         db.close()
 
 
-@router.post("/evaluation/runs", response_model=EvaluationRunOut)
+@router.post("/runs", response_model=EvaluationRunOut)
 def create_evaluation_run(
     run: EvaluationRunCreate,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """创建并启动评估运行"""
-    # 验证知识库
-    kb = (
-        db.query(KnowledgeBase)
-        .filter(
-            KnowledgeBase.id == run.knowledge_base_id,
-            KnowledgeBase.user_id == current_user.id,
-        )
-        .first()
-    )
-    if not kb:
-        raise HTTPException(status_code=404, detail="知识库不存在")
-    
     # 验证数据集
-    dataset = (
-        db.query(EvaluationDataset)
-        .filter(
-            EvaluationDataset.id == run.dataset_id,
-            EvaluationDataset.user_id == current_user.id,
-        )
-        .first()
-    )
+    dataset = db.query(EvaluationDataset).filter(
+        EvaluationDataset.id == run.dataset_id
+    ).first()
     if not dataset:
         raise HTTPException(status_code=404, detail="数据集不存在")
     
     # 创建运行记录
     db_run = EvaluationRun(
-        user_id=current_user.id,
         knowledge_base_id=run.knowledge_base_id,
         dataset_id=run.dataset_id,
         status="pending",
@@ -498,22 +407,18 @@ def create_evaluation_run(
         run_id=db_run.id,
         dataset_id=run.dataset_id,
         knowledge_base_id=run.knowledge_base_id,
-        user_id=current_user.id,
     )
     
     return db_run
 
 
-@router.get("/evaluation/runs", response_model=List[EvaluationRunOut])
+@router.get("/runs", response_model=List[EvaluationRunOut])
 def list_evaluation_runs(
     knowledge_base_id: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """获取评估运行列表"""
-    query = db.query(EvaluationRun).filter(
-        EvaluationRun.user_id == current_user.id
-    )
+    query = db.query(EvaluationRun)
     
     if knowledge_base_id:
         query = query.filter(EvaluationRun.knowledge_base_id == knowledge_base_id)
@@ -541,21 +446,15 @@ def list_evaluation_runs(
     return result
 
 
-@router.get("/evaluation/runs/{run_id}", response_model=EvaluationRunOut)
+@router.get("/runs/{run_id}", response_model=EvaluationRunOut)
 def get_evaluation_run(
     run_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """获取评估运行详情"""
-    run = (
-        db.query(EvaluationRun)
-        .filter(
-            EvaluationRun.id == run_id,
-            EvaluationRun.user_id == current_user.id,
-        )
-        .first()
-    )
+    run = db.query(EvaluationRun).filter(
+        EvaluationRun.id == run_id
+    ).first()
     if not run:
         raise HTTPException(status_code=404, detail="运行不存在")
     
@@ -576,31 +475,22 @@ def get_evaluation_run(
     return EvaluationRunOut(**run_dict)
 
 
-@router.get("/evaluation/runs/{run_id}/results", response_model=List[EvaluationResultOut])
+@router.get("/runs/{run_id}/results", response_model=List[EvaluationResultOut])
 def get_evaluation_results(
     run_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """获取评估结果列表"""
     # 验证运行
-    run = (
-        db.query(EvaluationRun)
-        .filter(
-            EvaluationRun.id == run_id,
-            EvaluationRun.user_id == current_user.id,
-        )
-        .first()
-    )
+    run = db.query(EvaluationRun).filter(
+        EvaluationRun.id == run_id
+    ).first()
     if not run:
         raise HTTPException(status_code=404, detail="运行不存在")
     
-    results = (
-        db.query(EvaluationResult)
-        .filter(EvaluationResult.run_id == run_id)
-        .order_by(EvaluationResult.created_at.asc())
-        .all()
-    )
+    results = db.query(EvaluationResult).filter(
+        EvaluationResult.run_id == run_id
+    ).order_by(EvaluationResult.created_at.asc()).all()
     
     # 解析 context 和 metrics
     result_list = []
@@ -622,31 +512,18 @@ def get_evaluation_results(
 
 # ========== 快速评估（不保存到数据库） ==========
 
-@router.post("/evaluation/quick", response_model=EvaluationResponse)
+@router.post("/quick", response_model=QuickEvaluationResponse)
 def quick_evaluate(
-    request: EvaluationRequest,
+    request: QuickEvaluationRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
 ):
     """快速评估（不保存到数据库，直接返回结果）"""
-    # 验证知识库（如果提供）
-    if request.knowledge_base_id:
-        kb = (
-            db.query(KnowledgeBase)
-            .filter(
-                KnowledgeBase.id == request.knowledge_base_id,
-                KnowledgeBase.user_id == current_user.id,
-            )
-            .first()
-        )
-        if not kb:
-            raise HTTPException(status_code=404, detail="知识库不存在")
-    
     # 执行评估
     result = evaluation_service.evaluate_with_ragas(
         questions=request.questions,
+        knowledge_base_id=request.knowledge_base_id,
         ground_truths=request.ground_truths,
     )
     
-    return EvaluationResponse(**result)
+    return QuickEvaluationResponse(**result)
 
