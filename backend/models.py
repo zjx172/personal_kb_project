@@ -131,3 +131,93 @@ class SearchHistory(Base):
     citations = Column(Text, nullable=True)  # 引用信息，JSON 格式
     sources_count = Column(Integer, nullable=True, default=0)  # 来源数量
     created_at = Column(DateTime, default=datetime.utcnow)
+
+# 评估数据集
+# EvaluationDataset: 评估数据集，用于存储评估问题
+# id: 数据集 ID
+# user_id: 用户 ID
+# knowledge_base_id: 所属知识库 ID
+# name: 数据集名称
+# description: 数据集描述
+# created_at: 创建时间
+# updated_at: 更新时间
+class EvaluationDataset(Base):
+    __tablename__ = "evaluation_datasets"
+
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, nullable=False, index=True)
+    knowledge_base_id = Column(String, nullable=False, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+# 评估数据项
+# EvaluationDataItem: 评估数据项，存储单个评估问题
+# id: 数据项 ID
+# dataset_id: 所属数据集 ID
+# question: 问题
+# ground_truth: 参考答案（可选）
+# context_doc_ids: 相关文档 ID 列表（JSON 格式，用于计算召回率）
+# created_at: 创建时间
+class EvaluationDataItem(Base):
+    __tablename__ = "evaluation_data_items"
+
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    dataset_id = Column(String, nullable=False, index=True)
+    question = Column(Text, nullable=False)
+    ground_truth = Column(Text, nullable=True)  # 参考答案（可选）
+    context_doc_ids = Column(Text, nullable=True)  # 相关文档 ID 列表，JSON 格式
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+# 评估运行记录
+# EvaluationRun: 评估运行记录
+# id: 运行 ID
+# user_id: 用户 ID
+# knowledge_base_id: 所属知识库 ID
+# dataset_id: 使用的数据集 ID
+# status: 运行状态（pending, running, completed, failed）
+# metrics: 评估指标结果（JSON 格式）
+# total_items: 总评估项数
+# completed_items: 已完成项数
+# error_message: 错误信息（如果有）
+# created_at: 创建时间
+# updated_at: 更新时间
+# completed_at: 完成时间
+class EvaluationRun(Base):
+    __tablename__ = "evaluation_runs"
+
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, nullable=False, index=True)
+    knowledge_base_id = Column(String, nullable=False, index=True)
+    dataset_id = Column(String, nullable=False, index=True)
+    status = Column(String, nullable=False, default="pending")  # pending, running, completed, failed
+    metrics = Column(Text, nullable=True)  # 评估指标结果，JSON 格式
+    total_items = Column(Integer, nullable=False, default=0)
+    completed_items = Column(Integer, nullable=False, default=0)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    completed_at = Column(DateTime, nullable=True)
+
+# 评估结果详情
+# EvaluationResult: 评估结果详情，存储每个评估项的详细结果
+# id: 结果 ID
+# run_id: 所属运行 ID
+# data_item_id: 对应的数据项 ID
+# question: 问题
+# answer: 生成的答案
+# context: 检索到的上下文（JSON 格式）
+# metrics: 该评估项的指标（JSON 格式）
+# created_at: 创建时间
+class EvaluationResult(Base):
+    __tablename__ = "evaluation_results"
+
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    run_id = Column(String, nullable=False, index=True)
+    data_item_id = Column(String, nullable=False, index=True)
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=True)
+    context = Column(Text, nullable=True)  # 检索到的上下文，JSON 格式
+    metrics = Column(Text, nullable=True)  # 评估指标，JSON 格式
+    created_at = Column(DateTime, default=datetime.utcnow)

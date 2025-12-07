@@ -1,6 +1,7 @@
 """
 向量库服务初始化
 """
+import os
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from config import (
@@ -8,10 +9,22 @@ from config import (
     COLLECTION_NAME,
     OPENAI_API_KEY,
     OPENAI_BASE_URL,
+    LANGCHAIN_API_KEY,
+    LANGCHAIN_TRACING_V2,
+    LANGCHAIN_PROJECT,
+    LANGCHAIN_ENDPOINT,
 )
 from retrieval import VectorRetrievalService
 from rag_pipeline import RAGPipeline
 from hybrid_search import HybridSearchService
+
+# 配置 LangSmith tracing（如果启用）
+if LANGCHAIN_TRACING_V2 and LANGCHAIN_API_KEY:
+    os.environ["LANGCHAIN_API_KEY"] = LANGCHAIN_API_KEY
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGCHAIN_PROJECT"] = LANGCHAIN_PROJECT
+    if LANGCHAIN_ENDPOINT:
+        os.environ["LANGCHAIN_ENDPOINT"] = LANGCHAIN_ENDPOINT
 
 # 初始化 OpenAI Embeddings
 embeddings = OpenAIEmbeddings(

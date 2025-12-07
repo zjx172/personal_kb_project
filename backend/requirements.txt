@@ -6,6 +6,7 @@ langchain
 langchain-openai
 langchain-community
 langchain-chroma
+langchain-smith
 chromadb
 python-dotenv
 beautifulsoup4
@@ -20,3 +21,6 @@ pypdf
 python-multipart
 sentry-sdk[fastapi]
 prometheus-client
+ragas
+datasets
+pandas

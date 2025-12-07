@@ -64,6 +64,20 @@
 - 💾 Token 自动管理
 - 🔄 实时同步登录状态
 
+### 8. RAG 评估系统
+
+- **RAGAS 集成**：自动化评估 RAG 系统性能
+  - 忠实度（Faithfulness）：评估答案是否基于上下文
+  - 答案相关性（Answer Relevancy）：评估答案是否回答问题
+  - 上下文精确度（Context Precision）：评估检索质量
+  - 上下文召回率（Context Recall）：评估检索完整性
+- **LangSmith 集成**：自动追踪和分析 RAG pipeline 执行
+  - 详细的执行链路追踪
+  - 性能监控（延迟、token 使用、成本）
+  - 可视化分析界面
+- **评估数据集管理**：创建和管理评估数据集
+- **批量评估**：支持异步批量评估和结果分析
+
 ## 技术栈
 
 ### 后端
@@ -76,6 +90,8 @@
 - **python-jose** - JWT Token 处理
 - **authlib** - OAuth 2.0 客户端
 - **pyjwt** - JWT 编码/解码
+- **RAGAS** - RAG 评估框架
+- **LangSmith** - LangChain 追踪和评估平台
 
 ### 前端
 
@@ -136,6 +152,12 @@ GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google/callback
 
 # JWT 配置
 JWT_SECRET_KEY=your-random-secret-key
+
+# LangSmith 配置（可选，用于 RAG 评估和追踪）
+LANGCHAIN_API_KEY=your-langsmith-api-key
+LANGCHAIN_TRACING_V2=true
+LANGCHAIN_PROJECT=personal-kb-rag
+LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
 ```
 
 **获取 Google OAuth 凭据：**
@@ -158,6 +180,28 @@ python3 -c "import secrets; print(secrets.token_urlsafe(32))"
 ```bash
 python3 init_db.py
 ```
+
+#### 初始化评估功能（可选）
+
+如果需要使用 RAG 评估功能，需要运行评估迁移脚本：
+
+```bash
+python3 migrate_evaluation.py
+```
+
+这个脚本会创建评估相关的数据表：
+
+- `evaluation_datasets` - 评估数据集
+- `evaluation_data_items` - 评估数据项
+- `evaluation_runs` - 评估运行记录
+- `evaluation_results` - 评估结果详情
+
+**配置 LangSmith（可选）：**
+
+1. 访问 [LangSmith](https://smith.langchain.com/) 注册账号
+2. 在设置中获取 API Key
+3. 将 API Key 添加到 `.env` 文件中
+4. 设置 `LANGCHAIN_TRACING_V2=true` 启用追踪
 
 #### 启动后端服务
 
@@ -283,13 +327,17 @@ personal_kb_project/
 │   │   ├── conversations.py    # 对话路由
 │   │   ├── docs.py              # 文档路由
 │   │   ├── pdf.py               # PDF 路由
-│   │   └── search.py            # 搜索路由
+│   │   ├── search.py            # 搜索路由
+│   │   └── evaluation.py        # 评估路由
 │   ├── retrieval.py          # 向量检索服务层
 │   ├── rag_pipeline.py       # RAG Pipeline
 │   ├── hybrid_search.py      # 混合搜索服务
 │   ├── ai_services.py        # AI 服务（摘要、标签推荐等）
+│   ├── evaluation.py         # RAG 评估服务（RAGAS + LangSmith）
 │   ├── ingest.py             # 文档导入脚本
 │   ├── migrate_knowledge_bases.py  # 知识库数据库迁移脚本
+│   ├── migrate_evaluation.py      # 评估功能数据库迁移脚本
+│   ├── EVALUATION.md         # 评估功能使用指南
 │   ├── requirements.txt      # Python 依赖
 │   ├── .env                  # 环境变量（需自行创建）
 │   └── kb.db                 # SQLite 数据库
@@ -384,6 +432,23 @@ personal_kb_project/
 - `GET /docs/{doc_id}/related` - 获取相关文档
 - `GET /docs/graph` - 获取文档关系图谱
 
+### 评估相关
+
+- `POST /evaluation/quick` - 快速评估（不保存到数据库）
+- `GET /evaluation/datasets` - 获取评估数据集列表
+- `POST /evaluation/datasets` - 创建评估数据集
+- `GET /evaluation/datasets/{dataset_id}` - 获取数据集详情
+- `PUT /evaluation/datasets/{dataset_id}` - 更新数据集
+- `DELETE /evaluation/datasets/{dataset_id}` - 删除数据集
+- `GET /evaluation/datasets/{dataset_id}/items` - 获取数据项列表
+- `POST /evaluation/datasets/{dataset_id}/items` - 添加评估数据项
+- `PUT /evaluation/datasets/{dataset_id}/items/{item_id}` - 更新数据项
+- `DELETE /evaluation/datasets/{dataset_id}/items/{item_id}` - 删除数据项
+- `POST /evaluation/runs` - 创建评估运行
+- `GET /evaluation/runs` - 获取评估运行列表
+- `GET /evaluation/runs/{run_id}` - 获取运行详情
+- `GET /evaluation/runs/{run_id}/results` - 获取评估结果详情
+
 ## 配置说明
 
 ### 后端配置 (`backend/config.py`)
@@ -396,6 +461,10 @@ personal_kb_project/
 - `GOOGLE_CLIENT_SECRET`: Google OAuth 客户端密钥
 - `GOOGLE_REDIRECT_URI`: OAuth 回调 URI
 - `JWT_SECRET_KEY`: JWT 签名密钥
+- `LANGCHAIN_API_KEY`: LangSmith API 密钥（可选）
+- `LANGCHAIN_TRACING_V2`: 是否启用 LangSmith 追踪（可选）
+- `LANGCHAIN_PROJECT`: LangSmith 项目名称（可选）
+- `LANGCHAIN_ENDPOINT`: LangSmith API 端点（可选）
 
 ### 前端配置
 
@@ -446,6 +515,17 @@ python3 migrate_knowledge_bases.py
 - 将现有的对话和文档关联到默认知识库
 - 添加 `knowledge_base_id` 字段到相关表
 
+#### 评估功能迁移
+
+如果需要使用 RAG 评估功能，需要运行评估迁移脚本：
+
+```bash
+cd backend
+python3 migrate_evaluation.py
+```
+
+这个脚本会创建评估相关的数据表。
+
 ### 添加新功能
 
 1. 后端：在 `app.py` 中添加新的 API 端点
@@ -481,6 +561,136 @@ pnpm dev  # 开发模式，自动监听文件变化并重新构建
 
 **详细开发指南**：查看 `chrome-extension/DEVELOPMENT.md`
 
+## RAG 评估使用指南
+
+### 快速开始
+
+#### 1. 快速评估（不保存到数据库）
+
+适用于快速测试和验证 RAG 系统性能：
+
+```bash
+curl -X POST http://localhost:8000/evaluation/quick \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "questions": [
+      "什么是 Python？",
+      "如何安装 Python？"
+    ],
+    "ground_truths": [
+      "Python 是一种编程语言",
+      "从官网下载安装包"
+    ],
+    "knowledge_base_id": "your-kb-id"
+  }'
+```
+
+**响应示例：**
+
+```json
+{
+  "success": true,
+  "metrics_summary": {
+    "faithfulness": {
+      "mean": 0.85,
+      "min": 0.7,
+      "max": 1.0,
+      "count": 2
+    },
+    "answer_relevancy": {
+      "mean": 0.9,
+      "min": 0.8,
+      "max": 1.0,
+      "count": 2
+    }
+  },
+  "total_items": 2
+}
+```
+
+#### 2. 创建评估数据集
+
+```bash
+# 创建数据集
+curl -X POST http://localhost:8000/evaluation/datasets \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "knowledge_base_id": "your-kb-id",
+    "name": "测试数据集",
+    "description": "用于测试 RAG 系统"
+  }'
+
+# 添加评估数据项
+curl -X POST http://localhost:8000/evaluation/datasets/{dataset_id}/items \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "question": "什么是 Python？",
+    "ground_truth": "Python 是一种编程语言",
+    "context_doc_ids": ["doc-id-1", "doc-id-2"]
+  }'
+```
+
+#### 3. 执行评估运行
+
+```bash
+# 创建评估运行（后台异步执行）
+curl -X POST http://localhost:8000/evaluation/runs \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{
+    "knowledge_base_id": "your-kb-id",
+    "dataset_id": "dataset-id"
+  }'
+
+# 查询运行状态
+curl -X GET http://localhost:8000/evaluation/runs/{run_id} \
+  -H "Authorization: Bearer YOUR_TOKEN"
+
+# 获取详细结果
+curl -X GET http://localhost:8000/evaluation/runs/{run_id}/results \
+  -H "Authorization: Bearer YOUR_TOKEN"
+```
+
+### 评估指标说明
+
+- **faithfulness（忠实度）**：0-1，答案是否完全基于检索到的上下文，目标 > 0.8
+- **answer_relevancy（答案相关性）**：0-1，答案是否回答了问题，目标 > 0.8
+- **context_precision（上下文精确度）**：0-1，检索到的上下文是否与问题相关，目标 > 0.7
+- **context_recall（上下文召回率）**：0-1，是否检索到了所有相关信息，目标 > 0.7
+
+### LangSmith 追踪
+
+如果配置了 LangSmith，所有 RAG pipeline 的执行都会被自动追踪：
+
+1. 访问 [LangSmith](https://smith.langchain.com/)
+2. 选择项目 `personal-kb-rag`（或你配置的项目名）
+3. 查看详细的执行链路、性能指标和错误追踪
+
+### 最佳实践
+
+1. **构建评估数据集**：
+
+   - 涵盖不同类型的问题（事实性、解释性、操作指南等）
+   - 提供高质量的参考答案（可选，但能提升评估准确性）
+   - 标注相关文档 ID（用于计算召回率）
+
+2. **定期评估**：
+
+   - 新文档添加后评估检索质量
+   - 参数调整后评估影响
+   - Prompt 优化后评估生成质量
+
+3. **分析结果**：
+   - 低 faithfulness：检查 prompt 或检索质量
+   - 低 answer_relevancy：检查 prompt 或 LLM 理解
+   - 低 context_precision：调整检索参数或优化 embedding
+   - 低 context_recall：增加检索数量或优化文档分块
+
+**详细文档**：查看 `backend/EVALUATION.md` 获取完整的评估使用指南。
+
 ## 注意事项
 
 1. **环境变量安全**：不要将 `.env` 文件提交到版本控制系统
@@ -490,6 +700,9 @@ pnpm dev  # 开发模式，自动监听文件变化并重新构建
 5. **Google OAuth**：生产环境需要在 Google Cloud Console 添加实际域名
 6. **Chrome 插件权限**：插件需要 `activeTab` 和 `storage` 权限，以及访问 `localhost:8000` 的权限
 7. **插件 API 地址**：确保后端服务运行在 `http://localhost:8000`，或修改插件中的 API_BASE_URL
+8. **RAG 评估成本**：RAGAS 评估会调用 LLM，会产生 API 成本，注意控制评估规模
+9. **LangSmith 费用**：LangSmith 可能有使用限制和费用，请查看官方文档
+10. **评估数据隐私**：评估数据会发送到 RAGAS 和 LangSmith，注意数据隐私保护
 
 ## 许可证
 
