@@ -10,7 +10,7 @@ import { useKnowledgeBases } from "../hooks/useKnowledgeBases";
 import { useDocs } from "../hooks/useDocs";
 import { useStreamQuery } from "../hooks/useStreamQuery";
 import { useWebExtract } from "../hooks/useWebExtract";
-import { usePdfUpload } from "../hooks/usePdfUpload";
+import { useFileUpload } from "../hooks/useFileUpload";
 import { createKnowledgeBase } from "../api";
 import { Sidebar } from "../components/home/Sidebar";
 import { MessageList } from "../components/home/MessageList";
@@ -146,8 +146,11 @@ const HomePage: React.FC = () => {
     currentKnowledgeBaseId
   );
 
-  const { uploadingPdf, uploadProgress, fileInputRef, handleUploadPdf } =
-    usePdfUpload(loadDocs, currentKnowledgeBaseId);
+  const { uploading, uploadProgress, handleUploadFile } = useFileUpload(
+    loadDocs,
+    currentKnowledgeBaseId
+  );
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
 
   // 加载对话消息
   useEffect(() => {
@@ -293,15 +296,17 @@ const HomePage: React.FC = () => {
           savingTitle={savingTitle}
           webUrl={webUrl}
           extracting={extracting}
-          uploadingPdf={uploadingPdf}
+          uploadingFile={uploading}
           uploadProgress={uploadProgress}
+          showUploadDialog={showUploadDialog}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
           onResize={setSidebarWidth}
           onCreateDoc={handleCreateDoc}
           onDeleteDoc={handleDeleteDoc}
           onWebUrlChange={setWebUrl}
           onExtractWeb={handleExtractWeb}
-          onUploadPdf={handleUploadPdf}
+          onUploadFile={handleUploadFile}
+          onShowUploadDialog={setShowUploadDialog}
           onSelectConversation={async (id) => {
             console.log("选择对话，ID:", id);
             setCurrentConversationId(id);
@@ -360,12 +365,9 @@ const HomePage: React.FC = () => {
               navigate(`/kb/${id}`);
               // 对话和消息的重置由 useEffect 自动处理
             }}
-            onCreate={async (name) => {
+            onCreate={async (payload) => {
               try {
-                const newKb = await createKnowledgeBase({
-                  name,
-                  description: null,
-                });
+                const newKb = await createKnowledgeBase(payload);
                 await loadKnowledgeBases();
                 navigate(`/kb/${newKb.id}`);
                 toast.success("知识库创建成功");

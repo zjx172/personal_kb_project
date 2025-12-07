@@ -80,6 +80,9 @@ class MarkdownDoc(Base):
 # user_id: 用户 ID
 # name: 知识库名称
 # description: 知识库描述（可选）
+# type: 知识库类型（document/table），默认为 document
+# data_source: 数据源类型（database/excel），仅当 type 为 table 时使用
+# data_source_config: 数据源配置（JSON 格式），存储连接信息等
 # created_at: 创建时间
 # updated_at: 更新时间
 class KnowledgeBase(Base):
@@ -89,6 +92,9 @@ class KnowledgeBase(Base):
     user_id = Column(String, nullable=False, index=True)
     name = Column(String, nullable=False)
     description = Column(Text, nullable=True)
+    type = Column(String, nullable=False, default="document")  # document 或 table
+    data_source = Column(String, nullable=True)  # database 或 excel，仅当 type 为 table 时使用
+    data_source_config = Column(Text, nullable=True)  # 数据源配置，JSON 格式
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

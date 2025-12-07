@@ -233,6 +233,47 @@ export async function uploadPdf(
   return resp.data;
 }
 
+// 通用文件上传函数（支持 PDF, DOCX, PPT, PPTX, Markdown）
+export async function uploadFile(
+  file: File,
+  title?: string,
+  knowledge_base_id?: string
+): Promise<UploadPdfResponse> {
+  // 如果文件大于 10MB，使用分片上传
+  const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per chunk
+  const USE_CHUNK_THRESHOLD = 10 * 1024 * 1024; // 10MB
+
+  if (file.size > USE_CHUNK_THRESHOLD) {
+    return uploadFileChunked(file, title, knowledge_base_id, CHUNK_SIZE);
+  }
+
+  // 小文件使用普通上传
+  const formData = new FormData();
+  formData.append("file", file);
+  if (title) {
+    formData.append("title", title);
+  }
+  if (knowledge_base_id) {
+    formData.append("knowledge_base_id", knowledge_base_id);
+  }
+
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const resp = await axios.post<UploadPdfResponse>(
+    `${API_BASE_URL}/upload-file`,
+    formData,
+    {
+      headers,
+      // 让 axios 自动设置 Content-Type 为 multipart/form-data
+    }
+  );
+  return resp.data;
+}
+
 // 分片上传接口
 export interface ChunkUploadInitResponse {
   upload_id: string;
@@ -315,6 +356,84 @@ export async function uploadPdfChunked(
   }
 
   // 3. 完成上传
+  const completeResp = await axios.post<UploadPdfResponse>(
+    `${API_BASE_URL}/chunk-upload/complete`,
+    { upload_id },
+    { headers }
+  );
+
+  return completeResp.data;
+}
+
+// 通用文件分片上传函数
+export async function uploadFileChunked(
+  file: File,
+  title?: string,
+  knowledge_base_id?: string,
+  chunkSize: number = 5 * 1024 * 1024
+): Promise<UploadPdfResponse> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  // 1. 初始化分片上传
+  const initResp = await axios.post<ChunkUploadInitResponse>(
+    `${API_BASE_URL}/chunk-upload/init`,
+    {
+      filename: file.name,
+      total_size: file.size,
+      chunk_size: chunkSize,
+      title,
+      knowledge_base_id,
+    },
+    { headers }
+  );
+
+  const { upload_id, total_chunks } = initResp.data;
+
+  // 2. 上传所有分片
+  for (let chunkIndex = 0; chunkIndex < total_chunks; chunkIndex++) {
+    const start = chunkIndex * chunkSize;
+    const end = Math.min(start + chunkSize, file.size);
+    const chunk = file.slice(start, end);
+
+    const chunkFormData = new FormData();
+    chunkFormData.append("upload_id", upload_id);
+    chunkFormData.append("chunk_index", chunkIndex.toString());
+    chunkFormData.append("chunk", chunk);
+
+    try {
+      await axios.post<ChunkUploadResponse>(
+        `${API_BASE_URL}/chunk-upload/upload`,
+        chunkFormData,
+        {
+          headers,
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const chunkProgress =
+                (progressEvent.loaded / progressEvent.total) * 100;
+              const overallProgress =
+                ((chunkIndex * chunkSize + progressEvent.loaded) / file.size) *
+                100;
+              console.log(
+                `分片 ${chunkIndex + 1}/${total_chunks} 上传进度: ${chunkProgress.toFixed(1)}%, 总体进度: ${overallProgress.toFixed(1)}%`
+              );
+            }
+          },
+        }
+      );
+    } catch (error: any) {
+      // 上传失败，取消上传
+      await axios.delete(`${API_BASE_URL}/chunk-upload/${upload_id}`, {
+        headers,
+      });
+      throw new Error(`分片 ${chunkIndex + 1} 上传失败: ${error.message}`);
+    }
+  }
+
+  // 3. 完成上传（使用 upload-file 端点）
   const completeResp = await axios.post<UploadPdfResponse>(
     `${API_BASE_URL}/chunk-upload/complete`,
     { upload_id },
@@ -663,6 +782,9 @@ export interface KnowledgeBase {
   id: string;
   name: string;
   description?: string | null;
+  type: string; // "document" | "table"
+  data_source?: string | null; // "database" | "excel"
+  data_source_config?: Record<string, any> | null;
   created_at: string;
   updated_at: string;
 }
@@ -670,11 +792,17 @@ export interface KnowledgeBase {
 export interface KnowledgeBaseCreate {
   name: string;
   description?: string | null;
+  type?: string; // "document" | "table", 默认为 "document"
+  data_source?: string | null; // "database" | "excel", 仅当 type 为 "table" 时使用
+  data_source_config?: Record<string, any> | null;
 }
 
 export interface KnowledgeBaseUpdate {
   name?: string;
   description?: string | null;
+  type?: string;
+  data_source?: string | null;
+  data_source_config?: Record<string, any> | null;
 }
 
 export async function listKnowledgeBases(): Promise<KnowledgeBase[]> {

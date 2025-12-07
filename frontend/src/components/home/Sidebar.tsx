@@ -5,6 +5,7 @@ import { Plus, Globe, FileText, Loader2 } from "lucide-react";
 import { DocList } from "./DocList";
 import { ConversationList } from "./ConversationList";
 import { MarkdownDocItem, Conversation } from "../../api";
+import { FileUploadDialog } from "./FileUploadDialog";
 
 interface SidebarProps {
   open: boolean;
@@ -20,15 +21,17 @@ interface SidebarProps {
   savingTitle: boolean;
   webUrl: string;
   extracting: boolean;
-  uploadingPdf: boolean;
+  uploadingFile: boolean;
   uploadProgress?: { progress: number; message: string; status: string } | null;
+  showUploadDialog: boolean;
   onToggle: () => void;
   onResize: (width: number) => void;
   onCreateDoc: () => void;
   onDeleteDoc: (id: string) => void;
   onWebUrlChange: (value: string) => void;
   onExtractWeb: () => void;
-  onUploadPdf: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onUploadFile: (file: File) => Promise<void>;
+  onShowUploadDialog: (show: boolean) => void;
   onSelectConversation: (id: string) => void;
   onCreateConversation: () => void;
   onDeleteConversation: (id: string) => void;
@@ -53,14 +56,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   savingTitle,
   webUrl,
   extracting,
-  uploadingPdf,
+  uploadingFile,
   uploadProgress,
+  showUploadDialog,
   onResize,
   onCreateDoc,
   onDeleteDoc,
   onWebUrlChange,
   onExtractWeb,
-  onUploadPdf,
+  onUploadFile,
+  onShowUploadDialog,
   onSelectConversation,
   onCreateConversation,
   onDeleteConversation,
@@ -70,7 +75,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onTitleChange,
   titleInputRef,
 }) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const sidebarRef = useRef<HTMLDivElement>(null);
   const resizeHandleRef = useRef<HTMLDivElement>(null);
   const isResizingRef = useRef(false);
@@ -155,26 +159,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   )}
                   提取网页
                 </Button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".pdf"
-                  onChange={onUploadPdf}
-                  className="hidden"
-                />
                 <Button
                   variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingPdf}
+                  onClick={() => onShowUploadDialog(true)}
+                  disabled={uploadingFile}
                   className="w-full"
                   size="sm"
                 >
-                  {uploadingPdf ? (
+                  {uploadingFile ? (
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                   ) : (
                     <FileText className="mr-2 h-4 w-4" />
                   )}
-                  上传PDF
+                  上传文件
                 </Button>
                 {uploadProgress && (
                   <div className="mt-2 space-y-1">
@@ -233,6 +230,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           )}
         </div>
       </aside>
+      <FileUploadDialog
+        open={showUploadDialog}
+        onOpenChange={onShowUploadDialog}
+        onUpload={onUploadFile}
+        uploading={uploadingFile}
+        uploadProgress={uploadProgress}
+      />
       {open && (
         <div
           ref={resizeHandleRef}

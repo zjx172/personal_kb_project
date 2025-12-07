@@ -169,15 +169,43 @@ async def complete_chunk_upload(
         doc_id = str(uuid.uuid4())
         task_id = str(uuid.uuid4())
         file_extension = Path(session["filename"]).suffix
-        pdf_filename = f"{doc_id}{file_extension}"
-        final_path = f"pdfs/{pdf_filename}"
+        file_filename = f"{doc_id}{file_extension}"
+        
+        # 根据文件类型确定存储路径和 content type
+        def get_file_type_from_filename(filename: str) -> str:
+            """根据文件名获取文件类型"""
+            ext = Path(filename).suffix.lower()
+            if ext == ".pdf":
+                return "pdf"
+            elif ext in [".docx"]:
+                return "docx"
+            elif ext in [".ppt", ".pptx"]:
+                return "ppt"
+            elif ext in [".md", ".markdown"]:
+                return "markdown"
+            else:
+                return "unknown"
+        
+        file_type = get_file_type_from_filename(session["filename"])
+        if file_type == "pdf":
+            final_path = f"pdfs/{file_filename}"
+            content_type = "application/pdf"
+        else:
+            final_path = f"files/{file_filename}"
+            content_type_map = {
+                "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "ppt": "application/vnd.ms-powerpoint",
+                "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                "markdown": "text/markdown",
+            }
+            content_type = content_type_map.get(file_type, "application/octet-stream")
         
         # 合并所有分片
-        pdf_url = storage.complete_chunk_upload(
+        file_url = storage.complete_chunk_upload(
             upload_id=req.upload_id,
             final_path=final_path,
             total_chunks=total_chunks,
-            content_type="application/pdf",
+            content_type=content_type,
         )
         
         # 清理上传会话
@@ -187,25 +215,42 @@ async def complete_chunk_upload(
         await update_task(task_id, TaskStatus.PENDING, 0, "文件上传完成，开始处理...")
         
         # 获取文件路径（用于本地存储）
-        pdf_path = None
+        file_path = None
         if hasattr(storage, 'base_dir'):
-            pdf_path = Path(pdf_url)
+            file_path = Path(file_url)
         else:
-            pdf_path = None
+            file_path = None
         
-        # 启动后台处理任务
-        asyncio.create_task(
-            process_pdf_extraction(
-                task_id=task_id,
-                pdf_path=pdf_path,
-                pdf_url=pdf_url,
-                doc_id=doc_id,
-                user_id=current_user.id,
-                knowledge_base_id=session.get("knowledge_base_id"),
-                title=session.get("title"),
-                filename=session["filename"],
+        # 根据文件类型选择处理函数
+        if file_type == "pdf":
+            # 使用 PDF 处理函数
+            asyncio.create_task(
+                process_pdf_extraction(
+                    task_id=task_id,
+                    pdf_path=file_path,
+                    pdf_url=file_url,
+                    doc_id=doc_id,
+                    user_id=current_user.id,
+                    knowledge_base_id=session.get("knowledge_base_id"),
+                    title=session.get("title"),
+                    filename=session["filename"],
+                )
             )
-        )
+        else:
+            # 使用通用文件处理函数（延迟导入避免循环依赖）
+            from routers.file_upload import process_file_extraction
+            asyncio.create_task(
+                process_file_extraction(
+                    task_id=task_id,
+                    file_path=file_path,
+                    file_url=file_url,
+                    doc_id=doc_id,
+                    user_id=current_user.id,
+                    knowledge_base_id=session.get("knowledge_base_id"),
+                    title=session.get("title"),
+                    filename=session["filename"],
+                )
+            )
         
         logger.info(
             f"分片上传完成: upload_id={req.upload_id}, "

@@ -109,8 +109,8 @@ const LoginPage: React.FC = () => {
     },
     {
       icon: FileText,
-      title: "文档管理",
-      description: "在线编辑 Markdown 文档，支持标签分类",
+      title: "多格式文档",
+      description: "支持 PDF、Word、PPT、Markdown 等多种格式上传和解析",
       color: "from-purple-500/20 to-purple-600/10",
     },
     {
@@ -128,14 +128,26 @@ const LoginPage: React.FC = () => {
     {
       icon: Layers,
       title: "多知识库",
-      description: "支持创建多个知识库，分类管理不同主题",
+      description: "支持文档型和表格型知识库，灵活管理不同场景",
       color: "from-orange-500/20 to-orange-600/10",
+    },
+    {
+      icon: Database,
+      title: "表格分析",
+      description: "连接数据库或 Excel，进行数据分析和查询",
+      color: "from-indigo-500/20 to-indigo-600/10",
     },
     {
       icon: MessageSquare,
       title: "对话记录",
       description: "保存所有对话历史，随时回顾和继续",
       color: "from-cyan-500/20 to-cyan-600/10",
+    },
+    {
+      icon: Zap,
+      title: "智能解析",
+      description: "自动提取文件文本内容，同步到向量库支持检索",
+      color: "from-yellow-500/20 to-yellow-600/10",
     },
   ];
 
@@ -198,7 +210,8 @@ const LoginPage: React.FC = () => {
             智慧宝库
           </h2>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-8">
-            构建你的专属知识体系，让 AI 帮你快速找到答案
+            构建你的专属知识体系，支持多格式文档和数据分析，让 AI
+            帮你快速找到答案
           </p>
 
           {/* 统计数据 */}
@@ -323,7 +336,7 @@ const LoginPage: React.FC = () => {
                     <div>
                       <p className="text-sm font-semibold mb-1">工作文档</p>
                       <p className="text-xs text-muted-foreground">
-                        管理项目文档、会议记录
+                        管理项目文档、会议记录、PDF/Word/PPT 文件
                       </p>
                     </div>
                   </div>
@@ -342,6 +355,15 @@ const LoginPage: React.FC = () => {
                       <p className="text-sm font-semibold mb-1">团队协作</p>
                       <p className="text-xs text-muted-foreground">
                         共享知识库，提升团队效率
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-accent/50 transition-all duration-200">
+                    <Database className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold mb-1">数据分析</p>
+                      <p className="text-xs text-muted-foreground">
+                        连接数据库或 Excel，进行数据查询和分析
                       </p>
                     </div>
                   </div>

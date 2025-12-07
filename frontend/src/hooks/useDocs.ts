@@ -9,7 +9,7 @@ export function useDocs(knowledgeBaseId?: string | null) {
   // 当知识库 ID 变化时，自动重新加载文档
   useEffect(() => {
     if (knowledgeBaseId) {
-      const loadDocs = async () => {
+  const loadDocs = async () => {
         setLoading(true);
         try {
           const data = await listDocs(knowledgeBaseId || undefined);

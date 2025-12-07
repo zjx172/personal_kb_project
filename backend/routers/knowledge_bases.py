@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from datetime import datetime
+import json
 
 from db import get_db
 from models import User, KnowledgeBase
@@ -25,14 +26,38 @@ def create_knowledge_base(
     current_user: User = Depends(get_current_user),
 ):
     """创建新知识库"""
+    # 验证知识库类型
+    if req.type not in ["document", "table"]:
+        raise HTTPException(status_code=400, detail="知识库类型必须是 document 或 table")
+    
+    # 如果是表格型知识库，必须提供数据源
+    if req.type == "table":
+        if not req.data_source:
+            raise HTTPException(status_code=400, detail="表格型知识库必须指定数据源类型")
+        if req.data_source not in ["database", "excel"]:
+            raise HTTPException(status_code=400, detail="数据源类型必须是 database 或 excel")
+    
+    # 序列化数据源配置
+    data_source_config_json = None
+    if req.data_source_config:
+        data_source_config_json = json.dumps(req.data_source_config, ensure_ascii=False)
+    
     knowledge_base = KnowledgeBase(
         user_id=current_user.id,
         name=req.name,
         description=req.description,
+        type=req.type,
+        data_source=req.data_source,
+        data_source_config=data_source_config_json,
     )
     db.add(knowledge_base)
     db.commit()
     db.refresh(knowledge_base)
+    
+    # 反序列化数据源配置用于返回
+    if knowledge_base.data_source_config:
+        knowledge_base.data_source_config = json.loads(knowledge_base.data_source_config)
+    
     return knowledge_base
 
 
@@ -48,6 +73,10 @@ def list_knowledge_bases(
         .order_by(KnowledgeBase.updated_at.desc())
         .all()
     )
+    # 反序列化数据源配置
+    for kb in knowledge_bases:
+        if kb.data_source_config:
+            kb.data_source_config = json.loads(kb.data_source_config)
     return knowledge_bases
 
 
@@ -68,6 +97,9 @@ def get_knowledge_base(
     )
     if not knowledge_base:
         raise HTTPException(status_code=404, detail="知识库不存在")
+    # 反序列化数据源配置
+    if knowledge_base.data_source_config:
+        knowledge_base.data_source_config = json.loads(knowledge_base.data_source_config)
     return knowledge_base
 
 
@@ -94,9 +126,25 @@ def update_knowledge_base(
         knowledge_base.name = req.name
     if req.description is not None:
         knowledge_base.description = req.description
+    if req.type is not None:
+        if req.type not in ["document", "table"]:
+            raise HTTPException(status_code=400, detail="知识库类型必须是 document 或 table")
+        knowledge_base.type = req.type
+    if req.data_source is not None:
+        if knowledge_base.type == "table" and req.data_source not in ["database", "excel"]:
+            raise HTTPException(status_code=400, detail="数据源类型必须是 database 或 excel")
+        knowledge_base.data_source = req.data_source
+    if req.data_source_config is not None:
+        knowledge_base.data_source_config = json.dumps(req.data_source_config, ensure_ascii=False) if req.data_source_config else None
+    
     knowledge_base.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(knowledge_base)
+    
+    # 反序列化数据源配置用于返回
+    if knowledge_base.data_source_config:
+        knowledge_base.data_source_config = json.loads(knowledge_base.data_source_config)
+    
     return knowledge_base
 
 
@@ -117,6 +165,13 @@ def delete_knowledge_base(
     )
     if not knowledge_base:
         raise HTTPException(status_code=404, detail="知识库不存在")
+    
+    # 不允许删除默认知识库
+    if knowledge_base.name == "默认知识库":
+        raise HTTPException(
+            status_code=400, 
+            detail="默认知识库无法删除"
+        )
 
     # 删除知识库中的所有资源
     from models import Conversation, SearchHistory, MarkdownDoc

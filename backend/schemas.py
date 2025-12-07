@@ -203,17 +203,26 @@ class ChunkUploadCompleteResponse(BaseModel):
 class KnowledgeBaseCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    type: str = "document"  # document 或 table
+    data_source: Optional[str] = None  # database 或 excel，仅当 type 为 table 时使用
+    data_source_config: Optional[dict] = None  # 数据源配置，JSON 格式
 
 
 class KnowledgeBaseUpdate(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
+    type: Optional[str] = None
+    data_source: Optional[str] = None
+    data_source_config: Optional[dict] = None
 
 
 class KnowledgeBaseOut(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
+    type: str
+    data_source: Optional[str] = None
+    data_source_config: Optional[dict] = None
     created_at: datetime
     updated_at: datetime
 
