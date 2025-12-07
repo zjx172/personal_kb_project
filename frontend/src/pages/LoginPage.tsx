@@ -8,7 +8,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAuth } from "../contexts/AuthContext";
-import { getGoogleAuthUrl } from "../api";
+import { getGoogleAuthUrl, getCurrentUser } from "../api";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -31,26 +31,41 @@ const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
+    // 检查是否有错误（从回调中获取）
+    const error = searchParams.get("error");
+    if (error) {
+      setLoading(false);
+      toast.error(`登录失败: ${decodeURIComponent(error)}`);
+      navigate("/login", { replace: true });
+      return;
+    }
+
     // 检查是否有 token（从回调中获取）
     const token = searchParams.get("token");
     if (token) {
+      setLoading(true);
       localStorage.setItem("auth_token", token);
       // 获取用户信息
-      import("../api").then(({ getCurrentUser }) => {
-        getCurrentUser()
-          .then((userData) => {
-            setUser(userData);
-            toast.success("登录成功");
-            navigate("/");
-          })
-          .catch((error) => {
-            console.error("获取用户信息失败:", error);
-            toast.error("登录失败，请重试");
-          });
-      });
+      getCurrentUser()
+        .then((userData) => {
+          setUser(userData);
+          toast.success("登录成功");
+          // 清除 URL 中的 token 参数
+          navigate("/", { replace: true });
+        })
+        .catch((error) => {
+          console.error("获取用户信息失败:", error);
+          toast.error("登录失败，请重试");
+          localStorage.removeItem("auth_token");
+          // 清除 URL 中的 token 参数
+          navigate("/login", { replace: true });
+        })
+        .finally(() => {
+          setLoading(false);
+        });
     } else if (user) {
       // 如果已经登录，重定向到首页
-      navigate("/");
+      navigate("/", { replace: true });
     }
   }, [searchParams, user, setUser, navigate]);
 
@@ -235,11 +250,6 @@ const LoginPage: React.FC = () => {
                     </>
                   )}
                 </Button>
-                <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-2">
-                  <Sparkles className="h-3 w-3" />
-                  <span>安全、快速、便捷</span>
-                </div>
-
                 <div className="pt-4 border-t space-y-2">
                   <p className="text-xs text-muted-foreground text-center">
                     登录即表示你同意我们的服务条款

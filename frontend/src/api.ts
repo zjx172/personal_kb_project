@@ -132,7 +132,7 @@ export interface MarkdownDocUpdate {
 }
 
 export async function listDocs(): Promise<MarkdownDocItem[]> {
-  const resp = await axios.get<MarkdownDocItem[]>(`${API_BASE_URL}/all/docs`);
+  const resp = await axios.get<MarkdownDocItem[]>(`${API_BASE_URL}/docs/all`);
   return resp.data;
 }
 
@@ -177,7 +177,7 @@ export async function extractWebContent(
   payload: WebExtractRequest
 ): Promise<MarkdownDocDetail> {
   const resp = await axios.post<MarkdownDocDetail>(
-    `${API_BASE_URL}/extract-web`,
+    `${API_BASE_URL}/docs/extract-web`,
     payload
   );
   return resp.data;

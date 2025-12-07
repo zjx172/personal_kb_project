@@ -34,7 +34,7 @@ async def process_pdf_extraction(
 ):
     """后台任务：处理PDF提取"""
     try:
-        update_task(task_id, TaskStatus.PROCESSING, 10, "开始提取PDF文本内容...")
+        await update_task(task_id, TaskStatus.PROCESSING, 10, "开始提取PDF文本内容...")
 
         # 提取PDF文本内容
         pdf_text = ""
@@ -55,7 +55,7 @@ async def process_pdf_extraction(
             for i, doc in enumerate(pdf_docs):
                 text_parts.append(doc.page_content)
                 progress = 10 + int((i + 1) / total_pages * 60)  # 10-70%
-                update_task(
+                await update_task(
                     task_id,
                     TaskStatus.PROCESSING,
                     progress,
@@ -80,7 +80,7 @@ async def process_pdf_extraction(
                             if page_text:
                                 text_parts.append(page_text)
                             progress = 10 + int((i + 1) / total_pages * 60)  # 10-70%
-                            update_task(
+                            await update_task(
                                 task_id,
                                 TaskStatus.PROCESSING,
                                 progress,
@@ -98,7 +98,7 @@ async def process_pdf_extraction(
 
         logger.info(f"PDF文本提取完成，文本长度: {len(pdf_text)} 字符")
 
-        update_task(task_id, TaskStatus.PROCESSING, 70, "文本提取完成，正在保存文档...")
+        await update_task(task_id, TaskStatus.PROCESSING, 70, "文本提取完成，正在保存文档...")
 
         # 使用文件名或第一页内容的前100个字符作为标题
         if not title:
@@ -134,13 +134,22 @@ async def process_pdf_extraction(
             db.refresh(doc)
             logger.info(f"文档已保存到数据库，ID: {doc_id}")
 
-            update_task(
+            await update_task(
                 task_id, TaskStatus.PROCESSING, 85, "文档已保存，正在同步到向量库..."
             )
 
-            # 同步到向量库
+            # 同步到向量库（在线程池中执行，避免阻塞事件循环）
             try:
-                upsert_markdown_doc_to_vectorstore(doc)
+                await update_task(
+                    task_id, TaskStatus.PROCESSING, 90, "正在同步到向量库（这可能需要一些时间）..."
+                )
+                # 将同步操作放到线程池中执行，避免阻塞
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(
+                    None, 
+                    upsert_markdown_doc_to_vectorstore, 
+                    doc
+                )
                 logger.info("文档已同步到向量库")
             except Exception as vector_error:
                 logger.error(f"向量库同步失败: {str(vector_error)}", exc_info=True)
@@ -159,7 +168,7 @@ async def process_pdf_extraction(
                 "updated_at": doc.updated_at.isoformat(),
             }
 
-            update_task(task_id, TaskStatus.COMPLETED, 100, "PDF提取完成！", result=result)
+            await update_task(task_id, TaskStatus.COMPLETED, 100, "PDF提取完成！", result=result)
             logger.info(f"PDF处理成功，文档ID: {doc_id}")
         finally:
             db.close()
@@ -173,7 +182,7 @@ async def process_pdf_extraction(
                 logger.info(f"已删除失败的文件: {pdf_path}")
             except Exception as cleanup_error:
                 logger.error(f"清理文件失败: {str(cleanup_error)}")
-        update_task(task_id, TaskStatus.FAILED, 0, f"处理失败: {str(e)}", error=str(e))
+        await update_task(task_id, TaskStatus.FAILED, 0, f"处理失败: {str(e)}", error=str(e))
 
 
 @router.post("/upload-pdf", response_model=UploadPdfResponse)
@@ -208,7 +217,7 @@ async def upload_pdf(
         logger.info(f"保存PDF文件到: {pdf_path}")
 
         # 初始化任务
-        update_task(task_id, TaskStatus.PENDING, 0, "准备上传PDF文件...")
+        await update_task(task_id, TaskStatus.PENDING, 0, "准备上传PDF文件...")
 
         # 保存PDF文件
         file.file.seek(0)  # 确保文件指针在开头
@@ -222,7 +231,7 @@ async def upload_pdf(
         file_size = pdf_path.stat().st_size
         logger.info(f"PDF文件已保存，大小: {file_size} 字节")
 
-        update_task(task_id, TaskStatus.PROCESSING, 5, "文件上传成功，开始处理...")
+        await update_task(task_id, TaskStatus.PROCESSING, 5, "文件上传成功，开始处理...")
 
         # 启动后台任务
         asyncio.create_task(

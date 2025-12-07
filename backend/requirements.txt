@@ -11,6 +11,7 @@ python-dotenv
 beautifulsoup4
 readability-lxml
 requests
+httpx
 html2text
 authlib
 pyjwt

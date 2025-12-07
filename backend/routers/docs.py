@@ -1,6 +1,7 @@
 """
 文档相关路由（Markdown 文档管理）
 """
+import asyncio
 import json
 import uuid
 import re
@@ -11,9 +12,9 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
-import requests
 from readability import Document
 import html2text
+import httpx
 
 from db import get_db
 from models import User, MarkdownDoc
@@ -62,12 +63,13 @@ def list_markdown_docs(
 
 
 @router.post("", response_model=MarkdownDocDetail)
-def create_markdown_doc(
+async def create_markdown_doc(
     req: MarkdownDocCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """创建在线 Markdown 文档"""
+    """创建在线 Markdown 文档（异步）"""
+    import asyncio
     now = datetime.utcnow()
     doc_id = str(uuid.uuid4())
     content = req.content or ""
@@ -97,8 +99,9 @@ def create_markdown_doc(
     db.commit()
     db.refresh(doc)
 
-    # 将文档同步到向量库
-    upsert_markdown_doc_to_vectorstore(doc)
+    # 将文档同步到向量库（在线程池中执行，避免阻塞）
+    loop = asyncio.get_event_loop()
+    await loop.run_in_executor(None, upsert_markdown_doc_to_vectorstore, doc)
 
     result = MarkdownDocDetail(
         id=doc.id,
@@ -144,13 +147,14 @@ def get_markdown_doc(
 
 
 @router.put("/{doc_id}", response_model=MarkdownDocDetail)
-def update_markdown_doc(
+async def update_markdown_doc(
     doc_id: str,
     req: MarkdownDocUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """更新在线 Markdown 文档"""
+    """更新在线 Markdown 文档（异步）"""
+    import asyncio
     doc = (
         db.query(MarkdownDoc)
         .filter(MarkdownDoc.id == doc_id, MarkdownDoc.user_id == current_user.id)
@@ -175,9 +179,10 @@ def update_markdown_doc(
         doc.updated_at = datetime.utcnow()
         db.commit()
         db.refresh(doc)
-        # 如果内容或类型改变，需要重新同步到向量库
+        # 如果内容或类型改变，需要重新同步到向量库（在线程池中执行，避免阻塞）
         if req.content is not None or req.doc_type is not None:
-            upsert_markdown_doc_to_vectorstore(doc)
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, upsert_markdown_doc_to_vectorstore, doc)
 
     return doc
 
@@ -212,43 +217,44 @@ def delete_markdown_doc(
 
 
 @router.post("/extract-web", response_model=MarkdownDocDetail)
-def extract_web_content(
+async def extract_web_content(
     req: WebExtractRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """从网页 URL 提取正文并保存为 Markdown 文档"""
+    """从网页 URL 提取正文并保存为 Markdown 文档（异步）"""
     try:
-        # 获取网页内容
+        # 获取网页内容（使用异步 httpx）
         headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
         }
-        response = requests.get(req.url, headers=headers, timeout=30)
-        response.raise_for_status()
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(req.url, headers=headers)
+            response.raise_for_status()
 
-        # 正确处理字符编码
-        encoding = response.encoding
-        if not encoding or encoding.lower() == "iso-8859-1":
-            try:
-                content_preview = response.content[:5000].decode("utf-8", errors="ignore")
-                charset_match = re.search(
-                    r'<meta[^>]*charset=["\']?([^"\'>\s]+)', content_preview, re.IGNORECASE
-                )
-                if charset_match:
-                    encoding = charset_match.group(1)
-                else:
+            # 正确处理字符编码
+            encoding = response.encoding or "utf-8"
+            if encoding.lower() == "iso-8859-1":
+                try:
+                    content_preview = response.content[:5000].decode("utf-8", errors="ignore")
+                    charset_match = re.search(
+                        r'<meta[^>]*charset=["\']?([^"\'>\s]+)', content_preview, re.IGNORECASE
+                    )
+                    if charset_match:
+                        encoding = charset_match.group(1)
+                    else:
+                        encoding = "utf-8"
+                except Exception:
                     encoding = "utf-8"
-            except Exception:
-                encoding = "utf-8"
 
-        # 使用检测到的编码解码内容
-        try:
-            html_content = response.content.decode(encoding)
-        except (UnicodeDecodeError, LookupError):
+            # 使用检测到的编码解码内容
             try:
-                html_content = response.content.decode("utf-8")
-            except UnicodeDecodeError:
-                html_content = response.content.decode("latin-1", errors="replace")
+                html_content = response.content.decode(encoding)
+            except (UnicodeDecodeError, LookupError):
+                try:
+                    html_content = response.content.decode("utf-8")
+                except UnicodeDecodeError:
+                    html_content = response.content.decode("latin-1", errors="replace")
 
         # 使用 readability 提取正文
         doc = Document(html_content)
@@ -284,12 +290,13 @@ def extract_web_content(
         db.commit()
         db.refresh(doc)
 
-        # 同步到向量库
-        upsert_markdown_doc_to_vectorstore(doc)
+        # 同步到向量库（在线程池中执行，避免阻塞）
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, upsert_markdown_doc_to_vectorstore, doc)
 
         return doc
 
-    except requests.RequestException as e:
+    except httpx.HTTPError as e:
         raise HTTPException(status_code=400, detail=f"无法获取网页内容: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"提取网页内容失败: {str(e)}")
