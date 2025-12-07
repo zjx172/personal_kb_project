@@ -1,6 +1,6 @@
-from fastapi import FastAPI, Depends, HTTPException, Query
+from fastapi import FastAPI, Depends, HTTPException, Query, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, RedirectResponse
+from fastapi.responses import StreamingResponse, RedirectResponse, FileResponse
 from pydantic import BaseModel
 from typing import Optional, List
 from pathlib import Path
@@ -12,6 +12,7 @@ from readability import Document
 import html2text
 import secrets
 from urllib.parse import urlencode
+import shutil
 
 from sqlalchemy.orm import Session
 
@@ -19,7 +20,7 @@ from db import get_db
 from models import Highlight, DocumentStat, MarkdownDoc, User, SearchHistory, Conversation
 from config import (
     DOCS_DIR, VECTOR_STORE_DIR, COLLECTION_NAME, OPENAI_API_KEY, OPENAI_BASE_URL,
-    GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
+    GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI, BASE_DIR
 )
 from auth import get_current_user, get_or_create_user, create_access_token
 
@@ -627,6 +628,7 @@ class MarkdownDocDetail(BaseModel):
     doc_type: Optional[str] = None
     summary: Optional[str] = None
     tags: Optional[List[str]] = None
+    pdf_file_path: Optional[str] = None  # PDF文件路径
     created_at: datetime
     updated_at: datetime
     
@@ -761,6 +763,7 @@ def create_markdown_doc(req: MarkdownDocCreate, db: Session = Depends(get_db), c
         summary=doc.summary,
         # 转换 tags 为列表格式返回
         tags=json.loads(doc.tags) if doc.tags else None,
+        pdf_file_path=doc.pdf_file_path,
         created_at=doc.created_at,
         updated_at=doc.updated_at,
     )
@@ -785,6 +788,7 @@ def get_markdown_doc(doc_id: str, db: Session = Depends(get_db), current_user: U
         doc_type=doc.doc_type,
         summary=doc.summary,
         tags=json.loads(doc.tags) if doc.tags else None,
+        pdf_file_path=doc.pdf_file_path,
         created_at=doc.created_at,
         updated_at=doc.updated_at,
     )
@@ -940,6 +944,126 @@ def extract_web_content(req: WebExtractRequest, db: Session = Depends(get_db), c
         raise HTTPException(status_code=400, detail=f"无法获取网页内容: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"提取网页内容失败: {str(e)}")
+
+
+# ---- PDF 上传和预览 ----
+
+@app.post("/upload-pdf", response_model=MarkdownDocDetail)
+async def upload_pdf(
+    file: UploadFile = File(...),
+    title: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """上传PDF文件并提取文本内容"""
+    # 验证文件类型
+    if not file.filename or not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="只支持PDF文件")
+    
+    pdf_path = None
+    try:
+        # 创建PDF存储目录
+        pdf_dir = Path(BASE_DIR) / "uploads" / "pdfs"
+        pdf_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 生成唯一文件名
+        doc_id = str(uuid.uuid4())
+        file_extension = Path(file.filename).suffix
+        pdf_filename = f"{doc_id}{file_extension}"
+        pdf_path = pdf_dir / pdf_filename
+        
+        # 保存PDF文件
+        with open(pdf_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # 提取PDF文本内容
+        from langchain_community.document_loaders import PyPDFLoader
+        loader = PyPDFLoader(str(pdf_path))
+        pdf_docs = loader.load()
+        
+        # 合并所有页面的文本
+        pdf_text = "\n\n".join([doc.page_content for doc in pdf_docs])
+        
+        # 使用文件名或第一页内容的前100个字符作为标题
+        if not title:
+            if pdf_docs and pdf_docs[0].page_content:
+                # 尝试从第一页提取标题（前100个字符）
+                first_page_text = pdf_docs[0].page_content[:100].strip()
+                title = first_page_text.split('\n')[0][:50] if first_page_text else Path(file.filename).stem
+            else:
+                title = Path(file.filename).stem
+        
+        # 创建Markdown文档记录
+        now = datetime.utcnow()
+        doc = MarkdownDoc(
+            id=doc_id,
+            user_id=current_user.id,
+            title=title,
+            content=pdf_text,  # 存储提取的文本内容
+            doc_type="pdf",
+            pdf_file_path=str(pdf_path),  # 存储PDF文件路径
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(doc)
+        db.commit()
+        db.refresh(doc)
+        
+        # 同步到向量库
+        upsert_markdown_doc_to_vectorstore(doc)
+        
+        # 返回文档详情
+        result = MarkdownDocDetail(
+            id=doc.id,
+            title=doc.title,
+            content=doc.content,
+            doc_type=doc.doc_type,
+            summary=doc.summary,
+            tags=json.loads(doc.tags) if doc.tags else None,
+            pdf_file_path=doc.pdf_file_path,
+            created_at=doc.created_at,
+            updated_at=doc.updated_at,
+        )
+        return result
+        
+    except Exception as e:
+        # 如果出错，删除已保存的文件
+        if pdf_path and pdf_path.exists():
+            try:
+                pdf_path.unlink()
+            except Exception:
+                pass
+        raise HTTPException(status_code=500, detail=f"上传PDF失败: {str(e)}")
+
+
+@app.get("/docs/{doc_id}/pdf")
+def get_pdf_file(
+    doc_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """获取PDF文件用于预览"""
+    doc = db.query(MarkdownDoc).filter(
+        MarkdownDoc.id == doc_id,
+        MarkdownDoc.user_id == current_user.id,
+        MarkdownDoc.doc_type == "pdf"
+    ).first()
+    
+    if not doc:
+        raise HTTPException(status_code=404, detail="PDF文档不存在")
+    
+    if not doc.pdf_file_path:
+        raise HTTPException(status_code=404, detail="PDF文件路径不存在")
+    
+    pdf_path = Path(doc.pdf_file_path)
+    if not pdf_path.exists():
+        raise HTTPException(status_code=404, detail="PDF文件不存在")
+    
+    return FileResponse(
+        path=str(pdf_path),
+        media_type="application/pdf",
+        filename=Path(doc.pdf_file_path).name
+    )
 
 
 # ---- 智能功能 API ----
@@ -1178,10 +1302,14 @@ def get_conversation(
     )
 
 
+class ConversationUpdate(BaseModel):
+    title: str
+
+
 @app.put("/conversations/{conversation_id}", response_model=ConversationOut)
 def update_conversation(
     conversation_id: str,
-    title: str = Query(..., description="新标题"),
+    req: ConversationUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1197,7 +1325,7 @@ def update_conversation(
     if not conversation:
         raise HTTPException(status_code=404, detail="对话不存在")
 
-    conversation.title = title
+    conversation.title = req.title
     conversation.updated_at = datetime.utcnow()
     db.commit()
     db.refresh(conversation)

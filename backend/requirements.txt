@@ -15,3 +15,5 @@ html2text
 authlib
 pyjwt
 python-jose[cryptography]
+pypdf
+python-multipart

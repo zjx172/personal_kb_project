@@ -57,6 +57,7 @@ import {
   RelatedDoc,
   queryKnowledgeBaseStream,
   Citation,
+  getPdfUrl,
 } from "../api";
 
 const DocPage: React.FC = () => {
@@ -314,12 +315,12 @@ const DocPage: React.FC = () => {
     while (lineStart > 0 && contentDraft[lineStart - 1] !== "\n") {
       lineStart--;
     }
-    
+
     let lineEnd = cursorPos;
     while (lineEnd < contentDraft.length && contentDraft[lineEnd] !== "\n") {
       lineEnd++;
     }
-    
+
     const currentLine = contentDraft.substring(lineStart, lineEnd);
     return { lineStart, lineEnd, currentLine };
   };
@@ -332,12 +333,15 @@ const DocPage: React.FC = () => {
     removePattern?: RegExp
   ) => {
     const { lineStart, lineEnd, currentLine } = getCurrentLineInfo(cursorPos);
-    
+
     if (currentLine.trim().length > 0) {
       // 如果行有内容，检查是否已经有标记（用于切换功能）
       if (togglePattern && togglePattern.test(currentLine.trim())) {
         // 移除标记
-        const unmarkedLine = currentLine.replace(removePattern || togglePattern, "");
+        const unmarkedLine = currentLine.replace(
+          removePattern || togglePattern,
+          ""
+        );
         insertTextAtPosition(lineStart, lineEnd, unmarkedLine);
         setTimeout(() => {
           if (editorRef.current) {
@@ -460,13 +464,15 @@ const DocPage: React.FC = () => {
       case "heading":
         if (selectedText) {
           if (selectedText.match(/^#{1,6} /)) {
-          // 如果已经是标题，移除标题标记
-          const unformatted = selectedText.replace(/^#{1,6} /, "");
-          insertTextAtPosition(start, end, unformatted);
-        } else {
+            // 如果已经是标题，移除标题标记
+            const unformatted = selectedText.replace(/^#{1,6} /, "");
+            insertTextAtPosition(start, end, unformatted);
+          } else {
             // 如果选中了多行，给每行添加标题标记
             const lines = selectedText.split("\n");
-            const headingLines = lines.map((line) => `# ${line.trim()}`).join("\n");
+            const headingLines = lines
+              .map((line) => `# ${line.trim()}`)
+              .join("\n");
             insertTextAtPosition(start, end, headingLines);
           }
         } else {
@@ -924,203 +930,224 @@ const DocPage: React.FC = () => {
               {/* 工具栏 */}
               <TooltipProvider>
                 <div className="border-b bg-card px-4 py-2 flex items-center gap-2 flex-shrink-0">
-                  <div className="flex items-center gap-1 border-r pr-2 mr-2">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleFormat("bold")}
-                          className="h-8 w-8 p-0"
+                  {currentDoc?.doc_type !== "pdf" && (
+                    <>
+                      <div className="flex items-center gap-1 border-r pr-2 mr-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleFormat("bold")}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Bold className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>粗体</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleFormat("italic")}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Italic className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>斜体</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleFormat("strikethrough")}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Strikethrough className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>删除线</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleFormat("code")}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Code className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>行内代码</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleFormat("highlight")}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Highlighter className="h-4 w-4 text-yellow-600" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>高亮</TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <div className="flex items-center gap-1 border-r pr-2 mr-2">
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleFormat("heading")}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Heading1 className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>标题</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleFormat("quote")}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Quote className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>引用</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleFormat("ul")}
+                              className="h-8 w-8 p-0"
+                            >
+                              <List className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>无序列表</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleFormat("ol")}
+                              className="h-8 w-8 p-0"
+                            >
+                              <ListOrdered className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>有序列表</TooltipContent>
+                        </Tooltip>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleFormat("link")}
+                              className="h-8 w-8 p-0"
+                            >
+                              <LinkIcon className="h-4 w-4" />
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>链接</TooltipContent>
+                        </Tooltip>
+                      </div>
+                      <div className="flex items-center gap-1 ml-auto">
+                        <Tabs
+                          value={viewMode}
+                          onValueChange={(v) => setViewMode(v as any)}
                         >
-                          <Bold className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>粗体</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleFormat("italic")}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Italic className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>斜体</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleFormat("strikethrough")}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Strikethrough className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>删除线</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleFormat("code")}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Code className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>行内代码</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleFormat("highlight")}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Highlighter className="h-4 w-4 text-yellow-600" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>高亮</TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <div className="flex items-center gap-1 border-r pr-2 mr-2">
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleFormat("heading")}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Heading1 className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>标题</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleFormat("quote")}
-                          className="h-8 w-8 p-0"
-                        >
-                          <Quote className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>引用</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleFormat("ul")}
-                          className="h-8 w-8 p-0"
-                        >
-                          <List className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>无序列表</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleFormat("ol")}
-                          className="h-8 w-8 p-0"
-                        >
-                          <ListOrdered className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>有序列表</TooltipContent>
-                    </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleFormat("link")}
-                          className="h-8 w-8 p-0"
-                        >
-                          <LinkIcon className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>链接</TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <div className="flex items-center gap-1 ml-auto">
-                    <Tabs
-                      value={viewMode}
-                      onValueChange={(v) => setViewMode(v as any)}
-                    >
-                      <TabsList>
-                        <TabsTrigger value="edit" className="gap-2">
-                          <Edit className="h-4 w-4" />
-                          编辑
-                        </TabsTrigger>
-                        <TabsTrigger value="preview" className="gap-2">
-                          <Eye className="h-4 w-4" />
-                          预览
-                        </TabsTrigger>
-                        <TabsTrigger value="both" className="gap-2">
-                          <SplitSquareHorizontal className="h-4 w-4" />
-                          分屏
-                        </TabsTrigger>
-                      </TabsList>
-                    </Tabs>
-                  </div>
+                          <TabsList>
+                            <TabsTrigger value="edit" className="gap-2">
+                              <Edit className="h-4 w-4" />
+                              编辑
+                            </TabsTrigger>
+                            <TabsTrigger value="preview" className="gap-2">
+                              <Eye className="h-4 w-4" />
+                              预览
+                            </TabsTrigger>
+                            <TabsTrigger value="both" className="gap-2">
+                              <SplitSquareHorizontal className="h-4 w-4" />
+                              分屏
+                            </TabsTrigger>
+                          </TabsList>
+                        </Tabs>
+                      </div>
+                    </>
+                  )}
                 </div>
               </TooltipProvider>
 
               {/* 编辑器区域 */}
               <div className="flex-1 flex overflow-hidden">
-                {(viewMode === "edit" || viewMode === "both") && (
-                  <div
-                    className={`${
-                      viewMode === "both" ? "w-1/2" : "w-full"
-                    } flex flex-col border-r bg-background`}
-                  >
-                    <textarea
-                      ref={editorRef}
-                      value={contentDraft}
-                      onChange={(e) => handleContentChange(e.target.value)}
-                      className="flex-1 w-full p-6 resize-none outline-none text-sm leading-relaxed bg-background font-mono"
-                      placeholder="开始输入...支持 Markdown 语法"
-                      style={{
-                        fontSize: "14px",
-                        lineHeight: "1.75",
-                      }}
+                {currentDoc?.doc_type === "pdf" ? (
+                  // PDF预览模式
+                  <div className="w-full overflow-y-auto bg-background flex items-center justify-center">
+                    <embed
+                      src={getPdfUrl(currentDoc.id)}
+                      type="application/pdf"
+                      className="w-full h-full min-h-full"
+                      style={{ minHeight: "calc(100vh - 200px)" }}
                     />
                   </div>
-                )}
-                {(viewMode === "preview" || viewMode === "both") && (
-                  <div
-                    ref={previewRef}
-                    className={`${
-                      viewMode === "both" ? "w-1/2" : "w-full"
-                    } overflow-y-auto p-6 bg-background`}
-                    style={{
-                      maxWidth: viewMode === "both" ? "100%" : "900px",
-                      margin: viewMode === "both" ? "0" : "0 auto",
-                    }}
-                  >
-                    <div
-                      className="prose prose-sm max-w-none dark:prose-invert"
-                      dangerouslySetInnerHTML={{
-                        __html: markdownToHtml(contentDraft || "*暂无内容*"),
-                      }}
-                    />
-                  </div>
+                ) : (
+                  // Markdown编辑模式
+                  <>
+                    {(viewMode === "edit" || viewMode === "both") && (
+                      <div
+                        className={`${
+                          viewMode === "both" ? "w-1/2" : "w-full"
+                        } flex flex-col border-r bg-background`}
+                      >
+                        <textarea
+                          ref={editorRef}
+                          value={contentDraft}
+                          onChange={(e) => handleContentChange(e.target.value)}
+                          className="flex-1 w-full p-6 resize-none outline-none text-sm leading-relaxed bg-background font-mono"
+                          placeholder="开始输入...支持 Markdown 语法"
+                          style={{
+                            fontSize: "14px",
+                            lineHeight: "1.75",
+                          }}
+                        />
+                      </div>
+                    )}
+                    {(viewMode === "preview" || viewMode === "both") && (
+                      <div
+                        ref={previewRef}
+                        className={`${
+                          viewMode === "both" ? "w-1/2" : "w-full"
+                        } overflow-y-auto p-6 bg-background`}
+                        style={{
+                          maxWidth: viewMode === "both" ? "100%" : "900px",
+                          margin: viewMode === "both" ? "0" : "0 auto",
+                        }}
+                      >
+                        <div
+                          className="prose prose-sm max-w-none dark:prose-invert"
+                          dangerouslySetInnerHTML={{
+                            __html: markdownToHtml(
+                              contentDraft || "*暂无内容*"
+                            ),
+                          }}
+                        />
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </div>

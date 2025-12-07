@@ -64,9 +64,10 @@ class MarkdownDoc(Base):
     user_id = Column(String, nullable=False, index=True)  # 添加用户ID
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False, default="")
-    doc_type = Column(String, nullable=True)  # 文档类型：web, markdown
+    doc_type = Column(String, nullable=True)  # 文档类型：web, markdown, pdf
     summary = Column(Text, nullable=True)  # 文档摘要
     tags = Column(Text, nullable=True)  # 标签，JSON 格式存储
+    pdf_file_path = Column(Text, nullable=True)  # PDF文件路径（当doc_type为pdf时）
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
 

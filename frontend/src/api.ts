@@ -114,6 +114,7 @@ export interface MarkdownDocDetail {
   doc_type?: string;
   summary?: string;
   tags?: string[];
+  pdf_file_path?: string;
   created_at: string;
   updated_at: string;
 }
@@ -180,6 +181,40 @@ export async function extractWebContent(
     payload
   );
   return resp.data;
+}
+
+// ---- PDF Upload ----
+
+export async function uploadPdf(
+  file: File,
+  title?: string
+): Promise<MarkdownDocDetail> {
+  const formData = new FormData();
+  formData.append("file", file);
+  if (title) {
+    formData.append("title", title);
+  }
+
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const resp = await axios.post<MarkdownDocDetail>(
+    `${API_BASE_URL}/upload-pdf`,
+    formData,
+    {
+      headers,
+      // 让 axios 自动设置 Content-Type 为 multipart/form-data
+    }
+  );
+  return resp.data;
+}
+
+export function getPdfUrl(docId: string): string {
+  const token = getToken();
+  return `${API_BASE_URL}/docs/${docId}/pdf${token ? `?token=${encodeURIComponent(token)}` : ""}`;
 }
 
 // ---- Knowledge Base Query ----
@@ -433,8 +468,7 @@ export async function updateConversation(
 ): Promise<Conversation> {
   const resp = await axios.put<Conversation>(
     `${API_BASE_URL}/conversations/${conversationId}`,
-    null,
-    { params: { title } }
+    { title }
   );
   return resp.data;
 }
