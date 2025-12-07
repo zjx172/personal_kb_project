@@ -66,7 +66,7 @@ const HomePage: React.FC = () => {
   const { webUrl, setWebUrl, extracting, handleExtractWeb } =
     useWebExtract(loadDocs);
 
-  const { uploadingPdf, fileInputRef, handleUploadPdf } =
+  const { uploadingPdf, uploadProgress, fileInputRef, handleUploadPdf } =
     usePdfUpload(loadDocs);
 
   // 加载对话消息
@@ -160,6 +160,7 @@ const HomePage: React.FC = () => {
         webUrl={webUrl}
         extracting={extracting}
         uploadingPdf={uploadingPdf}
+        uploadProgress={uploadProgress}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
         onCreateDoc={handleCreateDoc}
         onDeleteDoc={handleDeleteDoc}

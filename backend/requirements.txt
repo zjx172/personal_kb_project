@@ -17,3 +17,5 @@ pyjwt
 python-jose[cryptography]
 pypdf
 python-multipart
+sentry-sdk[fastapi]
+prometheus-client

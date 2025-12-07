@@ -185,10 +185,24 @@ export async function extractWebContent(
 
 // ---- PDF Upload ----
 
+export interface UploadPdfResponse {
+  task_id: string;
+  message: string;
+}
+
+export interface TaskInfo {
+  task_id: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  progress: number;
+  message: string;
+  result?: MarkdownDocDetail;
+  error?: string;
+}
+
 export async function uploadPdf(
   file: File,
   title?: string
-): Promise<MarkdownDocDetail> {
+): Promise<UploadPdfResponse> {
   const formData = new FormData();
   formData.append("file", file);
   if (title) {
@@ -201,7 +215,7 @@ export async function uploadPdf(
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const resp = await axios.post<MarkdownDocDetail>(
+  const resp = await axios.post<UploadPdfResponse>(
     `${API_BASE_URL}/upload-pdf`,
     formData,
     {
@@ -209,6 +223,11 @@ export async function uploadPdf(
       // 让 axios 自动设置 Content-Type 为 multipart/form-data
     }
   );
+  return resp.data;
+}
+
+export async function getTaskStatus(taskId: string): Promise<TaskInfo> {
+  const resp = await axios.get<TaskInfo>(`${API_BASE_URL}/task/${taskId}`);
   return resp.data;
 }
 

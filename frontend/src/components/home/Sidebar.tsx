@@ -19,6 +19,7 @@ interface SidebarProps {
   webUrl: string;
   extracting: boolean;
   uploadingPdf: boolean;
+  uploadProgress?: { progress: number; message: string; status: string } | null;
   onToggle: () => void;
   onCreateDoc: () => void;
   onDeleteDoc: (id: string) => void;
@@ -48,6 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   webUrl,
   extracting,
   uploadingPdf,
+  uploadProgress,
   onCreateDoc,
   onDeleteDoc,
   onWebUrlChange,
@@ -127,6 +129,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 )}
                 上传PDF
               </Button>
+              {uploadProgress && (
+                <div className="mt-2 space-y-1">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>{uploadProgress.message}</span>
+                    <span>{uploadProgress.progress}%</span>
+                  </div>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+                    <div
+                      className="h-full bg-primary transition-all duration-300"
+                      style={{ width: `${uploadProgress.progress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="text-sm font-semibold text-muted-foreground pt-2">

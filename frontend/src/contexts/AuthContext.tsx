@@ -6,6 +6,7 @@ import React, {
   ReactNode,
 } from "react";
 import { getCurrentUser, User } from "../api";
+import { setSentryUser, clearSentryUser } from "../utils/monitoring";
 
 interface AuthContextType {
   user: User | null;
@@ -40,6 +41,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         .then((userData) => {
           setUser(userData);
           localStorage.setItem("user", JSON.stringify(userData));
+          // 设置 Sentry 用户信息
+          setSentryUser({
+            id: userData.id,
+            email: userData.email,
+            username: userData.name || userData.email,
+          });
         })
         .catch(() => {
           // Token 无效，清除
@@ -67,8 +74,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(newUser);
     if (newUser) {
       localStorage.setItem("user", JSON.stringify(newUser));
+      // 设置 Sentry 用户信息
+      setSentryUser({
+        id: newUser.id,
+        email: newUser.email,
+        username: newUser.name || newUser.email,
+      });
     } else {
       localStorage.removeItem("user");
+      // 清除 Sentry 用户信息
+      clearSentryUser();
     }
   };
 
@@ -76,6 +91,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.removeItem("auth_token");
     localStorage.removeItem("user");
     setUser(null);
+    // 清除 Sentry 用户信息
+    clearSentryUser();
   };
 
   return (
