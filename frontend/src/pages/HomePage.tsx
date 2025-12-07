@@ -31,20 +31,9 @@ const HomePage: React.FC = () => {
     knowledgeBases,
     loading: loadingKnowledgeBases,
     currentKnowledgeBaseId,
-    editingKnowledgeBaseId,
-    editingName: editingKnowledgeBaseName,
-    saving: savingKnowledgeBase,
-    expandedBases,
-    nameInputRef: knowledgeBaseNameInputRef,
     setCurrentKnowledgeBaseId,
-    setEditingName: setEditingKnowledgeBaseName,
     loadKnowledgeBases,
-    handleCreateKnowledgeBase,
-    handleDeleteKnowledgeBase,
-    handleStartEditName: handleStartEditKnowledgeBaseName,
-    handleSaveName: handleSaveKnowledgeBaseName,
-    handleCancelEdit: handleCancelEditKnowledgeBase,
-    handleToggleExpand: handleToggleExpandKnowledgeBase,
+    handleUpdateKnowledgeBase,
   } = useKnowledgeBases();
 
   const {
@@ -119,10 +108,9 @@ const HomePage: React.FC = () => {
   useEffect(() => {
     if (currentKnowledgeBaseId) {
       loadConversations(currentKnowledgeBaseId);
-    } else {
-      loadConversations();
     }
-  }, [currentKnowledgeBaseId, loadConversations]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentKnowledgeBaseId]);
 
   // 初始化加载
   useEffect(() => {
@@ -156,18 +144,37 @@ const HomePage: React.FC = () => {
 
   // 处理查询
   const handleQueryWrapper = async () => {
+    // 如果没有选中知识库，提示用户
+    if (!currentKnowledgeBaseId) {
+      toast.error("请先选择一个知识库");
+      return;
+    }
+
+    // 如果没有选中对话，先创建一个新对话
+    let conversationId = currentConversationId;
+    if (!conversationId) {
+      const newId = await handleCreateConversation(currentKnowledgeBaseId);
+      if (!newId) {
+        toast.error("创建对话失败，请稍后重试");
+        return;
+      }
+      conversationId = newId;
+      setCurrentConversationId(newId);
+      setMessages([]);
+      // 重新加载对话列表
+      await loadConversations(currentKnowledgeBaseId);
+    }
+
     await handleQuery(messages, setMessages, async () => {
       // 查询完成后重新加载对话消息
-      if (currentConversationId) {
-        const updatedMessages = await loadConversationMessages(
-          currentConversationId
-        );
+      if (conversationId) {
+        const updatedMessages = await loadConversationMessages(conversationId);
         setMessages(updatedMessages);
-        await loadConversations();
+        await loadConversations(currentKnowledgeBaseId);
       } else {
-        await loadConversations();
+        await loadConversations(currentKnowledgeBaseId);
       }
-    });
+    }, conversationId);
   };
 
   const handleLogout = () => {
@@ -195,19 +202,13 @@ const HomePage: React.FC = () => {
         open={sidebarOpen}
         docs={docs}
         loadingDocs={loadingDocs}
-        knowledgeBases={knowledgeBases}
-        loadingKnowledgeBases={loadingKnowledgeBases}
         currentKnowledgeBaseId={currentKnowledgeBaseId}
         conversations={conversations}
         loadingConversations={loadingConversations}
         currentConversationId={currentConversationId}
-        editingKnowledgeBaseId={editingKnowledgeBaseId}
-        editingKnowledgeBaseName={editingKnowledgeBaseName}
-        savingKnowledgeBase={savingKnowledgeBase}
         editingConversationId={editingConversationId}
         editingTitle={editingTitle}
         savingTitle={savingTitle}
-        expandedBases={expandedBases}
         webUrl={webUrl}
         extracting={extracting}
         uploadingPdf={uploadingPdf}
@@ -218,19 +219,6 @@ const HomePage: React.FC = () => {
         onWebUrlChange={setWebUrl}
         onExtractWeb={handleExtractWeb}
         onUploadPdf={handleUploadPdf}
-        onSelectKnowledgeBase={(id) => {
-          setCurrentKnowledgeBaseId(id);
-          setCurrentConversationId(null);
-          setMessages([]);
-        }}
-        onCreateKnowledgeBase={handleCreateKnowledgeBase}
-        onDeleteKnowledgeBase={handleDeleteKnowledgeBase}
-        onStartEditKnowledgeBaseName={handleStartEditKnowledgeBaseName}
-        onSaveKnowledgeBaseName={handleSaveKnowledgeBaseName}
-        onCancelEditKnowledgeBase={handleCancelEditKnowledgeBase}
-        onKnowledgeBaseNameChange={setEditingKnowledgeBaseName}
-        onToggleExpandKnowledgeBase={handleToggleExpandKnowledgeBase}
-        knowledgeBaseNameInputRef={knowledgeBaseNameInputRef}
         onSelectConversation={async (id) => {
           console.log("选择对话，ID:", id);
           setCurrentConversationId(id);
@@ -294,6 +282,9 @@ const HomePage: React.FC = () => {
                 console.error("创建知识库失败:", error);
                 toast.error(error?.message || "创建知识库失败");
               }
+            }}
+            onUpdate={async (id, name) => {
+              await handleUpdateKnowledgeBase(id, name);
             }}
           />
           {/* 用户信息和登出按钮 */}

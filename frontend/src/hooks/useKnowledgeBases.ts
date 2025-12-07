@@ -152,6 +152,23 @@ export function useKnowledgeBases() {
     });
   }, []);
 
+  const handleUpdateKnowledgeBase = useCallback(
+    async (id: string, name: string) => {
+      try {
+        const updated = await updateKnowledgeBase(id, { name });
+        setKnowledgeBases((prev) =>
+          prev.map((kb) => (kb.id === id ? updated : kb))
+        );
+        toast.success("名称已更新");
+      } catch (error: any) {
+        console.error("更新知识库名称失败:", error);
+        toast.error(error?.message || "更新知识库名称失败");
+        throw error;
+      }
+    },
+    []
+  );
+
   return {
     knowledgeBases,
     loading,
@@ -170,5 +187,6 @@ export function useKnowledgeBases() {
     handleSaveName,
     handleCancelEdit,
     handleToggleExpand,
+    handleUpdateKnowledgeBase,
   };
 }

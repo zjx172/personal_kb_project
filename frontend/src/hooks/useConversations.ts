@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { toast } from "sonner";
 import {
   listConversations,
@@ -25,7 +25,7 @@ export function useConversations() {
   const [savingTitle, setSavingTitle] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
-  const loadConversations = async (knowledgeBaseId?: string) => {
+  const loadConversations = useCallback(async (knowledgeBaseId?: string) => {
     setLoadingConversations(true);
     try {
       const convs = await listConversations(knowledgeBaseId);
@@ -37,11 +37,12 @@ export function useConversations() {
       //   setCurrentConversationId(convs[0].id);
       // }
     } catch (e) {
-      console.error(e);
+      console.error("加载对话失败:", e);
+      toast.error("加载对话失败，请稍后重试");
     } finally {
       setLoadingConversations(false);
     }
-  };
+  }, []);
 
   const loadConversationMessages = async (
     conversationId: string

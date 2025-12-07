@@ -91,7 +91,8 @@ export function useStreamQuery(
   const handleQuery = async (
     messages: Message[],
     setMessages: React.Dispatch<React.SetStateAction<Message[]>>,
-    onComplete?: () => void
+    onComplete?: () => void,
+    overrideConversationId?: string | null
   ) => {
     if (!query.trim()) {
       toast.warning("请输入问题");
@@ -124,6 +125,11 @@ export function useStreamQuery(
     // 创建 AbortController 用于停止请求
     const controller = new AbortController();
     setAbortController(controller);
+
+    // 使用传入的 conversationId 或默认的 currentConversationId
+    const effectiveConversationId = overrideConversationId !== undefined 
+      ? overrideConversationId 
+      : currentConversationId;
 
     try {
       let finalAnswer = "";
@@ -174,7 +180,7 @@ export function useStreamQuery(
         },
         {
           ...searchFilters,
-          conversation_id: currentConversationId || undefined,
+          conversation_id: effectiveConversationId || undefined,
           knowledge_base_id: currentKnowledgeBaseId || undefined,
         }
       );
