@@ -45,20 +45,14 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title, docId }) => {
   const [pdfDocument, setPdfDocument] = useState<any>(null);
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [highlightRects, setHighlightRects] = useState<HighlightRect[]>([]);
-  const [isSelecting, setIsSelecting] = useState(false);
-  const [selectionStart, setSelectionStart] = useState<{
-    x: number;
-    y: number;
-    page: number;
-  } | null>(null);
-  const [currentSelection, setCurrentSelection] =
-    useState<HighlightRect | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const highlightCanvasRefs = useRef<Map<number, HTMLCanvasElement>>(new Map());
   const textLayerRefs = useRef<Map<number, HTMLDivElement>>(new Map());
   const pageRefs = useRef<Map<number, HTMLDivElement>>(new Map());
+  const processingSelectionRef = useRef<boolean>(false);
+  const lastProcessedSelectionRef = useRef<string>("");
 
   // 加载PDF文档
   useEffect(() => {
@@ -152,6 +146,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title, docId }) => {
       textLayer.style.top = "0";
       textLayer.style.left = "0";
       textLayer.style.overflow = "hidden";
+      textLayer.style.zIndex = "10";
+      textLayer.style.pointerEvents = "auto";
 
       // 手动创建文本元素用于文本选择
       // 使用PDF.js的文本层渲染工具
@@ -165,7 +161,12 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title, docId }) => {
       textLayerDiv.style.overflow = "hidden";
       textLayerDiv.style.opacity = "0.2";
       textLayerDiv.style.userSelect = "text";
+      (textLayerDiv.style as any).webkitUserSelect = "text";
+      (textLayerDiv.style as any).mozUserSelect = "text";
+      (textLayerDiv.style as any).msUserSelect = "text";
       textLayerDiv.style.lineHeight = "1";
+      textLayerDiv.style.pointerEvents = "auto";
+      textLayerDiv.style.zIndex = "10";
 
       textContent.items.forEach((item: any) => {
         if (item.str && item.str.trim()) {
@@ -175,6 +176,11 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title, docId }) => {
           textDiv.style.whiteSpace = "pre";
           textDiv.style.cursor = "text";
           textDiv.style.color = "transparent";
+          textDiv.style.userSelect = "text";
+          (textDiv.style as any).webkitUserSelect = "text";
+          (textDiv.style as any).mozUserSelect = "text";
+          (textDiv.style as any).msUserSelect = "text";
+          textDiv.style.pointerEvents = "auto";
 
           // PDF坐标系转换：PDF原点在左下角，HTML在左上角
           // transform[4] = x, transform[5] = y (PDF坐标系)
@@ -313,79 +319,125 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title, docId }) => {
     }
   }, [highlightRects, pdfDocument, scale, rotation]);
 
-  // 处理文本选择
-  const handleMouseDown = (e: React.MouseEvent, pageNum: number) => {
-    if (e.button !== 0) return; // 只处理左键
+  // 处理文本选择 - 监听全局选择事件
+  useEffect(() => {
+    if (!docId) return;
 
-    const pageDiv = pageRefs.current.get(pageNum);
-    if (!pageDiv) return;
-
-    const rect = pageDiv.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    setIsSelecting(true);
-    setSelectionStart({ x, y, page: pageNum });
-  };
-
-  const handleMouseMove = (e: React.MouseEvent, pageNum: number) => {
-    if (!isSelecting || !selectionStart || selectionStart.page !== pageNum)
-      return;
-
-    const pageDiv = pageRefs.current.get(pageNum);
-    if (!pageDiv) return;
-
-    const rect = pageDiv.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-
-    const startX = Math.min(selectionStart.x, x);
-    const startY = Math.min(selectionStart.y, y);
-    const width = Math.abs(x - selectionStart.x);
-    const height = Math.abs(y - selectionStart.y);
-
-    setCurrentSelection({
-      x: startX,
-      y: startY,
-      width,
-      height,
-      page: pageNum,
-      text: "", // 稍后从文本层提取
-    });
-  };
-
-  const handleMouseUp = async (e: React.MouseEvent, pageNum: number) => {
-    if (!isSelecting || !selectionStart) return;
-
-    setIsSelecting(false);
-
-    // 获取选中的文本
-    const selection = window.getSelection();
-    const selectedText = selection?.toString().trim() || "";
-
-    if (selectedText && docId) {
-      try {
-        // 保存高亮
-        const highlight = await createHighlight({
-          source: `markdown_doc:${docId}`,
-          page: pageNum,
-          selected_text: selectedText,
-          note: null,
-        });
-
-        // 添加到高亮列表
-        setHighlights((prev) => [highlight, ...prev]);
-        toast.success("高亮已保存");
-      } catch (err: any) {
-        console.error("保存高亮失败:", err);
-        toast.error(err?.message || "保存高亮失败");
+    const handleSelectionChange = async () => {
+      // 如果正在处理，跳过
+      if (processingSelectionRef.current) {
+        return;
       }
-    }
 
-    setSelectionStart(null);
-    setCurrentSelection(null);
-    selection?.removeAllRanges();
-  };
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) {
+        return;
+      }
+
+      const selectedText = selection.toString().trim();
+      if (!selectedText) {
+        return;
+      }
+
+      // 检查是否与上次处理的选择相同
+      const selectionKey = `${selectedText}-${selection.anchorNode?.parentElement?.getBoundingClientRect().top || 0}`;
+      if (lastProcessedSelectionRef.current === selectionKey) {
+        return;
+      }
+
+      // 检查选中的文本是否在PDF文本层中
+      const range = selection.getRangeAt(0);
+      let textLayerElement: HTMLElement | null = null;
+
+      // 查找文本层元素
+      let node: Node | null = range.commonAncestorContainer;
+      while (node && node !== document.body) {
+        if (node.nodeType === Node.ELEMENT_NODE) {
+          const el = node as HTMLElement;
+          if (el.classList?.contains("textLayer") || el.closest(".textLayer")) {
+            textLayerElement = el.closest(".textLayer") as HTMLElement;
+            break;
+          }
+        }
+        node = node.parentNode;
+      }
+
+      if (!textLayerElement) {
+        return;
+      }
+
+      // 找到选中的文本所在的页面
+      let pageNum = 1;
+      for (const [page, textLayerEl] of textLayerRefs.current.entries()) {
+        if (textLayerEl && textLayerEl.contains(textLayerElement)) {
+          pageNum = page;
+          break;
+        }
+      }
+
+      // 标记为正在处理
+      processingSelectionRef.current = true;
+      lastProcessedSelectionRef.current = selectionKey;
+
+      // 延迟处理，避免重复触发
+      setTimeout(async () => {
+        try {
+          // 再次检查选中的文本（可能在延迟期间被清除）
+          const currentSelection = window.getSelection();
+          const currentText = currentSelection?.toString().trim() || "";
+
+          if (!currentText || currentText !== selectedText) {
+            processingSelectionRef.current = false;
+            return;
+          }
+
+          // 检查是否已经存在相同的高亮
+          const existingHighlight = highlights.find(
+            (h) => h.page === pageNum && h.selected_text === selectedText
+          );
+
+          if (existingHighlight) {
+            processingSelectionRef.current = false;
+            return; // 已存在，不重复创建
+          }
+
+          // 保存高亮
+          const highlight = await createHighlight({
+            source: `markdown_doc:${docId}`,
+            page: pageNum,
+            selected_text: selectedText,
+            note: null,
+          });
+
+          // 添加到高亮列表
+          setHighlights((prev) => [highlight, ...prev]);
+          toast.success("高亮已保存");
+
+          // 清除选择
+          currentSelection?.removeAllRanges();
+        } catch (err: any) {
+          console.error("保存高亮失败:", err);
+          toast.error(err?.message || "保存高亮失败");
+        } finally {
+          processingSelectionRef.current = false;
+        }
+      }, 500);
+    };
+
+    // 监听鼠标抬起事件，检查是否有文本选择
+    const handleMouseUp = () => {
+      // 延迟检查，等待浏览器完成文本选择
+      setTimeout(() => {
+        handleSelectionChange();
+      }, 200);
+    };
+
+    document.addEventListener("mouseup", handleMouseUp);
+
+    return () => {
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+  }, [docId, highlights]);
 
   const goToPreviousPage = () => {
     if (pageNumber > 1) {
@@ -501,18 +553,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title, docId }) => {
       </div>
 
       {/* PDF 内容区域 */}
-      <div
-        ref={containerRef}
-        className="flex-1 overflow-auto bg-gray-200 p-6"
-        onMouseUp={(e) => {
-          // 全局鼠标抬起事件，清除选择状态
-          if (isSelecting) {
-            setIsSelecting(false);
-            setSelectionStart(null);
-            setCurrentSelection(null);
-          }
-        }}
-      >
+      <div ref={containerRef} className="flex-1 overflow-auto bg-gray-200 p-6">
         <div className="flex flex-col items-center gap-4">
           {loading && (
             <div className="flex items-center justify-center py-20">
@@ -533,9 +574,6 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title, docId }) => {
                     if (el) pageRefs.current.set(pageNum, el);
                   }}
                   className="relative shadow-2xl rounded-sm bg-white"
-                  onMouseDown={(e) => handleMouseDown(e, pageNum)}
-                  onMouseMove={(e) => handleMouseMove(e, pageNum)}
-                  onMouseUp={(e) => handleMouseUp(e, pageNum)}
                 >
                   <canvas
                     ref={(el) => {
@@ -548,29 +586,25 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({ url, title, docId }) => {
                       if (el) highlightCanvasRefs.current.set(pageNum, el);
                     }}
                     className="absolute top-0 left-0 pointer-events-none"
-                    style={{ mixBlendMode: "multiply" }}
+                    style={{ mixBlendMode: "multiply", zIndex: 1 }}
                   />
                   <div
                     ref={(el) => {
                       if (el) textLayerRefs.current.set(pageNum, el);
                     }}
                     className="absolute top-0 left-0 textLayer"
-                    style={{
-                      opacity: 0.2,
-                      userSelect: "text",
-                    }}
+                    style={
+                      {
+                        opacity: 0.2,
+                        userSelect: "text",
+                        WebkitUserSelect: "text" as any,
+                        MozUserSelect: "text" as any,
+                        msUserSelect: "text" as any,
+                        pointerEvents: "auto",
+                        zIndex: 10,
+                      } as React.CSSProperties
+                    }
                   />
-                  {currentSelection && currentSelection.page === pageNum && (
-                    <div
-                      className="absolute bg-yellow-300 opacity-30 pointer-events-none"
-                      style={{
-                        left: `${currentSelection.x}px`,
-                        top: `${currentSelection.y}px`,
-                        width: `${currentSelection.width}px`,
-                        height: `${currentSelection.height}px`,
-                      }}
-                    />
-                  )}
                 </div>
               );
             })}
