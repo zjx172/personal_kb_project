@@ -1097,10 +1097,12 @@ const DocPage: React.FC = () => {
               <div className="flex-1 flex overflow-hidden">
                 {currentDoc?.doc_type === "pdf" ? (
                   // PDF预览模式
-                  <PdfViewer
-                    url={getPdfUrl(currentDoc.id)}
-                    title={currentDoc.title || "PDF文档"}
+                  <div className="flex-1 flex flex-col overflow-hidden">
+                    <PdfViewer
+                      url={getPdfUrl(currentDoc.id)}
+                      title={currentDoc.title || "PDF文档"}
                     />
+                  </div>
                 ) : (
                   // Markdown编辑模式
                   <>
