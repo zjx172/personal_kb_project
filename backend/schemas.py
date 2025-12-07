@@ -256,6 +256,23 @@ class DataSourceOut(BaseModel):
         from_attributes = True
 
 
+class DataSourceDataRequest(BaseModel):
+    """数据源数据请求（带筛选和分页）"""
+    filters: Optional[dict] = None  # 筛选条件，格式: {"column_name": "filter_value"}
+    page: int = 1  # 页码，从1开始
+    page_size: int = 50  # 每页大小
+
+
+class DataSourceDataResponse(BaseModel):
+    """数据源数据响应"""
+    data: List[dict]  # 表格数据行
+    columns: List[str]  # 列名
+    total: int  # 总行数
+    page: int  # 当前页码
+    page_size: int  # 每页大小
+    total_pages: int  # 总页数
+
+
 # ---- 对话相关 ----
 class ConversationCreate(BaseModel):
     knowledge_base_id: str

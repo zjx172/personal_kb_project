@@ -906,3 +906,29 @@ export async function getDataSource(id: string): Promise<DataSource> {
 export async function deleteDataSource(id: string): Promise<void> {
   await axios.delete(`${API_BASE_URL}/data-sources/${id}`);
 }
+
+export interface DataSourceDataRequest {
+  filters?: Record<string, string>;
+  page?: number;
+  page_size?: number;
+}
+
+export interface DataSourceDataResponse {
+  data: Record<string, any>[];
+  columns: string[];
+  total: number;
+  page: number;
+  page_size: number;
+  total_pages: number;
+}
+
+export async function getDataSourceData(
+  id: string,
+  request: DataSourceDataRequest = {}
+): Promise<DataSourceDataResponse> {
+  const resp = await axios.post<DataSourceDataResponse>(
+    `${API_BASE_URL}/data-sources/${id}/data`,
+    request
+  );
+  return resp.data;
+}
