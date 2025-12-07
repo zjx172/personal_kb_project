@@ -1,7 +1,13 @@
 {
   "extends": "plasmo/templates/tsconfig.base",
-  "exclude": ["node_modules"],
-  "include": ["./**/*.ts", "./**/*.tsx"],
+  "exclude": [
+    "node_modules"
+  ],
+  "include": [
+    ".plasmo/index.d.ts",
+    "./**/*.ts",
+    "./**/*.tsx"
+  ],
   "compilerOptions": {
     "strict": true,
     "jsx": "react-jsx",
@@ -9,6 +15,9 @@
     "skipLibCheck": true,
     "moduleResolution": "node",
     "resolveJsonModule": true,
-    "types": ["chrome", "node"]
+    "types": [
+      "chrome",
+      "node"
+    ]
   }
 }

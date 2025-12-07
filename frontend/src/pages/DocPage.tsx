@@ -291,6 +291,79 @@ const DocPage: React.FC = () => {
     }, 0);
   };
 
+  // 在指定位置插入文本（替换选中内容）
+  const insertTextAtPosition = (start: number, end: number, text: string) => {
+    if (!editorRef.current) return;
+    const newText =
+      contentDraft.substring(0, start) + text + contentDraft.substring(end);
+    setContentDraft(newText);
+    triggerAutoSave(newText);
+
+    setTimeout(() => {
+      if (editorRef.current) {
+        editorRef.current.focus();
+        const newPos = start + text.length;
+        editorRef.current.setSelectionRange(newPos, newPos);
+      }
+    }, 0);
+  };
+
+  // 获取当前行的信息（开始位置、结束位置、内容）
+  const getCurrentLineInfo = (cursorPos: number) => {
+    let lineStart = cursorPos;
+    while (lineStart > 0 && contentDraft[lineStart - 1] !== "\n") {
+      lineStart--;
+    }
+    
+    let lineEnd = cursorPos;
+    while (lineEnd < contentDraft.length && contentDraft[lineEnd] !== "\n") {
+      lineEnd++;
+    }
+    
+    const currentLine = contentDraft.substring(lineStart, lineEnd);
+    return { lineStart, lineEnd, currentLine };
+  };
+
+  // 在行首插入标记（如果行有内容），否则在光标位置插入
+  const insertAtLineStartOrCursor = (
+    marker: string,
+    cursorPos: number,
+    togglePattern?: RegExp,
+    removePattern?: RegExp
+  ) => {
+    const { lineStart, lineEnd, currentLine } = getCurrentLineInfo(cursorPos);
+    
+    if (currentLine.trim().length > 0) {
+      // 如果行有内容，检查是否已经有标记（用于切换功能）
+      if (togglePattern && togglePattern.test(currentLine.trim())) {
+        // 移除标记
+        const unmarkedLine = currentLine.replace(removePattern || togglePattern, "");
+        insertTextAtPosition(lineStart, lineEnd, unmarkedLine);
+        setTimeout(() => {
+          if (editorRef.current) {
+            const offsetFromLineStart = cursorPos - lineStart;
+            const removedLength = currentLine.length - unmarkedLine.length;
+            const newPos = lineStart + unmarkedLine.length;
+            editorRef.current.setSelectionRange(newPos, newPos);
+          }
+        }, 0);
+      } else {
+        // 在行首插入标记
+        insertTextAtPosition(lineStart, lineStart, marker);
+        setTimeout(() => {
+          if (editorRef.current) {
+            const offsetFromLineStart = cursorPos - lineStart;
+            const newPos = lineStart + marker.length + offsetFromLineStart;
+            editorRef.current.setSelectionRange(newPos, newPos);
+          }
+        }, 0);
+      }
+    } else {
+      // 如果行没有内容，在光标位置插入
+      insertText(marker, "");
+    }
+  };
+
   // 工具栏按钮处理 - 改进版，支持选中文字格式化
   const handleFormat = (type: string) => {
     if (!editorRef.current) return;
@@ -381,27 +454,41 @@ const DocPage: React.FC = () => {
           const quotedLines = lines.map((line) => `> ${line}`).join("\n");
           insertTextAtPosition(start, end, quotedLines);
         } else {
-          insertText("> ", "");
+          insertAtLineStartOrCursor("> ", start, /^>\s*/, /^>\s*/);
         }
         break;
       case "heading":
-        if (selectedText && selectedText.match(/^#{1,6} /)) {
+        if (selectedText) {
+          if (selectedText.match(/^#{1,6} /)) {
           // 如果已经是标题，移除标题标记
           const unformatted = selectedText.replace(/^#{1,6} /, "");
           insertTextAtPosition(start, end, unformatted);
         } else {
-          insertText("# ", "");
+            // 如果选中了多行，给每行添加标题标记
+            const lines = selectedText.split("\n");
+            const headingLines = lines.map((line) => `# ${line.trim()}`).join("\n");
+            insertTextAtPosition(start, end, headingLines);
+          }
+        } else {
+          insertAtLineStartOrCursor("# ", start, /^#{1,6}\s*/, /^#{1,6}\s*/);
         }
         break;
       case "ul":
         if (selectedText) {
           const lines = selectedText.split("\n");
           const listLines = lines
-            .map((line) => (line.trim() ? `- ${line.trim()}` : line))
+            .map((line) => {
+              if (line.trim()) {
+                // 如果已经有列表标记，移除后添加
+                const trimmed = line.trim().replace(/^[-*+]\s+/, "");
+                return `- ${trimmed}`;
+              }
+              return line;
+            })
             .join("\n");
           insertTextAtPosition(start, end, listLines);
         } else {
-          insertText("- ", "");
+          insertAtLineStartOrCursor("- ", start, /^[-*+]\s+/, /^[-*+]\s+/);
         }
         break;
       case "ol":
@@ -411,14 +498,16 @@ const DocPage: React.FC = () => {
           const listLines = lines
             .map((line) => {
               if (line.trim()) {
-                return `${counter++}. ${line.trim()}`;
+                // 如果已经有有序列表标记，移除后添加
+                const trimmed = line.trim().replace(/^\d+\.\s+/, "");
+                return `${counter++}. ${trimmed}`;
               }
               return line;
             })
             .join("\n");
           insertTextAtPosition(start, end, listLines);
         } else {
-          insertText("1. ", "");
+          insertAtLineStartOrCursor("1. ", start, /^\d+\.\s+/, /^\d+\.\s+/);
         }
         break;
       case "link":
@@ -443,23 +532,6 @@ const DocPage: React.FC = () => {
       default:
         break;
     }
-  };
-
-  // 在指定位置插入文本（替换选中内容）
-  const insertTextAtPosition = (start: number, end: number, text: string) => {
-    if (!editorRef.current) return;
-    const newText =
-      contentDraft.substring(0, start) + text + contentDraft.substring(end);
-    setContentDraft(newText);
-    triggerAutoSave(newText);
-
-    setTimeout(() => {
-      if (editorRef.current) {
-        editorRef.current.focus();
-        const newPos = start + text.length;
-        editorRef.current.setSelectionRange(newPos, newPos);
-      }
-    }, 0);
   };
 
   // 监听标题变化，也触发自动保存

@@ -386,10 +386,12 @@ pnpm dev  # 开发模式，自动监听文件变化并重新构建
 4. **查看变化**：重新打开 popup 或刷新相关页面
 
 **自动重载（可选）**：
+
 - 安装 [plasmo-reload](https://github.com/PlasmoHQ/plasmo-reload) Chrome 扩展
 - 安装后，代码修改会自动触发插件重载，无需手动点击
 
 **调试技巧**：
+
 - **Popup 调试**：右键点击插件图标 → "检查弹出内容"
 - **Background 调试**：在 `chrome://extensions/` 中点击插件的"service worker"链接
 - **查看日志**：在 DevTools Console 中查看 `console.log` 输出

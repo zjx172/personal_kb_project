@@ -17,6 +17,23 @@
 pnpm install
 ```
 
+### 修复常见问题
+
+**sharp 模块问题**：
+如果遇到 sharp 模块安装错误，运行修复脚本：
+
+```bash
+./fix-sharp.sh
+```
+
+或者手动修复：
+
+```bash
+cd node_modules/.pnpm/sharp@*/node_modules/sharp
+npm run install
+cd ../../../../..
+```
+
 ### 开发模式（支持热更新）
 
 ```bash
