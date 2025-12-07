@@ -22,6 +22,14 @@ import {
   Shield,
   Zap,
   Link as LinkIcon,
+  CheckCircle2,
+  Users,
+  Database,
+  Lock,
+  TrendingUp,
+  Layers,
+  MessageSquare,
+  BookMarked,
 } from "lucide-react";
 
 const LoginPage: React.FC = () => {
@@ -97,135 +105,284 @@ const LoginPage: React.FC = () => {
       icon: Search,
       title: "智能搜索",
       description: "基于 RAG 技术，快速检索知识库内容",
+      color: "from-blue-500/20 to-blue-600/10",
     },
     {
       icon: FileText,
       title: "文档管理",
       description: "在线编辑 Markdown 文档，支持标签分类",
+      color: "from-purple-500/20 to-purple-600/10",
     },
     {
       icon: Brain,
       title: "AI 问答",
       description: "智能生成答案，自动引用相关文档",
+      color: "from-pink-500/20 to-pink-600/10",
     },
     {
       icon: Globe,
       title: "网页提取",
       description: "一键提取网页内容，自动转换为文档",
+      color: "from-green-500/20 to-green-600/10",
+    },
+    {
+      icon: Layers,
+      title: "多知识库",
+      description: "支持创建多个知识库，分类管理不同主题",
+      color: "from-orange-500/20 to-orange-600/10",
+    },
+    {
+      icon: MessageSquare,
+      title: "对话记录",
+      description: "保存所有对话历史，随时回顾和继续",
+      color: "from-cyan-500/20 to-cyan-600/10",
     },
   ];
 
+  const benefits = [
+    {
+      icon: Shield,
+      title: "安全可靠",
+      description: "使用 Google OAuth 登录，数据加密存储",
+    },
+    {
+      icon: Zap,
+      title: "快速检索",
+      description: "向量搜索 + 关键词搜索，秒级响应",
+    },
+    {
+      icon: LinkIcon,
+      title: "智能关联",
+      description: "自动发现文档间的关系，构建知识图谱",
+    },
+    {
+      icon: Database,
+      title: "永久保存",
+      description: "所有数据本地存储，永不丢失",
+    },
+  ];
+
+  const stats = [
+    { label: "知识库", value: "∞", description: "无限创建" },
+    { label: "文档", value: "∞", description: "无限存储" },
+    { label: "对话", value: "∞", description: "无限记录" },
+  ];
+
   return (
-    <div className="min-h-screen bg-background p-4">
-      <div className="max-w-6xl mx-auto pt-8">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 p-4 relative overflow-hidden">
+      {/* 装饰性背景元素 */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 left-10 w-72 h-72 bg-primary/5 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-20 right-10 w-96 h-96 bg-primary/5 rounded-full blur-3xl animate-pulse delay-1000" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary/3 rounded-full blur-3xl" />
+      </div>
+
+      <div className="max-w-7xl mx-auto pt-12 pb-16 relative z-10">
         {/* 标题区域 */}
-        <div className="text-center mb-12">
-          <div className="flex justify-center mb-4">
-            <div className="bg-primary/10 p-4 rounded-full">
-              <BookOpen className="h-8 w-8 text-primary" />
+        <div className="text-center mb-16 animate-in fade-in slide-in-from-top-4 duration-700">
+          <div className="flex justify-center mb-6">
+            <div className="relative">
+              <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse" />
+              <div className="relative bg-gradient-to-br from-primary/20 to-primary/10 p-5 rounded-full shadow-lg border border-primary/20">
+                <BookOpen className="h-10 w-10 text-primary animate-in zoom-in duration-500" />
+              </div>
+              <div className="absolute -top-1 -right-1">
+                <Sparkles className="h-5 w-5 text-primary animate-pulse" />
+              </div>
             </div>
           </div>
-          <h1 className="text-4xl font-bold tracking-tight mb-3">个人知识库</h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+          <h1 className="text-6xl font-bold tracking-tight mb-4 bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+            个人知识库
+          </h1>
+          <p className="text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-8">
             构建你的专属知识体系，让 AI 帮你快速找到答案
           </p>
+
+          {/* 统计数据 */}
+          <div className="flex justify-center gap-8 mt-8">
+            {stats.map((stat, index) => (
+              <div
+                key={index}
+                className="text-center animate-in fade-in slide-in-from-bottom-4 duration-700"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <div className="text-3xl font-bold text-primary mb-1">
+                  {stat.value}
+                </div>
+                <div className="text-sm font-medium text-foreground">
+                  {stat.label}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5">
+                  {stat.description}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8 items-start">
-          {/* 左侧：功能介绍 */}
-          <div className="space-y-6">
-            <Card>
+        <div className="grid lg:grid-cols-3 gap-8 items-start">
+          {/* 左侧：核心功能 */}
+          <div className="lg:col-span-2 space-y-6 animate-in fade-in slide-in-from-left-4 duration-700">
+            <Card className="border-primary/20 shadow-lg hover:shadow-xl transition-shadow duration-300">
               <CardHeader>
-                <CardTitle className="text-lg">核心功能</CardTitle>
+                <CardTitle className="text-2xl flex items-center gap-2">
+                  <Sparkles className="h-6 w-6 text-primary" />
+                  核心功能
+                </CardTitle>
+                <CardDescription>强大的功能帮助你高效管理知识</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {features.map((feature, index) => {
-                  const Icon = feature.icon;
-                  return (
-                    <div key={index} className="flex gap-4">
-                      <div className="flex-shrink-0">
-                        <div className="bg-primary/10 p-2 rounded-lg">
-                          <Icon className="h-5 w-5 text-primary" />
+              <CardContent>
+                <div className="grid md:grid-cols-2 gap-4">
+                  {features.map((feature, index) => {
+                    const Icon = feature.icon;
+                    return (
+                      <div
+                        key={index}
+                        className="flex gap-4 p-4 rounded-lg hover:bg-accent/50 transition-all duration-200 group border border-border/50 hover:border-primary/30"
+                        style={{
+                          animationDelay: `${index * 50}ms`,
+                        }}
+                      >
+                        <div className="flex-shrink-0">
+                          <div
+                            className={`bg-gradient-to-br ${feature.color} p-3 rounded-lg group-hover:scale-110 transition-transform duration-200 shadow-sm`}
+                          >
+                            <Icon className="h-5 w-5 text-primary" />
+                          </div>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-base mb-1 group-hover:text-primary transition-colors">
+                            {feature.title}
+                          </h3>
+                          <p className="text-sm text-muted-foreground leading-relaxed">
+                            {feature.description}
+                          </p>
                         </div>
                       </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-sm mb-1">
-                          {feature.title}
-                        </h3>
-                        <p className="text-sm text-muted-foreground">
-                          {feature.description}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </CardContent>
             </Card>
 
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">为什么选择我们</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-start gap-3">
-                  <Shield className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">安全可靠</p>
-                    <p className="text-xs text-muted-foreground">
-                      使用 Google OAuth 登录，数据加密存储
-                    </p>
+            <div className="grid md:grid-cols-2 gap-6">
+              <Card className="border-primary/20 shadow-lg hover:shadow-xl transition-shadow duration-300">
+                <CardHeader>
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <CheckCircle2 className="h-5 w-5 text-primary" />
+                    为什么选择我们
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {benefits.map((benefit, index) => {
+                    const Icon = benefit.icon;
+                    return (
+                      <div
+                        key={index}
+                        className="flex items-start gap-3 p-3 rounded-lg hover:bg-accent/50 transition-all duration-200 group"
+                      >
+                        <div className="bg-gradient-to-br from-primary/20 to-primary/10 p-2 rounded-lg group-hover:scale-110 transition-transform duration-200 flex-shrink-0">
+                          <Icon className="h-5 w-5 text-primary" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold mb-1 group-hover:text-primary transition-colors">
+                            {benefit.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground leading-relaxed">
+                            {benefit.description}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+
+              <Card className="border-primary/20 shadow-lg hover:shadow-xl transition-shadow duration-300">
+                <CardHeader>
+                  <CardTitle className="text-xl flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                    适用场景
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-accent/50 transition-all duration-200">
+                    <BookMarked className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold mb-1">学习笔记</p>
+                      <p className="text-xs text-muted-foreground">
+                        整理课程笔记、读书心得
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <Zap className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">快速检索</p>
-                    <p className="text-xs text-muted-foreground">
-                      向量搜索 + 关键词搜索，秒级响应
-                    </p>
+                  <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-accent/50 transition-all duration-200">
+                    <FileText className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold mb-1">工作文档</p>
+                      <p className="text-xs text-muted-foreground">
+                        管理项目文档、会议记录
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <LinkIcon className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium">智能关联</p>
-                    <p className="text-xs text-muted-foreground">
-                      自动发现文档间的关系，构建知识图谱
-                    </p>
+                  <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-accent/50 transition-all duration-200">
+                    <Brain className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold mb-1">知识沉淀</p>
+                      <p className="text-xs text-muted-foreground">
+                        积累专业知识、经验总结
+                      </p>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                  <div className="flex items-start gap-3 p-3 rounded-lg hover:bg-accent/50 transition-all duration-200">
+                    <Users className="h-5 w-5 text-primary mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-sm font-semibold mb-1">团队协作</p>
+                      <p className="text-xs text-muted-foreground">
+                        共享知识库，提升团队效率
+                      </p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </div>
 
           {/* 右侧：登录卡片 */}
-          <div className="sticky top-8">
-            <Card>
-              <CardHeader className="space-y-1">
-                <CardTitle className="text-xl font-bold text-center">
+          <div className="lg:col-span-1 sticky top-8 animate-in fade-in slide-in-from-right-4 duration-700">
+            <Card className="border-primary/20 shadow-2xl bg-gradient-to-br from-card to-card/95 backdrop-blur-sm">
+              <CardHeader className="space-y-3 pb-6">
+                <div className="flex justify-center mb-2">
+                  <div className="relative">
+                    <div className="absolute inset-0 bg-primary/20 rounded-full blur-lg animate-pulse" />
+                    <div className="relative bg-gradient-to-br from-primary/20 to-primary/10 p-4 rounded-full">
+                      <Sparkles className="h-7 w-7 text-primary" />
+                    </div>
+                  </div>
+                </div>
+                <CardTitle className="text-2xl font-bold text-center bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
                   开始使用
                 </CardTitle>
-                <CardDescription className="text-center">
+                <CardDescription className="text-center text-base leading-relaxed">
                   使用 Google 账号登录，立即开始构建你的知识库
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-6">
                 <Button
                   onClick={handleGoogleLogin}
                   disabled={loading}
-                  className="w-full"
+                  className="w-full h-14 text-base font-semibold shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-[1.02] active:scale-[0.98] bg-background hover:bg-accent border-2 border-primary/20 hover:border-primary/40"
                   size="lg"
                   variant="outline"
                 >
                   {loading ? (
                     <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                       正在跳转...
                     </>
                   ) : (
                     <>
                       <svg
-                        className="mr-2 h-5 w-5"
+                        className="mr-3 h-6 w-6"
                         viewBox="0 0 24 24"
                         aria-hidden="true"
                       >
@@ -250,8 +407,19 @@ const LoginPage: React.FC = () => {
                     </>
                   )}
                 </Button>
-                <div className="pt-4 border-t space-y-2">
-                  <p className="text-xs text-muted-foreground text-center">
+
+                <div className="space-y-4">
+                  <div className="pt-4 border-t border-primary/10 space-y-3">
+                    <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                      <Shield className="h-3.5 w-3.5" />
+                      <span>安全登录，数据加密保护</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                      <Lock className="h-3.5 w-3.5" />
+                      <span>隐私保护，数据仅你可见</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground text-center leading-relaxed pt-2">
                     登录即表示你同意我们的服务条款
                   </p>
                 </div>
