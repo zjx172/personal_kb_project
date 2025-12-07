@@ -39,6 +39,7 @@ const HomePage: React.FC = () => {
     setCurrentKnowledgeBaseId,
     loadKnowledgeBases,
     handleUpdateKnowledgeBase,
+    handleDeleteKnowledgeBase,
   } = useKnowledgeBases();
 
   // 统一处理 URL 和知识库 ID 的同步
@@ -58,7 +59,10 @@ const HomePage: React.FC = () => {
     }
 
     // 情况2: URL 中没有知识库 ID，但状态中有，更新 URL
-    if (currentKnowledgeBaseId && knowledgeBases.some((kb) => kb.id === currentKnowledgeBaseId)) {
+    if (
+      currentKnowledgeBaseId &&
+      knowledgeBases.some((kb) => kb.id === currentKnowledgeBaseId)
+    ) {
       isNavigatingRef.current = true;
       navigate(`/kb/${currentKnowledgeBaseId}`, { replace: true });
       setTimeout(() => {
@@ -349,6 +353,26 @@ const HomePage: React.FC = () => {
             }}
             onUpdate={async (id, name) => {
               await handleUpdateKnowledgeBase(id, name);
+            }}
+            onDelete={async (id) => {
+              try {
+                await handleDeleteKnowledgeBase(id);
+                await loadKnowledgeBases();
+                // 如果删除的是当前知识库，导航到其他知识库或根路径
+                if (currentKnowledgeBaseId === id) {
+                  const remaining = knowledgeBases.filter((kb) => kb.id !== id);
+                  if (remaining.length > 0) {
+                    navigate(`/kb/${remaining[0].id}`);
+                  } else {
+                    navigate("/");
+                  }
+                  setCurrentConversationId(null);
+                  setMessages([]);
+                }
+              } catch (error: any) {
+                // 错误已在 handleDeleteKnowledgeBase 中处理
+                console.error("删除知识库失败:", error);
+              }
             }}
           />
           {/* 用户信息和登出按钮 */}

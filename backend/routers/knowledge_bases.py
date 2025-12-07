@@ -118,9 +118,10 @@ def delete_knowledge_base(
     if not knowledge_base:
         raise HTTPException(status_code=404, detail="知识库不存在")
 
-    # 删除知识库中的所有对话（级联删除消息）
-    from models import Conversation, SearchHistory
+    # 删除知识库中的所有资源
+    from models import Conversation, SearchHistory, MarkdownDoc
 
+    # 删除知识库中的所有对话（级联删除消息）
     conversations = (
         db.query(Conversation)
         .filter(Conversation.knowledge_base_id == knowledge_base_id)
@@ -133,6 +134,11 @@ def delete_knowledge_base(
         ).delete()
         # 删除对话
         db.delete(conversation)
+
+    # 删除知识库中的所有文档
+    db.query(MarkdownDoc).filter(
+        MarkdownDoc.knowledge_base_id == knowledge_base_id
+    ).delete()
 
     # 删除知识库
     db.delete(knowledge_base)

@@ -1,7 +1,14 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { AnswerWithCitations } from "../AnswerWithCitations";
-import { User, ChevronDown, Loader2 } from "lucide-react";
+import {
+  User,
+  ChevronDown,
+  Loader2,
+  BookOpen,
+  Sparkles,
+  Search,
+} from "lucide-react";
 import { Message } from "../../types/chat";
 import { QueryResponse } from "../../api";
 
@@ -24,11 +31,66 @@ export const MessageList: React.FC<MessageListProps> = ({
     <div className="w-full max-w-4xl mx-auto space-y-6">
       {/* 空状态 - 只在没有消息时显示 */}
       {messages.length === 0 && !querying && (
-        <div className="flex flex-col items-center justify-center h-full py-16">
-          <h1 className="text-4xl font-bold tracking-tight mb-3">个人知识库</h1>
-          <p className="text-lg text-muted-foreground mb-8">
-            在您的知识库中搜索答案，或创建新文档
-          </p>
+        <div className="flex flex-col items-center justify-center min-h-[60vh] py-16 relative">
+          {/* 装饰性背景元素 */}
+          <div className="absolute inset-0 overflow-hidden pointer-events-none">
+            <div className="absolute top-1/4 left-1/4 w-64 h-64 bg-primary/5 rounded-full blur-3xl animate-pulse" />
+            <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-primary/5 rounded-full blur-3xl animate-pulse delay-1000" />
+          </div>
+
+          <div className="relative z-10 flex flex-col items-center animate-in fade-in slide-in-from-top-4 duration-700">
+            {/* 图标区域 */}
+            <div className="relative mb-8">
+              <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl animate-pulse" />
+              <div className="relative bg-gradient-to-br from-primary/20 to-primary/10 p-6 rounded-full shadow-lg border border-primary/20">
+                <BookOpen className="h-12 w-12 text-primary" />
+              </div>
+              <div className="absolute -top-1 -right-1">
+                <Sparkles className="h-6 w-6 text-primary animate-pulse" />
+              </div>
+            </div>
+
+            {/* 标题 */}
+            <h1 className="text-5xl font-bold tracking-tight mb-4 bg-gradient-to-r from-foreground via-foreground to-foreground/80 bg-clip-text text-transparent">
+              个人知识库
+            </h1>
+
+            {/* 描述文字 */}
+            <p className="text-xl text-muted-foreground max-w-md text-center leading-relaxed mb-12">
+              在您的知识库中搜索答案，或创建新文档
+            </p>
+
+            {/* 功能提示卡片 */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-full max-w-2xl">
+              <div className="flex flex-col items-center p-4 rounded-lg bg-card/50 border border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-md">
+                <div className="p-3 rounded-full bg-primary/10 mb-3">
+                  <Search className="h-5 w-5 text-primary" />
+                </div>
+                <h3 className="font-semibold text-sm mb-1">智能搜索</h3>
+                <p className="text-xs text-muted-foreground text-center">
+                  快速找到您需要的答案
+                </p>
+              </div>
+              <div className="flex flex-col items-center p-4 rounded-lg bg-card/50 border border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-md">
+                <div className="p-3 rounded-full bg-primary/10 mb-3">
+                  <BookOpen className="h-5 w-5 text-primary" />
+                </div>
+                <h3 className="font-semibold text-sm mb-1">文档管理</h3>
+                <p className="text-xs text-muted-foreground text-center">
+                  创建和组织您的文档
+                </p>
+              </div>
+              <div className="flex flex-col items-center p-4 rounded-lg bg-card/50 border border-border/50 hover:border-primary/30 transition-all duration-300 hover:shadow-md">
+                <div className="p-3 rounded-full bg-primary/10 mb-3">
+                  <Sparkles className="h-5 w-5 text-primary" />
+                </div>
+                <h3 className="font-semibold text-sm mb-1">AI 助手</h3>
+                <p className="text-xs text-muted-foreground text-center">
+                  智能问答和内容生成
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

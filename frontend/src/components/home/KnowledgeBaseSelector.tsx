@@ -8,7 +8,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Loader2, X, Pencil, Check } from "lucide-react";
+import { Plus, Loader2, X, Pencil, Check, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { KnowledgeBase } from "../../api";
 
 interface KnowledgeBaseSelectorProps {
@@ -18,6 +29,7 @@ interface KnowledgeBaseSelectorProps {
   onSelect: (id: string) => void;
   onCreate: (name: string) => Promise<void>;
   onUpdate: (id: string, name: string) => Promise<void>;
+  onDelete: (id: string) => Promise<void>;
 }
 
 export const KnowledgeBaseSelector: React.FC<KnowledgeBaseSelectorProps> = ({
@@ -27,6 +39,7 @@ export const KnowledgeBaseSelector: React.FC<KnowledgeBaseSelectorProps> = ({
   onSelect,
   onCreate,
   onUpdate,
+  onDelete,
 }) => {
   const [showCreateInput, setShowCreateInput] = useState(false);
   const [newName, setNewName] = useState("");
@@ -104,7 +117,10 @@ export const KnowledgeBaseSelector: React.FC<KnowledgeBaseSelectorProps> = ({
           {knowledgeBases.map((kb) => (
             <div key={kb.id} className="relative">
               {editingId === kb.id ? (
-                <div className="flex items-center gap-1 p-2" onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="flex items-center gap-1 p-2"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <Input
                     ref={editInputRef}
                     value={editingName}
@@ -146,26 +162,73 @@ export const KnowledgeBaseSelector: React.FC<KnowledgeBaseSelectorProps> = ({
                 <div className="flex items-center gap-1 group hover:bg-accent rounded-sm">
                   <SelectItem
                     value={kb.id}
-                    className="flex-1 cursor-pointer pr-8"
+                    className="flex-1 cursor-pointer pr-16"
                   >
                     {kb.name}
                   </SelectItem>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity absolute right-1"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                      handleStartEdit(kb, e);
-                    }}
-                    onMouseDown={(e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
-                    }}
-                  >
-                    <Pencil className="h-3 w-3" />
-                  </Button>
+                  <div className="absolute right-1 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleStartEdit(kb, e);
+                      }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                      }}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                          }}
+                          onMouseDown={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>
+                            确定要删除这个知识库吗？
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            此操作无法撤销。知识库中的所有文档、对话和消息将被永久删除。
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            取消
+                          </AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await onDelete(kb.id);
+                            }}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            删除
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
               )}
             </div>
