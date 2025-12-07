@@ -25,9 +25,11 @@ const HomePage: React.FC = () => {
   }>();
   const { user, loading: authLoading, logout } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(256); // 默认 256px (w-64)
   const [messages, setMessages] = useState<Message[]>([]);
   const [searchFilters, setSearchFilters] = useState<SearchFilterOptions>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const sidebarRef = useRef<HTMLDivElement>(null);
   const isNavigatingRef = useRef(false);
   const hasInitializedRef = useRef(false);
 
@@ -266,50 +268,56 @@ const HomePage: React.FC = () => {
   return (
     <div className="flex h-screen bg-background relative">
       {/* 侧边栏 */}
-      <Sidebar
-        open={sidebarOpen}
-        docs={docs}
-        loadingDocs={loadingDocs}
-        currentKnowledgeBaseId={currentKnowledgeBaseId}
-        conversations={conversations}
-        loadingConversations={loadingConversations}
-        currentConversationId={currentConversationId}
-        editingConversationId={editingConversationId}
-        editingTitle={editingTitle}
-        savingTitle={savingTitle}
-        webUrl={webUrl}
-        extracting={extracting}
-        uploadingPdf={uploadingPdf}
-        uploadProgress={uploadProgress}
-        onToggle={() => setSidebarOpen(!sidebarOpen)}
-        onCreateDoc={handleCreateDoc}
-        onDeleteDoc={handleDeleteDoc}
-        onWebUrlChange={setWebUrl}
-        onExtractWeb={handleExtractWeb}
-        onUploadPdf={handleUploadPdf}
-        onSelectConversation={async (id) => {
-          console.log("选择对话，ID:", id);
-          setCurrentConversationId(id);
-          // 消息加载由 useEffect 自动处理
-        }}
-        onCreateConversation={async () => {
-          if (!currentKnowledgeBaseId) {
-            toast.error("请先选择一个知识库");
-            return;
-          }
-          const newId = await handleCreateConversation(currentKnowledgeBaseId);
-          if (newId) {
-            setMessages([]);
-            setCurrentConversationId(newId);
-          }
-        }}
-        onDeleteConversation={handleDeleteConversation}
-        onStartEditTitle={handleStartEditTitle}
-        onSaveTitle={handleSaveTitle}
-        onCancelEdit={handleCancelEdit}
-        onTitleChange={setEditingTitle}
-        titleInputRef={titleInputRef}
-      />
+      <div ref={sidebarRef}>
+        <Sidebar
+          open={sidebarOpen}
+          width={sidebarWidth}
+          docs={docs}
+          loadingDocs={loadingDocs}
+          currentKnowledgeBaseId={currentKnowledgeBaseId}
+          conversations={conversations}
+          loadingConversations={loadingConversations}
+          currentConversationId={currentConversationId}
+          editingConversationId={editingConversationId}
+          editingTitle={editingTitle}
+          savingTitle={savingTitle}
+          webUrl={webUrl}
+          extracting={extracting}
+          uploadingPdf={uploadingPdf}
+          uploadProgress={uploadProgress}
+          onToggle={() => setSidebarOpen(!sidebarOpen)}
+          onResize={setSidebarWidth}
+          onCreateDoc={handleCreateDoc}
+          onDeleteDoc={handleDeleteDoc}
+          onWebUrlChange={setWebUrl}
+          onExtractWeb={handleExtractWeb}
+          onUploadPdf={handleUploadPdf}
+          onSelectConversation={async (id) => {
+            console.log("选择对话，ID:", id);
+            setCurrentConversationId(id);
+            // 消息加载由 useEffect 自动处理
+          }}
+          onCreateConversation={async () => {
+            if (!currentKnowledgeBaseId) {
+              toast.error("请先选择一个知识库");
+              return;
+            }
+            const newId = await handleCreateConversation(
+              currentKnowledgeBaseId
+            );
+            if (newId) {
+              setMessages([]);
+              setCurrentConversationId(newId);
+            }
+          }}
+          onDeleteConversation={handleDeleteConversation}
+          onStartEditTitle={handleStartEditTitle}
+          onSaveTitle={handleSaveTitle}
+          onCancelEdit={handleCancelEdit}
+          onTitleChange={setEditingTitle}
+          titleInputRef={titleInputRef}
+        />
+      </div>
 
       {/* 侧边栏切换按钮 */}
       {sidebarOpen && (
@@ -317,7 +325,8 @@ const HomePage: React.FC = () => {
           variant="ghost"
           size="icon"
           onClick={() => setSidebarOpen(false)}
-          className="absolute left-[248px] top-1/2 -translate-y-1/2 h-8 w-8 rounded-full border bg-background shadow-lg hover:bg-accent hover:shadow-xl z-50 transition-all duration-200"
+          className="absolute top-1/2 -translate-y-1/2 h-8 w-8 rounded-full border bg-background shadow-lg hover:bg-accent hover:shadow-xl z-40 transition-all duration-200"
+          style={{ left: `${sidebarWidth - 16}px` }}
           aria-label="收起侧边栏"
         >
           <ChevronLeft className="h-4 w-4" />
@@ -327,7 +336,12 @@ const HomePage: React.FC = () => {
       {/* 主内容区 */}
       <main className="flex-1 flex flex-col relative overflow-hidden">
         {/* 知识库选择器和用户信息 */}
-        <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
+        <div
+          className="absolute top-4 right-4 flex items-center justify-between z-10 transition-all duration-300 gap-4"
+          style={{
+            left: !sidebarOpen ? `${sidebarWidth}px` : "16px",
+          }}
+        >
           <KnowledgeBaseSelector
             knowledgeBases={knowledgeBases}
             loading={loadingKnowledgeBases}

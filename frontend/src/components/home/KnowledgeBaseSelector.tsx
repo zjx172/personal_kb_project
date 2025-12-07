@@ -110,7 +110,7 @@ export const KnowledgeBaseSelector: React.FC<KnowledgeBaseSelectorProps> = ({
         onValueChange={onSelect}
         disabled={loading}
       >
-        <SelectTrigger className="w-[200px]">
+        <SelectTrigger className="w-[200px] h-9 shadow-sm">
           <SelectValue placeholder="选择知识库" />
         </SelectTrigger>
         <SelectContent>
@@ -191,17 +191,15 @@ export const KnowledgeBaseSelector: React.FC<KnowledgeBaseSelectorProps> = ({
                           className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={(e) => {
                             e.stopPropagation();
-                            e.preventDefault();
                           }}
                           onMouseDown={(e) => {
                             e.stopPropagation();
-                            e.preventDefault();
                           }}
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </AlertDialogTrigger>
-                      <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                      <AlertDialogContent>
                         <AlertDialogHeader>
                           <AlertDialogTitle>
                             确定要删除这个知识库吗？
@@ -211,11 +209,7 @@ export const KnowledgeBaseSelector: React.FC<KnowledgeBaseSelectorProps> = ({
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
-                          <AlertDialogCancel
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            取消
-                          </AlertDialogCancel>
+                          <AlertDialogCancel>取消</AlertDialogCancel>
                           <AlertDialogAction
                             onClick={async (e) => {
                               e.stopPropagation();

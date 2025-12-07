@@ -120,6 +120,22 @@ def delete_knowledge_base(
 
     # 删除知识库中的所有资源
     from models import Conversation, SearchHistory, MarkdownDoc
+    from services.vector_store import vectordb
+
+    # 获取知识库中的所有文档，用于从向量库中删除
+    docs = (
+        db.query(MarkdownDoc)
+        .filter(MarkdownDoc.knowledge_base_id == knowledge_base_id)
+        .all()
+    )
+
+    # 从向量库中删除所有文档的向量
+    for doc in docs:
+        try:
+            vectordb.delete(where={"doc_id": str(doc.id)})
+        except Exception:
+            # 某些版本不支持 where 删除，可以忽略
+            pass
 
     # 删除知识库中的所有对话（级联删除消息）
     conversations = (
