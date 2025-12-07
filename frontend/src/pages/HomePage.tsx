@@ -26,7 +26,17 @@ import {
 } from "../api";
 import { AnswerWithCitations } from "../components/AnswerWithCitations";
 import { SearchFilterOptions } from "../components/SearchFilters";
-import { Plus, Search, FileText, Trash2, Loader2, Globe } from "lucide-react";
+import {
+  Plus,
+  Search,
+  FileText,
+  Trash2,
+  Loader2,
+  Globe,
+  ChevronLeft,
+  ChevronRight,
+  Menu,
+} from "lucide-react";
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
@@ -45,6 +55,7 @@ const HomePage: React.FC = () => {
     QueryResponse["citations"]
   >([]);
   const [searchFilters, setSearchFilters] = useState<SearchFilterOptions>({});
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // 流式显示控制
   const streamBufferRef = useRef<string>("");
@@ -237,121 +248,164 @@ const HomePage: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-background">
+    <div className="flex h-screen bg-background relative">
       {/* 侧边栏 */}
-      <aside className="w-64 border-r bg-card flex flex-col">
-        <div className="p-4 space-y-4">
-          <Button onClick={handleCreate} className="w-full" size="sm">
-            <Plus className="mr-2 h-4 w-4" />
-            新建文档
-          </Button>
+      <aside
+        className={`${
+          sidebarOpen ? "w-64" : "w-0"
+        } border-r bg-card flex flex-col transition-all duration-300 overflow-hidden`}
+      >
+        <div className={`${sidebarOpen ? "p-4" : "p-0"} space-y-4`}>
+          {sidebarOpen && (
+            <>
+              <Button onClick={handleCreate} className="w-full" size="sm">
+                <Plus className="mr-2 h-4 w-4" />
+                新建文档
+              </Button>
 
-          <div className="space-y-2">
-            <Input
-              placeholder="输入网页 URL..."
-              value={webUrl}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                setWebUrl(e.target.value)
-              }
-              onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                if (e.key === "Enter") {
-                  handleExtractWeb();
-                }
-              }}
-              className="h-9"
-            />
-            <Button
-              variant="outline"
-              onClick={handleExtractWeb}
-              disabled={extracting}
-              className="w-full"
-              size="sm"
-            >
-              {extracting ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <Globe className="mr-2 h-4 w-4" />
-              )}
-              提取网页
-            </Button>
-          </div>
+              <div className="space-y-2">
+                <Input
+                  placeholder="输入网页 URL..."
+                  value={webUrl}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setWebUrl(e.target.value)
+                  }
+                  onKeyPress={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                    if (e.key === "Enter") {
+                      handleExtractWeb();
+                    }
+                  }}
+                  className="h-9"
+                />
+                <Button
+                  variant="outline"
+                  onClick={handleExtractWeb}
+                  disabled={extracting}
+                  className="w-full"
+                  size="sm"
+                >
+                  {extracting ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Globe className="mr-2 h-4 w-4" />
+                  )}
+                  提取网页
+                </Button>
+              </div>
 
-          <div className="text-sm font-semibold text-muted-foreground pt-2">
-            知识库
-          </div>
+              <div className="text-sm font-semibold text-muted-foreground pt-2">
+                知识库
+              </div>
+            </>
+          )}
         </div>
 
-        <div className="flex-1 overflow-y-auto px-4 pb-4">
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : docs.length === 0 ? (
-            <div className="text-center text-sm text-muted-foreground py-8">
-              暂无文档
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {docs.map((item) => (
-                <div
-                  key={item.id}
-                  className="group flex items-center justify-between p-2 rounded-md hover:bg-accent cursor-pointer transition-colors"
-                  onClick={() => handleDocClick(item.id)}
-                >
-                  <div className="flex items-center gap-2 flex-1 min-w-0">
-                    <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">
-                        {item.title}
-                      </div>
-                      <div className="text-xs text-muted-foreground">
-                        {new Date(item.updated_at).toLocaleDateString("zh-CN", {
-                          month: "2-digit",
-                          day: "2-digit",
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>
-                          确定要删除这个文档吗？
-                        </AlertDialogTitle>
-                        <AlertDialogDescription>
-                          此操作无法撤销，文档将被永久删除。
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>取消</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={() => handleDelete(item.id)}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          删除
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
+        <div
+          className={`flex-1 overflow-y-auto ${
+            sidebarOpen ? "px-4 pb-4" : "px-0 pb-0"
+          }`}
+        >
+          {sidebarOpen && (
+            <>
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                 </div>
-              ))}
-            </div>
+              ) : docs.length === 0 ? (
+                <div className="text-center text-sm text-muted-foreground py-8">
+                  暂无文档
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {docs.map((item) => (
+                    <div
+                      key={item.id}
+                      className="group flex items-center justify-between p-2 rounded-md hover:bg-accent cursor-pointer transition-colors"
+                      onClick={() => handleDocClick(item.id)}
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">
+                            {item.title}
+                          </div>
+                          <div className="text-xs text-muted-foreground">
+                            {new Date(item.updated_at).toLocaleDateString(
+                              "zh-CN",
+                              {
+                                month: "2-digit",
+                                day: "2-digit",
+                              }
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>
+                              确定要删除这个文档吗？
+                            </AlertDialogTitle>
+                            <AlertDialogDescription>
+                              此操作无法撤销，文档将被永久删除。
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>取消</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDelete(item.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              删除
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       </aside>
 
+      {/* 侧边栏切换按钮 - 在侧边栏右边缘（放在侧边栏外面避免被 overflow-hidden 裁剪） */}
+      {sidebarOpen && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => setSidebarOpen(false)}
+          className="absolute left-[248px] top-1/2 -translate-y-1/2 h-8 w-8 rounded-full border bg-background shadow-lg hover:bg-accent hover:shadow-xl z-50 transition-all duration-200"
+          aria-label="收起侧边栏"
+        >
+          <ChevronLeft className="h-4 w-4" />
+        </Button>
+      )}
+
       {/* 主内容区 */}
-      <main className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto">
+      <main className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto relative">
+        {/* 侧边栏切换按钮（当侧边栏隐藏时显示） */}
+        {!sidebarOpen && (
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setSidebarOpen(true)}
+            className="absolute top-4 left-4 h-9 w-9 z-10 shadow-md"
+          >
+            <Menu className="h-4 w-4" />
+          </Button>
+        )}
         <div className="w-full max-w-4xl">
           {/* 标题区域 */}
           <div className="text-center mb-12">
@@ -365,8 +419,8 @@ const HomePage: React.FC = () => {
 
           {/* 搜索框 */}
           <div className="mb-8">
-            <div className="relative">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <div className="relative group">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground transition-colors duration-200 group-focus-within:text-primary" />
               <Input
                 placeholder="输入您的问题，在知识库中搜索..."
                 value={query}
@@ -374,7 +428,7 @@ const HomePage: React.FC = () => {
                   setQuery(e.target.value)
                 }
                 onKeyPress={handleQueryKeyPress}
-                className="pl-12 pr-24 h-14 text-base"
+                className="pl-12 pr-24 h-14 text-base focus-visible:shadow-md focus-visible:shadow-primary/10"
               />
               <Button
                 onClick={handleQuery}
