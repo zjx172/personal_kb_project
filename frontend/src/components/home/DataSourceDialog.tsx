@@ -18,6 +18,8 @@ import {
 } from "@/components/ui/dialog";
 import { Loader2, Database, FileSpreadsheet } from "lucide-react";
 import { DataSourceCreate } from "../../api";
+import * as XLSX from "xlsx";
+import { toast } from "sonner";
 
 interface DataSourceDialogProps {
   open: boolean;
@@ -43,8 +45,47 @@ export const DataSourceDialog: React.FC<DataSourceDialogProps> = ({
     table: "",
   });
   const [excelFile, setExcelFile] = useState<File | null>(null);
+  const [excelData, setExcelData] = useState<Record<string, any>[] | null>(null);
+  const [excelColumns, setExcelColumns] = useState<string[]>([]);
+  const [parsingExcel, setParsingExcel] = useState(false);
   const [creating, setCreating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const parseExcelFile = async (file: File) => {
+    setParsingExcel(true);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: "array" });
+      
+      // 读取第一个工作表
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      
+      // 转换为 JSON 格式
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+      
+      if (jsonData.length === 0) {
+        toast.error("Excel 文件为空");
+        setParsingExcel(false);
+        return;
+      }
+      
+      // 获取列名（从第一行数据中提取）
+      const columns = Object.keys(jsonData[0] as Record<string, any>);
+      
+      setExcelData(jsonData as Record<string, any>[]);
+      setExcelColumns(columns);
+      toast.success(`成功解析 Excel，共 ${jsonData.length} 行，${columns.length} 列`);
+    } catch (error) {
+      console.error("解析 Excel 失败:", error);
+      toast.error("解析 Excel 文件失败，请检查文件格式");
+      setExcelFile(null);
+      setExcelData(null);
+      setExcelColumns([]);
+    } finally {
+      setParsingExcel(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -67,23 +108,33 @@ export const DataSourceDialog: React.FC<DataSourceDialogProps> = ({
       }
     } else if (type === "excel") {
       if (!excelFile) {
-        alert("请选择 Excel 文件");
+        toast.error("请选择 Excel 文件");
+        return;
+      }
+      if (!excelData || excelData.length === 0) {
+        toast.error("请等待 Excel 文件解析完成");
         return;
       }
     }
 
     setCreating(true);
     try {
-      // 如果是 Excel，需要先上传文件
+      // 如果是 Excel，需要先解析文件
       let config: Record<string, any> = {};
       if (type === "database") {
         config = databaseConfig;
       } else if (type === "excel" && excelFile) {
-        // Excel 文件信息（实际文件上传可以在后续实现）
+        if (!excelData || excelData.length === 0) {
+          toast.error("请先解析 Excel 文件");
+          return;
+        }
+        // Excel 文件信息和解析后的数据
         config = {
           filename: excelFile.name,
           size: excelFile.size,
           type: excelFile.type,
+          data: excelData,
+          columns: excelColumns,
         };
       }
 
@@ -107,12 +158,15 @@ export const DataSourceDialog: React.FC<DataSourceDialogProps> = ({
         table: "",
       });
       setExcelFile(null);
+      setExcelData(null);
+      setExcelColumns([]);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
       onOpenChange(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("创建数据源失败:", error);
+      toast.error(error?.response?.data?.detail || error?.message || "创建数据源失败");
     } finally {
       setCreating(false);
     }
@@ -129,11 +183,13 @@ export const DataSourceDialog: React.FC<DataSourceDialogProps> = ({
       password: "",
       table: "",
     });
-    setExcelFile(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
-    onOpenChange(false);
+      setExcelFile(null);
+      setExcelData(null);
+      setExcelColumns([]);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      onOpenChange(false);
   };
 
   return (
@@ -313,18 +369,32 @@ export const DataSourceDialog: React.FC<DataSourceDialogProps> = ({
                 ref={fileInputRef}
                 type="file"
                 accept=".xlsx,.xls"
-                onChange={(e) => {
+                onChange={async (e) => {
                   const file = e.target.files?.[0];
                   if (file) {
                     setExcelFile(file);
+                    await parseExcelFile(file);
                   }
                 }}
-                disabled={creating}
+                disabled={creating || parsingExcel}
               />
-              {excelFile && (
-                <p className="text-xs text-muted-foreground">
-                  已选择: {excelFile.name}
-                </p>
+              {parsingExcel && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>正在解析 Excel 文件...</span>
+                </div>
+              )}
+              {excelFile && !parsingExcel && (
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    已选择: {excelFile.name}
+                  </p>
+                  {excelData && (
+                    <p className="text-xs text-green-600">
+                      解析成功: {excelData.length} 行，{excelColumns.length} 列
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}

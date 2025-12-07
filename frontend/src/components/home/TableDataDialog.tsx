@@ -105,7 +105,10 @@ export const TableDataDialog: React.FC<TableDataDialogProps> = ({
     );
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
     setSaving(true);
     try {
       await onSave(rows);
@@ -115,6 +118,7 @@ export const TableDataDialog: React.FC<TableDataDialogProps> = ({
       onOpenChange(false);
     } catch (error) {
       console.error("保存数据失败:", error);
+      // 不关闭对话框，让用户看到错误
     } finally {
       setSaving(false);
     }

@@ -374,9 +374,38 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onOpenChange={setShowTableDataDialog}
             knowledgeBaseId={currentKnowledgeBaseId}
             onSave={async (data) => {
-              // TODO: 保存表格数据到后端
-              console.log("保存表格数据:", data);
-              // 这里可以调用 API 保存数据
+              try {
+                const { createDataSource, listDataSources } =
+                  await import("../../api");
+                // 生成数据源名称（使用时间戳）
+                const dataSourceName = `表格数据_${new Date().toLocaleString()}`;
+                // 保存表格数据作为数据源
+                await createDataSource({
+                  knowledge_base_id: currentKnowledgeBaseId!,
+                  type: "excel", // 使用 excel 类型，但实际是手动创建的表格数据
+                  name: dataSourceName,
+                  config: {
+                    type: "manual_table",
+                    data: data,
+                    columns: data.length > 0 ? Object.keys(data[0]) : [],
+                  },
+                });
+                // 重新加载数据源列表
+                const updated = await listDataSources(currentKnowledgeBaseId!);
+                setDataSources(updated);
+                // 显示成功提示
+                const { toast } = await import("sonner");
+                toast.success("表格数据保存成功");
+              } catch (error: any) {
+                console.error("保存表格数据失败:", error);
+                const { toast } = await import("sonner");
+                toast.error(
+                  error?.response?.data?.detail ||
+                    error?.message ||
+                    "保存表格数据失败"
+                );
+                throw error;
+              }
             }}
           />
         </>

@@ -39,17 +39,25 @@ def create_data_source(
         raise HTTPException(status_code=404, detail="知识库不存在")
     
     # 验证数据源类型
+    # excel 类型可以用于 Excel 文件或手动创建的表格数据
     if req.type not in ["database", "excel"]:
         raise HTTPException(status_code=400, detail="数据源类型必须是 database 或 excel")
     
     # 序列化配置
     config_json = json.dumps(req.config, ensure_ascii=False)
     
+    # 创建数据源，确保所有必需字段都设置
+    import uuid
+    from datetime import datetime
+    
     data_source = DataSource(
+        id=str(uuid.uuid4()),
         knowledge_base_id=req.knowledge_base_id,
         type=req.type,
         name=req.name,
         config=config_json,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
     )
     db.add(data_source)
     db.commit()

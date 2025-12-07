@@ -6,6 +6,7 @@ import HomePage from "./pages/HomePage";
 import DocPage from "./pages/DocPage";
 import GraphPage from "./pages/GraphPage";
 import LoginPage from "./pages/LoginPage";
+import TableDataPage from "./pages/TableDataPage";
 import { KnowledgeBaseRedirect } from "./components/KnowledgeBaseRedirect";
 
 const App: React.FC = () => {
@@ -18,6 +19,10 @@ const App: React.FC = () => {
           <Route path="/kb/:knowledgeBaseId" element={<HomePage />} />
           <Route path="/kb/:knowledgeBaseId/doc/:id" element={<DocPage />} />
           <Route path="/kb/:knowledgeBaseId/graph" element={<GraphPage />} />
+          <Route
+            path="/kb/:knowledgeBaseId/data-source/:dataSourceId"
+            element={<TableDataPage />}
+          />
           <Route path="/" element={<KnowledgeBaseRedirect />} />
           {/* 保留旧路由以兼容 */}
           <Route path="/doc/:id" element={<DocPage />} />

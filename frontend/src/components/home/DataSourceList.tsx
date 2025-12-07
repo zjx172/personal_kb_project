@@ -1,4 +1,5 @@
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Database, FileSpreadsheet, Plus, Trash2, Loader2 } from "lucide-react";
 import { DataSource } from "../../api";
@@ -29,6 +30,7 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
   onAdd,
   onDelete,
 }) => {
+  const navigate = useNavigate();
   if (loading) {
     return (
       <div className="flex items-center justify-center py-4">
@@ -69,7 +71,10 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
           {dataSources.map((ds) => (
             <div
               key={ds.id}
-              className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50 group"
+              className="flex items-center justify-between p-2 rounded-lg hover:bg-accent/50 group cursor-pointer"
+              onClick={() => {
+                navigate(`/kb/${knowledgeBaseId}/data-source/${ds.id}`);
+              }}
             >
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 {ds.type === "database" ? (
@@ -85,7 +90,10 @@ export const DataSourceList: React.FC<DataSourceListProps> = ({
                     variant="ghost"
                     size="icon"
                     className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                    onClick={(e) => e.stopPropagation()}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
+                    }}
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>

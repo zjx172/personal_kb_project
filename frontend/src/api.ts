@@ -898,6 +898,11 @@ export async function updateDataSource(
   return resp.data;
 }
 
+export async function getDataSource(id: string): Promise<DataSource> {
+  const resp = await axios.get<DataSource>(`${API_BASE_URL}/data-sources/${id}`);
+  return resp.data;
+}
+
 export async function deleteDataSource(id: string): Promise<void> {
   await axios.delete(`${API_BASE_URL}/data-sources/${id}`);
 }
