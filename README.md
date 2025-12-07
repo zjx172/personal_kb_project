@@ -44,6 +44,15 @@
 - 文档列表和编辑界面
 - 知识图谱可视化
 
+### 6. Chrome 浏览器插件
+
+- 🔐 Google OAuth 登录集成
+- 📄 一键保存当前网页到知识库
+- 🎯 自动提取网页正文内容
+- 📝 支持自定义标题
+- 💾 Token 自动管理
+- 🔄 实时同步登录状态
+
 ## 技术栈
 
 ### 后端
@@ -67,6 +76,14 @@
 - **Radix UI** - UI 组件库
 - **Sonner** - Toast 通知
 - **Lucide React** - 图标库
+
+### Chrome 插件
+
+- **Plasmo** - 现代浏览器扩展开发框架（基于 Vite）
+- **React 18** + **TypeScript** - UI 框架
+- **Chrome Extension Manifest V3** - 最新扩展标准
+- **Chrome Storage API** - 本地存储
+- **Chrome Tabs API** - 标签页管理
 
 ## 安装和运行
 
@@ -154,6 +171,36 @@ pnpm run dev
 
 前端将在 `http://localhost:5173` 运行。
 
+### 4. Chrome 插件设置
+
+#### 安装依赖
+
+```bash
+cd chrome-extension
+pnpm install
+```
+
+#### 开发模式
+
+```bash
+pnpm dev
+```
+
+#### 构建插件
+
+```bash
+pnpm build
+```
+
+#### 加载到 Chrome
+
+1. 运行 `pnpm build` 构建插件
+2. 打开 Chrome，访问 `chrome://extensions/`
+3. 开启右上角的"开发者模式"
+4. 点击"加载已解压的扩展程序"
+5. 选择 `chrome-extension/build/chrome-mv3-dev` 目录
+6. 插件图标将出现在浏览器工具栏中
+
 ## 使用说明
 
 ### 首次使用
@@ -163,13 +210,35 @@ pnpm run dev
 3. 使用 Google 账号登录
 4. 登录成功后自动跳转到首页
 
-### 主要功能
+### Web 应用功能
 
 1. **创建文档**：在左侧边栏点击"新建文档"或使用"提取网页内容"功能
 2. **编辑文档**：点击文档列表中的文档进行编辑，支持设置主题标签和文档类型
 3. **搜索知识库**：在主界面输入问题，系统会从知识库中检索相关文档并生成答案
 4. **查看引用**：答案中的引用标号（如 [1], [2]）可点击，会跳转到对应文档并高亮相关段落
 5. **知识图谱**：访问 `/graph` 页面查看文档关系图谱
+
+### Chrome 插件使用
+
+1. **首次使用**：
+
+   - 点击浏览器工具栏中的插件图标
+   - 点击"使用 Google 登录"按钮
+   - 在新标签页完成 Google 登录
+   - 登录成功后，插件会自动检测并更新状态
+
+2. **保存网页**：
+
+   - 在任意网页浏览时，点击插件图标
+   - 点击"保存当前页面"按钮
+   - 网页内容会自动提取并保存到知识库
+   - 保存成功后，可以在 Web 应用中查看该文档
+
+3. **功能特点**：
+   - 自动提取网页正文，过滤广告和无关内容
+   - 保留原始 URL 作为来源链接
+   - 支持自定义标题（使用网页标题或手动输入）
+   - Token 自动管理，无需重复登录
 
 ## 项目结构
 
@@ -207,6 +276,18 @@ personal_kb_project/
     │   └── utils/            # 工具函数
     ├── package.json
     └── vite.config.ts
+│
+└── chrome-extension/
+    ├── popup.tsx             # 插件弹窗 UI
+    ├── popup.css             # 弹窗样式
+    ├── background.ts         # 后台脚本（处理 OAuth 回调）
+    ├── content.ts            # 内容脚本（可选）
+    ├── options.tsx           # 设置页面（可选）
+    ├── utils/
+    │   └── api.ts            # API 封装（登录、保存网页）
+    ├── package.json          # 插件配置
+    ├── tsconfig.json         # TypeScript 配置
+    └── README.md             # 插件使用说明
 ```
 
 ## API 端点
@@ -259,6 +340,16 @@ API 基础 URL 在 `frontend/src/api.ts` 中配置：
 const API_BASE_URL = "http://localhost:8000";
 ```
 
+### Chrome 插件配置
+
+API 基础 URL 在 `chrome-extension/utils/api.ts` 中配置：
+
+```typescript
+const API_BASE_URL = "http://localhost:8000";
+```
+
+**注意**：如果后端运行在不同的地址，需要同时更新前端和插件的 API_BASE_URL。
+
 ## 开发说明
 
 ### 数据库迁移
@@ -276,6 +367,34 @@ python3 init_db.py
 
 1. 后端：在 `app.py` 中添加新的 API 端点
 2. 前端：在 `api.ts` 中添加 API 调用函数，在相应页面中使用
+3. Chrome 插件：在 `utils/api.ts` 中添加 API 调用，在 `popup.tsx` 中使用
+
+### Chrome 插件开发
+
+插件使用 Plasmo 框架开发，支持热更新：
+
+```bash
+cd chrome-extension
+pnpm dev  # 开发模式，自动监听文件变化并重新构建
+```
+
+**热更新工作流**：
+
+1. **启动开发服务器**：运行 `pnpm dev`
+2. **修改代码**：编辑 `popup.tsx`、`background.ts` 等文件
+3. **重新加载插件**：在 `chrome://extensions/` 页面点击插件的"重新加载"按钮（🔄）
+4. **查看变化**：重新打开 popup 或刷新相关页面
+
+**自动重载（可选）**：
+- 安装 [plasmo-reload](https://github.com/PlasmoHQ/plasmo-reload) Chrome 扩展
+- 安装后，代码修改会自动触发插件重载，无需手动点击
+
+**调试技巧**：
+- **Popup 调试**：右键点击插件图标 → "检查弹出内容"
+- **Background 调试**：在 `chrome://extensions/` 中点击插件的"service worker"链接
+- **查看日志**：在 DevTools Console 中查看 `console.log` 输出
+
+**详细开发指南**：查看 `chrome-extension/DEVELOPMENT.md`
 
 ## 注意事项
 
@@ -284,6 +403,8 @@ python3 init_db.py
 3. **CORS 配置**：生产环境需要更新 `app.py` 中的 CORS 配置
 4. **数据库备份**：定期备份 `kb.db` 文件
 5. **Google OAuth**：生产环境需要在 Google Cloud Console 添加实际域名
+6. **Chrome 插件权限**：插件需要 `activeTab` 和 `storage` 权限，以及访问 `localhost:8000` 的权限
+7. **插件 API 地址**：确保后端服务运行在 `http://localhost:8000`，或修改插件中的 API_BASE_URL
 
 ## 许可证
 

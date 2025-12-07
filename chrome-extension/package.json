@@ -1,0 +1,36 @@
+{
+  "name": "personal-kb-extension",
+  "displayName": "个人知识库",
+  "version": "1.0.0",
+  "description": "快速保存网页到个人知识库",
+  "author": "Personal KB",
+  "scripts": {
+    "dev": "plasmo dev",
+    "build": "plasmo build",
+    "package": "plasmo package",
+    "watch": "plasmo dev --watch"
+  },
+  "dependencies": {
+    "plasmo": "^0.88.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.0.268",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "typescript": "^5.3.3"
+  },
+  "manifest": {
+    "host_permissions": [
+      "http://localhost:8000/*",
+      "https://*/*",
+      "http://*/*"
+    ],
+    "permissions": [
+      "activeTab",
+      "storage"
+    ]
+  }
+}
