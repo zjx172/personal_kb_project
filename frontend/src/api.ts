@@ -220,11 +220,17 @@ export async function queryKnowledgeBaseStream(
     rerank_k?: number;
   }
 ): Promise<QueryResponse> {
+  const token = getToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${API_BASE_URL}/query`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers,
     body: JSON.stringify({
       question,
       ...options,
@@ -232,6 +238,12 @@ export async function queryKnowledgeBaseStream(
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      // 清除 token 并重定向到登录页
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("user");
+      window.location.href = "/";
+    }
     throw new Error(`HTTP error! status: ${response.status}`);
   }
 
@@ -359,6 +371,35 @@ export async function queryKnowledgeBase(
     question,
   });
   return resp.data;
+}
+
+// ---- Search History ----
+
+export interface SearchHistoryItem {
+  id: number;
+  query: string;
+  answer?: string;
+  citations?: Citation[];
+  sources_count?: number;
+  created_at: string;
+}
+
+export async function listSearchHistory(
+  limit: number = 20
+): Promise<SearchHistoryItem[]> {
+  const resp = await axios.get<SearchHistoryItem[]>(
+    `${API_BASE_URL}/search-history`,
+    { params: { limit } }
+  );
+  return resp.data;
+}
+
+export async function deleteSearchHistory(historyId: number): Promise<void> {
+  await axios.delete(`${API_BASE_URL}/search-history/${historyId}`);
+}
+
+export async function clearSearchHistory(): Promise<void> {
+  await axios.delete(`${API_BASE_URL}/search-history`);
 }
 
 // ---- Authentication ----

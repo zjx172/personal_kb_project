@@ -10,11 +10,13 @@ import json
 import requests
 from readability import Document
 import html2text
+import secrets
+from urllib.parse import urlencode
 
 from sqlalchemy.orm import Session
 
 from db import get_db
-from models import Highlight, DocumentStat, MarkdownDoc, User
+from models import Highlight, DocumentStat, MarkdownDoc, User, SearchHistory
 from config import (
     DOCS_DIR, VECTOR_STORE_DIR, COLLECTION_NAME, OPENAI_API_KEY, OPENAI_BASE_URL,
     GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
@@ -139,24 +141,36 @@ class UserResponse(BaseModel):
         from_attributes = True
 
 
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user: UserResponse
+
+
 @app.get("/auth/google")
 def google_login():
     """启动 Google OAuth 登录流程"""
     if not GOOGLE_CLIENT_ID:
         raise HTTPException(status_code=500, detail="Google OAuth not configured")
     
+    # 生成 state 参数用于防止 CSRF 攻击
+    state = secrets.token_urlsafe(32)
+    
     # 构建授权 URL
-    from urllib.parse import urlencode
     params = {
         "client_id": GOOGLE_CLIENT_ID,
         "redirect_uri": GOOGLE_REDIRECT_URI,
         "response_type": "code",
         "scope": "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile",
-        "access_type": "online",
+        "state": state,
+        "access_type": "offline",
+        "prompt": "consent",
     }
     authorization_url = f"{GOOGLE_AUTHORIZATION_BASE_URL}?{urlencode(params)}"
     
-    return {"authorization_url": authorization_url}
+    # 将 state 存储在 session 中（简化版本，生产环境应使用 Redis 等）
+    # 这里我们直接返回，前端会处理重定向
+    return {"authorization_url": authorization_url, "state": state}
 
 
 @app.get("/auth/google/callback")
@@ -166,28 +180,22 @@ def google_callback(code: str, state: Optional[str] = None, db: Session = Depend
         raise HTTPException(status_code=500, detail="Google OAuth not configured")
     
     try:
-        # 使用 requests 直接交换 token
-        token_response = requests.post(
-            GOOGLE_TOKEN_URL,
-            data={
-                "code": code,
-                "client_id": GOOGLE_CLIENT_ID,
-                "client_secret": GOOGLE_CLIENT_SECRET,
-                "redirect_uri": GOOGLE_REDIRECT_URI,
-                "grant_type": "authorization_code",
-            },
-        )
+        # 使用 requests 直接获取 token
+        token_data = {
+            "code": code,
+            "client_id": GOOGLE_CLIENT_ID,
+            "client_secret": GOOGLE_CLIENT_SECRET,
+            "redirect_uri": GOOGLE_REDIRECT_URI,
+            "grant_type": "authorization_code",
+        }
+        token_response = requests.post(GOOGLE_TOKEN_URL, data=token_data)
         token_response.raise_for_status()
-        token_data = token_response.json()
-        access_token_value = token_data.get("access_token")
-        
-        if not access_token_value:
-            raise HTTPException(status_code=400, detail="Failed to get access token")
+        token = token_response.json()
         
         # 获取用户信息
         user_info_response = requests.get(
             GOOGLE_USERINFO_URL,
-            headers={"Authorization": f"Bearer {access_token_value}"}
+            headers={"Authorization": f"Bearer {token['access_token']}"}
         )
         user_info_response.raise_for_status()
         user_info = user_info_response.json()
@@ -202,14 +210,12 @@ def google_callback(code: str, state: Optional[str] = None, db: Session = Depend
         )
         
         # 创建 JWT token
-        jwt_token = create_access_token(data={"sub": user.id})
+        access_token = create_access_token(data={"sub": user.id})
         
         # 重定向到前端，携带 token
-        frontend_url = f"http://localhost:5173/auth/callback?token={jwt_token}"
+        frontend_url = f"http://localhost:5173/auth/callback?token={access_token}"
         return RedirectResponse(url=frontend_url)
         
-    except requests.RequestException as e:
-        raise HTTPException(status_code=400, detail=f"Authentication failed: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Authentication failed: {str(e)}")
 
@@ -232,9 +238,23 @@ def logout():
 
 
 @app.post("/query")
-def query_kb(req: QueryRequest, db: Session = Depends(get_db)):
+def query_kb(req: QueryRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """使用新的 RAG pipeline 进行查询，支持混合搜索和过滤"""
+    # 创建搜索记录（先不保存答案）
+    search_history_id = None
+    if req.question and req.question.strip():
+        search_history = SearchHistory(
+            user_id=current_user.id,
+            query=req.question.strip(),
+        )
+        db.add(search_history)
+        db.commit()
+        db.refresh(search_history)
+        search_history_id = search_history.id
+    
     def generate():
+        final_answer = ""
+        final_citations = []
         try:
             # 如果启用关键词搜索或设置了过滤条件，使用混合搜索
             if req.use_keyword_search or req.tags or req.start_date or req.end_date:
@@ -315,6 +335,7 @@ def query_kb(req: QueryRequest, db: Session = Depends(get_db)):
                         yield f"data: {json.dumps({'type': 'chunk', 'chunk': content}, ensure_ascii=False)}\n\n"
                 
                 final_answer = "".join(answer_chunks)
+                final_citations = citations
                 yield f"data: {json.dumps({'type': 'final', 'answer': final_answer, 'citations': citations}, ensure_ascii=False)}\n\n"
             else:
                 # 使用原有的 RAG pipeline
@@ -352,6 +373,8 @@ def query_kb(req: QueryRequest, db: Session = Depends(get_db)):
                             ).dict()
                             for c in result["citations"]
                         ]
+                        final_answer = result["answer"]
+                        final_citations = citations
                         yield f"data: {json.dumps({'type': 'final', 'answer': result['answer'], 'citations': citations}, ensure_ascii=False)}\n\n"
         except Exception as e:
             # 发送错误信息
@@ -389,8 +412,8 @@ class KbDocDetail(BaseModel):
 
 
 @app.get("/kb/docs", response_model=List[KbDocItem])
-def list_kb_docs(db: Session = Depends(get_db)):
-    user_id = "default_user"
+def list_kb_docs(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    user_id = current_user.id
     stats = (
         db.query(DocumentStat)
         .filter(DocumentStat.user_id == user_id)
@@ -428,8 +451,9 @@ def list_kb_docs(db: Session = Depends(get_db)):
 def get_kb_doc(
     source: str = Query(..., description="文档路径（/kb/docs 返回的 source）"),
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    user_id = "default_user"
+    user_id = current_user.id
     path = Path(source)
     if not path.exists():
         raise HTTPException(status_code=404, detail="文档不存在")
@@ -494,8 +518,9 @@ class HighlightOut(BaseModel):
 
 
 @app.post("/highlights", response_model=HighlightOut)
-def create_highlight(req: HighlightCreate, db: Session = Depends(get_db)):
+def create_highlight(req: HighlightCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     h = Highlight(
+        user_id=current_user.id,
         source=req.source,
         page=req.page,
         selected_text=req.selected_text,
@@ -511,8 +536,9 @@ def create_highlight(req: HighlightCreate, db: Session = Depends(get_db)):
 def list_highlights(
     source: Optional[str] = None,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    q = db.query(Highlight)
+    q = db.query(Highlight).filter(Highlight.user_id == current_user.id)
     if source:
         q = q.filter(Highlight.source == source)
     rows = q.order_by(Highlight.created_at.desc()).all()
@@ -622,10 +648,11 @@ def upsert_markdown_doc_to_vectorstore(doc: MarkdownDoc):
 # 获取所有在线 Markdown 文档
 # Depends(get_db) 是一个依赖注入函数，用于获取数据库会话
 @app.get("/all/docs", response_model=List[MarkdownDocItem])
-def list_markdown_docs(db: Session = Depends(get_db)):
-    # 查询所有在线 Markdown 文档，并按创建时间降序排序
+def list_markdown_docs(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    # 查询当前用户的在线 Markdown 文档，并按创建时间降序排序
     rows = (
         db.query(MarkdownDoc)
+        .filter(MarkdownDoc.user_id == current_user.id)
         .order_by(MarkdownDoc.created_at.desc())
         .all()
     )
@@ -645,7 +672,7 @@ def list_markdown_docs(db: Session = Depends(get_db)):
 
 # 创建在线 Markdown 文档
 @app.post("/docs", response_model=MarkdownDocDetail)
-def create_markdown_doc(req: MarkdownDocCreate, db: Session = Depends(get_db)):
+def create_markdown_doc(req: MarkdownDocCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     now = datetime.utcnow()
     doc_id = str(uuid.uuid4())
     content = req.content or ""
@@ -662,6 +689,7 @@ def create_markdown_doc(req: MarkdownDocCreate, db: Session = Depends(get_db)):
     
     doc = MarkdownDoc(
         id=doc_id,
+        user_id=current_user.id,
         title=req.title or "未命名文档",
         content=content,
         doc_type=req.doc_type,
@@ -705,8 +733,8 @@ def create_markdown_doc(req: MarkdownDocCreate, db: Session = Depends(get_db)):
 # response_model: 响应模型
 # MarkdownDocDetail: 在线 Markdown 文档详情
 @app.get("/docs/{doc_id}", response_model=MarkdownDocDetail)
-def get_markdown_doc(doc_id: str, db: Session = Depends(get_db)):
-    doc = db.query(MarkdownDoc).get(doc_id)
+def get_markdown_doc(doc_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    doc = db.query(MarkdownDoc).filter(MarkdownDoc.id == doc_id, MarkdownDoc.user_id == current_user.id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")
     
@@ -735,8 +763,9 @@ def update_markdown_doc(
     doc_id: str,
     req: MarkdownDocUpdate,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    doc = db.query(MarkdownDoc).get(doc_id)
+    doc = db.query(MarkdownDoc).filter(MarkdownDoc.id == doc_id, MarkdownDoc.user_id == current_user.id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")
 
@@ -764,8 +793,8 @@ def update_markdown_doc(
 
 
 @app.delete("/docs/{doc_id}")
-def delete_markdown_doc(doc_id: str, db: Session = Depends(get_db)):
-    doc = db.query(MarkdownDoc).get(doc_id)
+def delete_markdown_doc(doc_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    doc = db.query(MarkdownDoc).filter(MarkdownDoc.id == doc_id, MarkdownDoc.user_id == current_user.id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")
 
@@ -791,7 +820,7 @@ class WebExtractRequest(BaseModel):
 
 
 @app.post("/extract-web", response_model=MarkdownDocDetail)
-def extract_web_content(req: WebExtractRequest, db: Session = Depends(get_db)):
+def extract_web_content(req: WebExtractRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """从网页 URL 提取正文并保存为 Markdown 文档"""
     try:
         # 获取网页内容
@@ -852,6 +881,7 @@ def extract_web_content(req: WebExtractRequest, db: Session = Depends(get_db)):
         doc_id = str(uuid.uuid4())
         doc = MarkdownDoc(
             id=doc_id,
+            user_id=current_user.id,
             title=title,
             content=markdown_content,
             doc_type="web",  # 标记为网页类型
@@ -876,9 +906,9 @@ def extract_web_content(req: WebExtractRequest, db: Session = Depends(get_db)):
 # ---- 智能功能 API ----
 
 @app.post("/docs/{doc_id}/generate-summary")
-def generate_doc_summary(doc_id: str, db: Session = Depends(get_db)):
+def generate_doc_summary(doc_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """为文档生成摘要"""
-    doc = db.query(MarkdownDoc).get(doc_id)
+    doc = db.query(MarkdownDoc).filter(MarkdownDoc.id == doc_id, MarkdownDoc.user_id == current_user.id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")
     
@@ -894,9 +924,9 @@ def generate_doc_summary(doc_id: str, db: Session = Depends(get_db)):
 
 
 @app.post("/docs/{doc_id}/recommend-tags")
-def recommend_doc_tags(doc_id: str, db: Session = Depends(get_db)):
+def recommend_doc_tags(doc_id: str, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """为文档推荐标签"""
-    doc = db.query(MarkdownDoc).get(doc_id)
+    doc = db.query(MarkdownDoc).filter(MarkdownDoc.id == doc_id, MarkdownDoc.user_id == current_user.id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")
     
@@ -913,14 +943,14 @@ def recommend_doc_tags(doc_id: str, db: Session = Depends(get_db)):
 
 
 @app.get("/docs/{doc_id}/related")
-def get_related_docs(doc_id: str, top_k: int = Query(5), db: Session = Depends(get_db)):
+def get_related_docs(doc_id: str, top_k: int = Query(5), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """获取相关文档推荐"""
-    doc = db.query(MarkdownDoc).get(doc_id)
+    doc = db.query(MarkdownDoc).filter(MarkdownDoc.id == doc_id, MarkdownDoc.user_id == current_user.id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文档不存在")
     
-    # 获取所有文档
-    all_docs = db.query(MarkdownDoc).all()
+    # 获取当前用户的所有文档
+    all_docs = db.query(MarkdownDoc).filter(MarkdownDoc.user_id == current_user.id).all()
     docs_list = [
         {
             "id": d.id,
@@ -952,9 +982,9 @@ def get_related_docs(doc_id: str, top_k: int = Query(5), db: Session = Depends(g
 
 
 @app.get("/docs/graph")
-def get_docs_graph(db: Session = Depends(get_db)):
+def get_docs_graph(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     """获取文档关系图谱数据"""
-    docs = db.query(MarkdownDoc).all()
+    docs = db.query(MarkdownDoc).filter(MarkdownDoc.user_id == current_user.id).all()
     
     nodes = []
     edges = []
@@ -994,3 +1024,81 @@ def get_docs_graph(db: Session = Depends(get_db)):
         "nodes": nodes,
         "edges": edges,
     }
+
+
+# ---- Search History ----
+
+class SearchHistoryOut(BaseModel):
+    id: int
+    query: str
+    answer: Optional[str] = None
+    citations: Optional[List[Citation]] = None
+    sources_count: Optional[int] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+@app.get("/search-history", response_model=List[SearchHistoryOut])
+def list_search_history(
+    limit: int = Query(20, description="返回数量限制"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """获取用户的搜索历史记录（对话消息）"""
+    rows = (
+        db.query(SearchHistory)
+        .filter(SearchHistory.user_id == current_user.id)
+        .order_by(SearchHistory.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    result = []
+    for row in rows:
+        citations = None
+        if row.citations:
+            try:
+                citations = json.loads(row.citations)
+            except:
+                citations = None
+        result.append(SearchHistoryOut(
+            id=row.id,
+            query=row.query,
+            answer=row.answer,
+            citations=citations,
+            sources_count=row.sources_count,
+            created_at=row.created_at,
+        ))
+    return result
+
+
+@app.delete("/search-history/{history_id}")
+def delete_search_history(
+    history_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """删除指定的搜索记录"""
+    history = (
+        db.query(SearchHistory)
+        .filter(SearchHistory.id == history_id, SearchHistory.user_id == current_user.id)
+        .first()
+    )
+    if not history:
+        raise HTTPException(status_code=404, detail="搜索记录不存在")
+    
+    db.delete(history)
+    db.commit()
+    return {"message": "搜索记录已删除"}
+
+
+@app.delete("/search-history")
+def clear_search_history(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """清空当前用户的所有搜索记录"""
+    db.query(SearchHistory).filter(SearchHistory.user_id == current_user.id).delete()
+    db.commit()
+    return {"message": "所有搜索记录已清空"}
