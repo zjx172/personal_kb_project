@@ -59,6 +59,7 @@ from routers import (
     highlights,
     kb,
     search_history,
+    knowledge_bases,
 )
 
 app.include_router(auth.router)
@@ -70,4 +71,5 @@ app.include_router(pdf.router)
 app.include_router(highlights.router)
 app.include_router(kb.router)
 app.include_router(search_history.router)
+app.include_router(knowledge_bases.router)
 

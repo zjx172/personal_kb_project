@@ -50,18 +50,6 @@ axios.interceptors.response.use(
 //   read_count: number;
 // }
 
-// export async function listKbDocs(): Promise<KbDocItem[]> {
-//   const resp = await axios.get<KbDocItem[]>(`${API_BASE_URL}/kb/docs`);
-//   return resp.data;
-// }
-
-// export async function getKbDoc(source: string): Promise<KbDocDetail> {
-//   const resp = await axios.get<KbDocDetail>(`${API_BASE_URL}/kb/doc`, {
-//     params: { source },
-//   });
-//   return resp.data;
-// }
-
 // ---- Highlights ----
 
 export interface Highlight {
@@ -120,6 +108,7 @@ export interface MarkdownDocDetail {
 }
 
 export interface MarkdownDocCreate {
+  knowledge_base_id?: string;
   title?: string;
   content?: string;
   doc_type?: string;
@@ -131,8 +120,12 @@ export interface MarkdownDocUpdate {
   doc_type?: string;
 }
 
-export async function listDocs(): Promise<MarkdownDocItem[]> {
-  const resp = await axios.get<MarkdownDocItem[]>(`${API_BASE_URL}/docs/all`);
+export async function listDocs(
+  knowledge_base_id?: string
+): Promise<MarkdownDocItem[]> {
+  const resp = await axios.get<MarkdownDocItem[]>(`${API_BASE_URL}/docs/all`, {
+    params: knowledge_base_id ? { knowledge_base_id } : {},
+  });
   return resp.data;
 }
 
@@ -170,6 +163,7 @@ export async function deleteDoc(id: string): Promise<void> {
 
 export interface WebExtractRequest {
   url: string;
+  knowledge_base_id?: string;
   title?: string;
 }
 
@@ -201,12 +195,16 @@ export interface TaskInfo {
 
 export async function uploadPdf(
   file: File,
-  title?: string
+  title?: string,
+  knowledge_base_id?: string
 ): Promise<UploadPdfResponse> {
   const formData = new FormData();
   formData.append("file", file);
   if (title) {
     formData.append("title", title);
+  }
+  if (knowledge_base_id) {
+    formData.append("knowledge_base_id", knowledge_base_id);
   }
 
   const token = getToken();
@@ -266,6 +264,7 @@ export async function queryKnowledgeBaseStream(
   onChunk: (chunk: StreamChunk) => void,
   options?: {
     conversation_id?: string;
+    knowledge_base_id?: string;
     doc_type?: string;
     tags?: string[];
     start_date?: string;
@@ -289,6 +288,7 @@ export async function queryKnowledgeBaseStream(
     body: JSON.stringify({
       question,
       conversation_id: options?.conversation_id,
+      knowledge_base_id: options?.knowledge_base_id,
       doc_type: options?.doc_type,
       tags: options?.tags,
       start_date: options?.start_date,
@@ -449,6 +449,7 @@ export interface SearchHistoryItem {
 
 export interface Conversation {
   id: string;
+  knowledge_base_id: string;
   title: string;
   created_at: string;
   updated_at: string;
@@ -458,15 +459,12 @@ export interface ConversationDetail extends Conversation {
   messages: SearchHistoryItem[];
 }
 
-export async function listConversations(): Promise<Conversation[]> {
-  const resp = await axios.get<Conversation[]>(`${API_BASE_URL}/conversations`);
-  return resp.data;
-}
-
 export async function createConversation(
+  knowledge_base_id: string,
   title?: string
 ): Promise<Conversation> {
   const resp = await axios.post<Conversation>(`${API_BASE_URL}/conversations`, {
+    knowledge_base_id,
     title,
   });
   return resp.data;
@@ -496,6 +494,18 @@ export async function deleteConversation(
   conversationId: string
 ): Promise<void> {
   await axios.delete(`${API_BASE_URL}/conversations/${conversationId}`);
+}
+
+export async function listConversations(
+  knowledge_base_id?: string
+): Promise<Conversation[]> {
+  const resp = await axios.get<Conversation[]>(
+    `${API_BASE_URL}/conversations`,
+    {
+      params: knowledge_base_id ? { knowledge_base_id } : {},
+    }
+  );
+  return resp.data;
 }
 
 export async function listSearchHistory(
@@ -545,4 +555,63 @@ export async function logout(): Promise<void> {
   await axios.post(`${API_BASE_URL}/auth/logout`);
   localStorage.removeItem("auth_token");
   localStorage.removeItem("user");
+}
+
+// ---- Knowledge Bases ----
+
+export interface KnowledgeBase {
+  id: string;
+  name: string;
+  description?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface KnowledgeBaseCreate {
+  name: string;
+  description?: string | null;
+}
+
+export interface KnowledgeBaseUpdate {
+  name?: string;
+  description?: string | null;
+}
+
+export async function listKnowledgeBases(): Promise<KnowledgeBase[]> {
+  const resp = await axios.get<KnowledgeBase[]>(
+    `${API_BASE_URL}/knowledge-bases`
+  );
+  return resp.data;
+}
+
+export async function createKnowledgeBase(
+  payload: KnowledgeBaseCreate
+): Promise<KnowledgeBase> {
+  const resp = await axios.post<KnowledgeBase>(
+    `${API_BASE_URL}/knowledge-bases`,
+    payload
+  );
+  return resp.data;
+}
+
+export async function getKnowledgeBase(id: string): Promise<KnowledgeBase> {
+  const resp = await axios.get<KnowledgeBase>(
+    `${API_BASE_URL}/knowledge-bases/${id}`
+  );
+  return resp.data;
+}
+
+export async function updateKnowledgeBase(
+  id: string,
+  payload: KnowledgeBaseUpdate
+): Promise<KnowledgeBase> {
+  const resp = await axios.put<KnowledgeBase>(
+    `${API_BASE_URL}/knowledge-bases/${id}`,
+    payload
+  );
+  return resp.data;
+}
+
+export async function deleteKnowledgeBase(id: string): Promise<void> {
+  await axios.delete(`${API_BASE_URL}/knowledge-bases/${id}`);
 }

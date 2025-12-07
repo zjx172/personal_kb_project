@@ -2,7 +2,10 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { extractWebContent } from "../api";
 
-export function useWebExtract(onSuccess?: () => void) {
+export function useWebExtract(
+  onSuccess?: () => void,
+  knowledgeBaseId?: string | null
+) {
   const [webUrl, setWebUrl] = useState("");
   const [extracting, setExtracting] = useState(false);
 
@@ -23,6 +26,7 @@ export function useWebExtract(onSuccess?: () => void) {
     try {
       const newDoc = await extractWebContent({
         url: webUrl,
+        knowledge_base_id: knowledgeBaseId || undefined,
       });
       toast.success("网页内容已提取并保存");
       setWebUrl("");

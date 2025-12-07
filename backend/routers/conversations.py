@@ -1,9 +1,9 @@
 """
 对话相关路由
 """
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 import json
 
@@ -17,14 +17,28 @@ router = APIRouter(prefix="/conversations", tags=["conversations"])
 
 @router.post("", response_model=ConversationOut)
 def create_conversation(
-    req: ConversationCreate = ConversationCreate(),
+    req: ConversationCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """创建新对话"""
+    # 验证知识库是否存在且属于当前用户
+    from models import KnowledgeBase
+    knowledge_base = (
+        db.query(KnowledgeBase)
+        .filter(
+            KnowledgeBase.id == req.knowledge_base_id,
+            KnowledgeBase.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not knowledge_base:
+        raise HTTPException(status_code=404, detail="知识库不存在")
+
     title = req.title or "新对话"
     conversation = Conversation(
         user_id=current_user.id,
+        knowledge_base_id=req.knowledge_base_id,
         title=title,
     )
     db.add(conversation)
@@ -35,16 +49,29 @@ def create_conversation(
 
 @router.get("", response_model=List[ConversationOut])
 def list_conversations(
+    knowledge_base_id: Optional[str] = Query(None, description="知识库ID，用于过滤对话"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """获取用户的对话列表"""
-    conversations = (
-        db.query(Conversation)
-        .filter(Conversation.user_id == current_user.id)
-        .order_by(Conversation.updated_at.desc())
-        .all()
-    )
+    """获取用户的对话列表，支持按知识库过滤"""
+    query = db.query(Conversation).filter(Conversation.user_id == current_user.id)
+    
+    if knowledge_base_id:
+        # 验证知识库是否存在且属于当前用户
+        from models import KnowledgeBase
+        knowledge_base = (
+            db.query(KnowledgeBase)
+            .filter(
+                KnowledgeBase.id == knowledge_base_id,
+                KnowledgeBase.user_id == current_user.id,
+            )
+            .first()
+        )
+        if not knowledge_base:
+            raise HTTPException(status_code=404, detail="知识库不存在")
+        query = query.filter(Conversation.knowledge_base_id == knowledge_base_id)
+    
+    conversations = query.order_by(Conversation.updated_at.desc()).all()
     return conversations
 
 

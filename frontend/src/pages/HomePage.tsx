@@ -6,13 +6,16 @@ import { useAuth } from "../contexts/AuthContext";
 import { SearchFilterOptions } from "../components/SearchFilters";
 import { Message } from "../types/chat";
 import { useConversations } from "../hooks/useConversations";
+import { useKnowledgeBases } from "../hooks/useKnowledgeBases";
 import { useDocs } from "../hooks/useDocs";
 import { useStreamQuery } from "../hooks/useStreamQuery";
 import { useWebExtract } from "../hooks/useWebExtract";
 import { usePdfUpload } from "../hooks/usePdfUpload";
+import { createKnowledgeBase } from "../api";
 import { Sidebar } from "../components/home/Sidebar";
 import { MessageList } from "../components/home/MessageList";
 import { ChatInput } from "../components/home/ChatInput";
+import { KnowledgeBaseSelector } from "../components/home/KnowledgeBaseSelector";
 import { ChevronLeft, Menu, LogOut, User, Loader2 } from "lucide-react";
 
 const HomePage: React.FC = () => {
@@ -25,12 +28,32 @@ const HomePage: React.FC = () => {
 
   // Hooks
   const {
+    knowledgeBases,
+    loading: loadingKnowledgeBases,
+    currentKnowledgeBaseId,
+    editingKnowledgeBaseId,
+    editingName: editingKnowledgeBaseName,
+    saving: savingKnowledgeBase,
+    expandedBases,
+    nameInputRef: knowledgeBaseNameInputRef,
+    setCurrentKnowledgeBaseId,
+    setEditingName: setEditingKnowledgeBaseName,
+    loadKnowledgeBases,
+    handleCreateKnowledgeBase,
+    handleDeleteKnowledgeBase,
+    handleStartEditName: handleStartEditKnowledgeBaseName,
+    handleSaveName: handleSaveKnowledgeBaseName,
+    handleCancelEdit: handleCancelEditKnowledgeBase,
+    handleToggleExpand: handleToggleExpandKnowledgeBase,
+  } = useKnowledgeBases();
+
+  const {
     docs,
     loading: loadingDocs,
     loadDocs,
     handleCreate: handleCreateDoc,
     handleDelete: handleDeleteDoc,
-  } = useDocs();
+  } = useDocs(currentKnowledgeBaseId);
 
   const {
     conversations,
@@ -61,13 +84,19 @@ const HomePage: React.FC = () => {
     currentSourcesCount,
     handleQuery,
     handleStop,
-  } = useStreamQuery(currentConversationId, searchFilters);
+  } = useStreamQuery(
+    currentConversationId,
+    currentKnowledgeBaseId,
+    searchFilters
+  );
 
-  const { webUrl, setWebUrl, extracting, handleExtractWeb } =
-    useWebExtract(loadDocs);
+  const { webUrl, setWebUrl, extracting, handleExtractWeb } = useWebExtract(
+    loadDocs,
+    currentKnowledgeBaseId
+  );
 
   const { uploadingPdf, uploadProgress, fileInputRef, handleUploadPdf } =
-    usePdfUpload(loadDocs);
+    usePdfUpload(loadDocs, currentKnowledgeBaseId);
 
   // 加载对话消息
   useEffect(() => {
@@ -86,6 +115,15 @@ const HomePage: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentConversationId]);
 
+  // 当知识库变化时，加载该知识库下的对话
+  useEffect(() => {
+    if (currentKnowledgeBaseId) {
+      loadConversations(currentKnowledgeBaseId);
+    } else {
+      loadConversations();
+    }
+  }, [currentKnowledgeBaseId, loadConversations]);
+
   // 初始化加载
   useEffect(() => {
     if (!authLoading && !user) {
@@ -94,9 +132,9 @@ const HomePage: React.FC = () => {
     }
     if (user) {
       loadDocs();
-      loadConversations();
+      loadKnowledgeBases();
     }
-  }, [user, authLoading, navigate]);
+  }, [user, authLoading, navigate, loadKnowledgeBases]);
 
   // 滚动到底部
   useEffect(() => {
@@ -157,12 +195,19 @@ const HomePage: React.FC = () => {
         open={sidebarOpen}
         docs={docs}
         loadingDocs={loadingDocs}
+        knowledgeBases={knowledgeBases}
+        loadingKnowledgeBases={loadingKnowledgeBases}
+        currentKnowledgeBaseId={currentKnowledgeBaseId}
         conversations={conversations}
         loadingConversations={loadingConversations}
         currentConversationId={currentConversationId}
+        editingKnowledgeBaseId={editingKnowledgeBaseId}
+        editingKnowledgeBaseName={editingKnowledgeBaseName}
+        savingKnowledgeBase={savingKnowledgeBase}
         editingConversationId={editingConversationId}
         editingTitle={editingTitle}
         savingTitle={savingTitle}
+        expandedBases={expandedBases}
         webUrl={webUrl}
         extracting={extracting}
         uploadingPdf={uploadingPdf}
@@ -173,13 +218,30 @@ const HomePage: React.FC = () => {
         onWebUrlChange={setWebUrl}
         onExtractWeb={handleExtractWeb}
         onUploadPdf={handleUploadPdf}
+        onSelectKnowledgeBase={(id) => {
+          setCurrentKnowledgeBaseId(id);
+          setCurrentConversationId(null);
+          setMessages([]);
+        }}
+        onCreateKnowledgeBase={handleCreateKnowledgeBase}
+        onDeleteKnowledgeBase={handleDeleteKnowledgeBase}
+        onStartEditKnowledgeBaseName={handleStartEditKnowledgeBaseName}
+        onSaveKnowledgeBaseName={handleSaveKnowledgeBaseName}
+        onCancelEditKnowledgeBase={handleCancelEditKnowledgeBase}
+        onKnowledgeBaseNameChange={setEditingKnowledgeBaseName}
+        onToggleExpandKnowledgeBase={handleToggleExpandKnowledgeBase}
+        knowledgeBaseNameInputRef={knowledgeBaseNameInputRef}
         onSelectConversation={async (id) => {
           console.log("选择对话，ID:", id);
           setCurrentConversationId(id);
           // 消息加载由 useEffect 自动处理
         }}
         onCreateConversation={async () => {
-          const newId = await handleCreateConversation();
+          if (!currentKnowledgeBaseId) {
+            toast.error("请先选择一个知识库");
+            return;
+          }
+          const newId = await handleCreateConversation(currentKnowledgeBaseId);
           if (newId) {
             setMessages([]);
             setCurrentConversationId(newId);
@@ -208,28 +270,55 @@ const HomePage: React.FC = () => {
 
       {/* 主内容区 */}
       <main className="flex-1 flex flex-col relative overflow-hidden">
-        {/* 用户信息和登出按钮 */}
-        <div className="absolute top-4 right-4 flex items-center gap-3 z-10">
-          {user.picture && (
-            <img
-              src={user.picture}
-              alt={user.name || user.email}
-              className="h-8 w-8 rounded-full"
-            />
-          )}
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <User className="h-4 w-4" />
-            <span>{user.name || user.email}</span>
+        {/* 知识库选择器和用户信息 */}
+        <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-10">
+          <KnowledgeBaseSelector
+            knowledgeBases={knowledgeBases}
+            loading={loadingKnowledgeBases}
+            currentKnowledgeBaseId={currentKnowledgeBaseId}
+            onSelect={(id) => {
+              setCurrentKnowledgeBaseId(id);
+              setCurrentConversationId(null);
+              setMessages([]);
+            }}
+            onCreate={async (name) => {
+              try {
+                const newKb = await createKnowledgeBase({
+                  name,
+                  description: null,
+                });
+                await loadKnowledgeBases();
+                setCurrentKnowledgeBaseId(newKb.id);
+                toast.success("知识库创建成功");
+              } catch (error: any) {
+                console.error("创建知识库失败:", error);
+                toast.error(error?.message || "创建知识库失败");
+              }
+            }}
+          />
+          {/* 用户信息和登出按钮 */}
+          <div className="flex items-center gap-3">
+            {user.picture && (
+              <img
+                src={user.picture}
+                alt={user.name || user.email}
+                className="h-8 w-8 rounded-full"
+              />
+            )}
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <User className="h-4 w-4" />
+              <span>{user.name || user.email}</span>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="gap-2"
+            >
+              <LogOut className="h-4 w-4" />
+              登出
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLogout}
-            className="gap-2"
-          >
-            <LogOut className="h-4 w-4" />
-            登出
-          </Button>
         </div>
 
         {/* 侧边栏切换按钮（当侧边栏隐藏时显示） */}

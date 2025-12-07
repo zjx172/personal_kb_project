@@ -4,18 +4,26 @@ import { Input } from "@/components/ui/input";
 import { Plus, Globe, FileText, Loader2 } from "lucide-react";
 import { DocList } from "./DocList";
 import { ConversationList } from "./ConversationList";
-import { MarkdownDocItem, Conversation } from "../../api";
+import { KnowledgeBaseList } from "./KnowledgeBaseList";
+import { MarkdownDocItem, Conversation, KnowledgeBase } from "../../api";
 
 interface SidebarProps {
   open: boolean;
   docs: MarkdownDocItem[];
   loadingDocs: boolean;
+  knowledgeBases: KnowledgeBase[];
+  loadingKnowledgeBases: boolean;
+  currentKnowledgeBaseId: string | null;
   conversations: Conversation[];
   loadingConversations: boolean;
   currentConversationId: string | null;
+  editingKnowledgeBaseId: string | null;
+  editingKnowledgeBaseName: string;
+  savingKnowledgeBase: boolean;
   editingConversationId: string | null;
   editingTitle: string;
   savingTitle: boolean;
+  expandedBases: Set<string>;
   webUrl: string;
   extracting: boolean;
   uploadingPdf: boolean;
@@ -26,6 +34,19 @@ interface SidebarProps {
   onWebUrlChange: (value: string) => void;
   onExtractWeb: () => void;
   onUploadPdf: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  onSelectKnowledgeBase: (id: string) => void;
+  onCreateKnowledgeBase: () => void;
+  onDeleteKnowledgeBase: (id: string) => void;
+  onStartEditKnowledgeBaseName: (
+    id: string,
+    name: string,
+    e: React.MouseEvent
+  ) => void;
+  onSaveKnowledgeBaseName: (id: string) => void;
+  onCancelEditKnowledgeBase: () => void;
+  onKnowledgeBaseNameChange: (value: string) => void;
+  onToggleExpandKnowledgeBase: (id: string) => void;
+  knowledgeBaseNameInputRef: React.RefObject<HTMLInputElement>;
   onSelectConversation: (id: string) => void;
   onCreateConversation: () => void;
   onDeleteConversation: (id: string) => void;
@@ -40,12 +61,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   open,
   docs,
   loadingDocs,
+  knowledgeBases,
+  loadingKnowledgeBases,
+  currentKnowledgeBaseId,
   conversations,
   loadingConversations,
   currentConversationId,
+  editingKnowledgeBaseId,
+  editingKnowledgeBaseName,
+  savingKnowledgeBase,
   editingConversationId,
   editingTitle,
   savingTitle,
+  expandedBases,
   webUrl,
   extracting,
   uploadingPdf,
@@ -55,6 +83,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onWebUrlChange,
   onExtractWeb,
   onUploadPdf,
+  onSelectKnowledgeBase,
+  onCreateKnowledgeBase,
+  onDeleteKnowledgeBase,
+  onStartEditKnowledgeBaseName,
+  onSaveKnowledgeBaseName,
+  onCancelEditKnowledgeBase,
+  onKnowledgeBaseNameChange,
+  onToggleExpandKnowledgeBase,
+  knowledgeBaseNameInputRef,
   onSelectConversation,
   onCreateConversation,
   onDeleteConversation,
@@ -144,10 +181,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               )}
             </div>
-
-            <div className="text-sm font-semibold text-muted-foreground pt-2">
-              知识库
-            </div>
           </>
         )}
       </div>
@@ -161,22 +194,47 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
             <div className="border-t my-4" />
 
-            <ConversationList
-              conversations={conversations}
-              loading={loadingConversations}
-              currentConversationId={currentConversationId}
-              editingConversationId={editingConversationId}
-              editingTitle={editingTitle}
-              savingTitle={savingTitle}
-              titleInputRef={titleInputRef}
-              onSelect={onSelectConversation}
-              onCreate={onCreateConversation}
-              onDelete={onDeleteConversation}
-              onStartEdit={onStartEditTitle}
-              onSaveTitle={onSaveTitle}
-              onCancelEdit={onCancelEdit}
-              onTitleChange={onTitleChange}
+            <KnowledgeBaseList
+              knowledgeBases={knowledgeBases}
+              loading={loadingKnowledgeBases}
+              currentKnowledgeBaseId={currentKnowledgeBaseId}
+              editingKnowledgeBaseId={editingKnowledgeBaseId}
+              editingName={editingKnowledgeBaseName}
+              saving={savingKnowledgeBase}
+              nameInputRef={knowledgeBaseNameInputRef}
+              expandedBases={expandedBases}
+              onSelect={onSelectKnowledgeBase}
+              onCreate={onCreateKnowledgeBase}
+              onDelete={onDeleteKnowledgeBase}
+              onStartEdit={onStartEditKnowledgeBaseName}
+              onSaveName={onSaveKnowledgeBaseName}
+              onCancelEdit={onCancelEditKnowledgeBase}
+              onNameChange={onKnowledgeBaseNameChange}
+              onToggleExpand={onToggleExpandKnowledgeBase}
             />
+
+            {currentKnowledgeBaseId && (
+              <>
+                <div className="border-t my-4" />
+                <ConversationList
+                  conversations={conversations}
+                  loading={loadingConversations}
+                  currentConversationId={currentConversationId}
+                  knowledgeBaseId={currentKnowledgeBaseId}
+                  editingConversationId={editingConversationId}
+                  editingTitle={editingTitle}
+                  savingTitle={savingTitle}
+                  titleInputRef={titleInputRef}
+                  onSelect={onSelectConversation}
+                  onCreate={onCreateConversation}
+                  onDelete={onDeleteConversation}
+                  onStartEdit={onStartEditTitle}
+                  onSaveTitle={onSaveTitle}
+                  onCancelEdit={onCancelEdit}
+                  onTitleChange={onTitleChange}
+                />
+              </>
+            )}
           </>
         )}
       </div>

@@ -6,7 +6,7 @@ import json
 import uuid
 import re
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -16,7 +16,7 @@ import html2text
 import httpx
 
 from db import get_db
-from models import User, MarkdownDoc
+from models import User, MarkdownDoc, KnowledgeBase
 from auth import get_current_user
 from schemas import (
     MarkdownDocCreate,
@@ -32,18 +32,53 @@ from ai_services import ai_services
 router = APIRouter(prefix="/docs", tags=["docs"])
 
 
+def get_or_create_default_knowledge_base(db: Session, user_id: str) -> KnowledgeBase:
+    """获取或创建用户的默认知识库"""
+    kb = (
+        db.query(KnowledgeBase)
+        .filter(
+            KnowledgeBase.user_id == user_id,
+            KnowledgeBase.name == "默认知识库",
+        )
+        .first()
+    )
+    if not kb:
+        kb = KnowledgeBase(
+            user_id=user_id,
+            name="默认知识库",
+            description="系统自动创建的默认知识库",
+        )
+        db.add(kb)
+        db.commit()
+        db.refresh(kb)
+    return kb
+
+
 @router.get("/all", response_model=List[MarkdownDocItem])
 def list_markdown_docs(
+    knowledge_base_id: Optional[str] = Query(None, description="知识库ID，用于过滤文档"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """获取所有在线 Markdown 文档"""
-    rows = (
-        db.query(MarkdownDoc)
-        .filter(MarkdownDoc.user_id == current_user.id)
-        .order_by(MarkdownDoc.created_at.desc())
-        .all()
-    )
+    """获取所有在线 Markdown 文档，支持按知识库过滤"""
+    query = db.query(MarkdownDoc).filter(MarkdownDoc.user_id == current_user.id)
+    
+    if knowledge_base_id:
+        # 验证知识库是否存在且属于当前用户
+        from models import KnowledgeBase
+        kb = (
+            db.query(KnowledgeBase)
+            .filter(
+                KnowledgeBase.id == knowledge_base_id,
+                KnowledgeBase.user_id == current_user.id,
+            )
+            .first()
+        )
+        if not kb:
+            raise HTTPException(status_code=404, detail="知识库不存在")
+        query = query.filter(MarkdownDoc.knowledge_base_id == knowledge_base_id)
+    
+    rows = query.order_by(MarkdownDoc.created_at.desc()).all()
     # 转换 tags 为列表格式
     result = []
     for doc in rows:
@@ -73,6 +108,25 @@ async def create_markdown_doc(
     doc_id = str(uuid.uuid4())
     content = req.content or ""
 
+    # 确定知识库ID
+    knowledge_base_id = req.knowledge_base_id
+    if not knowledge_base_id:
+        # 如果没有提供，使用默认知识库
+        default_kb = get_or_create_default_knowledge_base(db, current_user.id)
+        knowledge_base_id = default_kb.id
+    else:
+        # 验证知识库是否存在且属于当前用户
+        kb = (
+            db.query(KnowledgeBase)
+            .filter(
+                KnowledgeBase.id == knowledge_base_id,
+                KnowledgeBase.user_id == current_user.id,
+            )
+            .first()
+        )
+        if not kb:
+            raise HTTPException(status_code=404, detail="知识库不存在")
+
     # 生成摘要和标签（如果内容足够长）
     summary = None
     tags = None
@@ -86,6 +140,7 @@ async def create_markdown_doc(
     doc = MarkdownDoc(
         id=doc_id,
         user_id=current_user.id,
+        knowledge_base_id=knowledge_base_id,
         title=req.title or "未命名文档",
         content=content,
         doc_type=req.doc_type,
@@ -336,12 +391,32 @@ async def extract_web_content(
             f"# {title}\n\n**来源**: [{req.url}]({req.url})\n\n---\n\n{markdown_content}"
         )
 
+        # 确定知识库ID
+        knowledge_base_id = req.knowledge_base_id
+        if not knowledge_base_id:
+            # 如果没有提供，使用默认知识库
+            default_kb = get_or_create_default_knowledge_base(db, current_user.id)
+            knowledge_base_id = default_kb.id
+        else:
+            # 验证知识库是否存在且属于当前用户
+            kb = (
+                db.query(KnowledgeBase)
+                .filter(
+                    KnowledgeBase.id == knowledge_base_id,
+                    KnowledgeBase.user_id == current_user.id,
+                )
+                .first()
+            )
+            if not kb:
+                raise HTTPException(status_code=404, detail="知识库不存在")
+
         # 创建 Markdown 文档
         now = datetime.utcnow()
         doc_id = str(uuid.uuid4())
         doc = MarkdownDoc(
             id=doc_id,
             user_id=current_user.id,
+            knowledge_base_id=knowledge_base_id,
             title=title,
             content=markdown_content,
             doc_type="web",

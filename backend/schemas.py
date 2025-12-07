@@ -32,6 +32,7 @@ class TaskInfo(BaseModel):
 class QueryRequest(BaseModel):
     question: str
     conversation_id: Optional[str] = None
+    knowledge_base_id: Optional[str] = None  # 创建新对话时需要提供
     doc_type: Optional[str] = None
     tags: Optional[List[str]] = None
     start_date: Optional[str] = None
@@ -110,6 +111,7 @@ class HighlightOut(BaseModel):
 
 # ---- Markdown 文档 ----
 class MarkdownDocCreate(BaseModel):
+    knowledge_base_id: Optional[str] = None  # 知识库ID，如果不提供则使用默认知识库
     title: str = "未命名文档"
     content: Optional[str] = ""
     doc_type: Optional[str] = None
@@ -151,6 +153,7 @@ class MarkdownDocDetail(BaseModel):
 
 class WebExtractRequest(BaseModel):
     url: str
+    knowledge_base_id: Optional[str] = None  # 知识库ID，如果不提供则使用默认知识库
     title: Optional[str] = None
 
 
@@ -159,13 +162,37 @@ class UploadPdfResponse(BaseModel):
     message: str
 
 
+# ---- 知识库相关 ----
+class KnowledgeBaseCreate(BaseModel):
+    name: str
+    description: Optional[str] = None
+
+
+class KnowledgeBaseUpdate(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+
+
+class KnowledgeBaseOut(BaseModel):
+    id: str
+    name: str
+    description: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
 # ---- 对话相关 ----
 class ConversationCreate(BaseModel):
+    knowledge_base_id: str
     title: str = "新对话"
 
 
 class ConversationOut(BaseModel):
     id: str
+    knowledge_base_id: str
     title: str
     created_at: datetime
     updated_at: datetime
@@ -176,6 +203,7 @@ class ConversationOut(BaseModel):
 
 class ConversationDetail(BaseModel):
     id: str
+    knowledge_base_id: str
     title: str
     created_at: datetime
     updated_at: datetime

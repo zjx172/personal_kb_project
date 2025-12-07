@@ -8,7 +8,6 @@ from db import get_db
 from models import User
 from config import JWT_SECRET_KEY, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
 import uuid
-from typing import Optional
 
 security = HTTPBearer(auto_error=False)
 
@@ -105,6 +104,16 @@ def get_or_create_user(db: Session, google_id: str, email: str, name: Optional[s
         db.add(user)
         db.commit()
         db.refresh(user)
+        
+        # 为新用户创建默认知识库
+        from models import KnowledgeBase
+        default_kb = KnowledgeBase(
+            user_id=user.id,
+            name="默认知识库",
+            description="系统自动创建的默认知识库",
+        )
+        db.add(default_kb)
+        db.commit()
     else:
         # 更新用户信息
         user.email = email

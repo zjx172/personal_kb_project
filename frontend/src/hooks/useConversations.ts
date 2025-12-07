@@ -25,10 +25,10 @@ export function useConversations() {
   const [savingTitle, setSavingTitle] = useState(false);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
-  const loadConversations = async () => {
+  const loadConversations = async (knowledgeBaseId?: string) => {
     setLoadingConversations(true);
     try {
-      const convs = await listConversations();
+      const convs = await listConversations(knowledgeBaseId);
       setConversations(convs);
 
       // 不再自动选中对话，让用户手动选择
@@ -79,11 +79,15 @@ export function useConversations() {
     }
   };
 
-  const handleCreateConversation = async () => {
+  const handleCreateConversation = async (knowledgeBaseId: string) => {
+    if (!knowledgeBaseId) {
+      toast.error("请先选择一个知识库");
+      return null;
+    }
     try {
-      const newConv = await createConversation();
+      const newConv = await createConversation(knowledgeBaseId);
       setCurrentConversationId(newConv.id);
-      await loadConversations();
+      await loadConversations(knowledgeBaseId);
       return newConv.id;
     } catch (e: any) {
       console.error(e);

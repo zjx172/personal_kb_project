@@ -19,6 +19,7 @@ interface ConversationListProps {
   conversations: Conversation[];
   loading: boolean;
   currentConversationId: string | null;
+  knowledgeBaseId: string | null; // 当前选中的知识库ID
   editingConversationId: string | null;
   editingTitle: string;
   savingTitle: boolean;
@@ -36,6 +37,7 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   conversations,
   loading,
   currentConversationId,
+  knowledgeBaseId,
   editingConversationId,
   editingTitle,
   savingTitle,
@@ -48,6 +50,27 @@ export const ConversationList: React.FC<ConversationListProps> = ({
   onCancelEdit,
   onTitleChange,
 }) => {
+  // 如果没有选中知识库，不显示对话列表
+  if (!knowledgeBaseId) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between px-1">
+          <div className="text-sm font-semibold text-muted-foreground">
+            对话
+          </div>
+        </div>
+        <div className="text-center text-xs text-muted-foreground py-4">
+          请先选择一个知识库
+        </div>
+      </div>
+    );
+  }
+
+  // 过滤出当前知识库的对话
+  const filteredConversations = conversations.filter(
+    (conv) => conv.knowledge_base_id === knowledgeBaseId
+  );
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between px-1">
@@ -67,13 +90,13 @@ export const ConversationList: React.FC<ConversationListProps> = ({
         <div className="flex items-center justify-center py-4">
           <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
         </div>
-      ) : conversations.length === 0 ? (
+      ) : filteredConversations.length === 0 ? (
         <div className="text-center text-xs text-muted-foreground py-4">
           暂无对话
         </div>
       ) : (
         <div className="space-y-1">
-          {conversations.map((conv) => (
+          {filteredConversations.map((conv) => (
             <div
               key={conv.id}
               className={`group flex items-center justify-between p-2.5 rounded-lg cursor-pointer transition-all ${

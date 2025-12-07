@@ -6,6 +6,7 @@ import { Message } from "../types/chat";
 
 export function useStreamQuery(
   currentConversationId: string | null,
+  currentKnowledgeBaseId: string | null,
   searchFilters: SearchFilterOptions
 ) {
   const [query, setQuery] = useState("");
@@ -174,6 +175,7 @@ export function useStreamQuery(
         {
           ...searchFilters,
           conversation_id: currentConversationId || undefined,
+          knowledge_base_id: currentKnowledgeBaseId || undefined,
         }
       );
 

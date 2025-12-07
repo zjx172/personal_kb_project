@@ -33,9 +33,30 @@ def query_kb(
     # 处理对话 ID
     conversation_id = req.conversation_id
     if not conversation_id:
-        # 如果没有提供对话 ID，创建新对话
+        # 如果没有提供对话 ID，需要提供知识库 ID 来创建新对话
+        if not req.knowledge_base_id:
+            raise HTTPException(
+                status_code=400,
+                detail="创建新对话时需要提供 knowledge_base_id"
+            )
+        
+        # 验证知识库是否存在且属于当前用户
+        from models import KnowledgeBase
+        knowledge_base = (
+            db.query(KnowledgeBase)
+            .filter(
+                KnowledgeBase.id == req.knowledge_base_id,
+                KnowledgeBase.user_id == current_user.id,
+            )
+            .first()
+        )
+        if not knowledge_base:
+            raise HTTPException(status_code=404, detail="知识库不存在")
+        
+        # 创建新对话
         conversation = Conversation(
             user_id=current_user.id,
+            knowledge_base_id=req.knowledge_base_id,
             title=req.question.strip()[:50] if req.question else "新对话",
         )
         db.add(conversation)

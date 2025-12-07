@@ -52,6 +52,8 @@ class DocumentStat(Base):
 # 在线编辑的 Markdown 文档
 # MarkdownDoc: 在线编辑的 Markdown 文档，用于记录文档的标题、内容、创建时间和更新时间
 # id: 文档 ID
+# user_id: 用户 ID
+# knowledge_base_id: 所属知识库 ID
 # title: 文档标题
 # content: 文档内容
 # created_at: 创建时间
@@ -62,6 +64,7 @@ class MarkdownDoc(Base):
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, nullable=False, index=True)  # 添加用户ID
+    knowledge_base_id = Column(String, nullable=False, index=True)  # 所属知识库
     title = Column(String, nullable=False)
     content = Column(Text, nullable=False, default="")
     doc_type = Column(String, nullable=True)  # 文档类型：web, markdown, pdf
@@ -71,10 +74,29 @@ class MarkdownDoc(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
 
+# 知识库
+# KnowledgeBase: 知识库，用于组织对话和文档
+# id: 知识库 ID
+# user_id: 用户 ID
+# name: 知识库名称
+# description: 知识库描述（可选）
+# created_at: 创建时间
+# updated_at: 更新时间
+class KnowledgeBase(Base):
+    __tablename__ = "knowledge_bases"
+
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    user_id = Column(String, nullable=False, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 # 对话会话
 # Conversation: 对话会话，每次对话是一个会话
 # id: 会话 ID
 # user_id: 用户 ID
+# knowledge_base_id: 所属知识库 ID
 # title: 会话标题（自动生成或用户设置）
 # created_at: 创建时间
 # updated_at: 更新时间
@@ -83,6 +105,7 @@ class Conversation(Base):
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     user_id = Column(String, nullable=False, index=True)
+    knowledge_base_id = Column(String, nullable=False, index=True)  # 所属知识库
     title = Column(String, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

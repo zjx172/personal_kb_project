@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 
 from db import get_db, SessionLocal
-from models import User, MarkdownDoc
+from models import User, MarkdownDoc, KnowledgeBase
 from auth import get_current_user
 from schemas import UploadPdfResponse
 from config import BASE_DIR
@@ -24,11 +24,34 @@ router = APIRouter(tags=["pdf"])
 logger = logging.getLogger(__name__)
 
 
+def get_or_create_default_knowledge_base(db: Session, user_id: str) -> KnowledgeBase:
+    """获取或创建用户的默认知识库"""
+    kb = (
+        db.query(KnowledgeBase)
+        .filter(
+            KnowledgeBase.user_id == user_id,
+            KnowledgeBase.name == "默认知识库",
+        )
+        .first()
+    )
+    if not kb:
+        kb = KnowledgeBase(
+            user_id=user_id,
+            name="默认知识库",
+            description="系统自动创建的默认知识库",
+        )
+        db.add(kb)
+        db.commit()
+        db.refresh(kb)
+    return kb
+
+
 async def process_pdf_extraction(
     task_id: str,
     pdf_path: Path,
     doc_id: str,
     user_id: str,
+    knowledge_base_id: Optional[str],
     title: Optional[str],
     filename: str,
 ):
@@ -143,9 +166,31 @@ async def process_pdf_extraction(
         now = datetime.utcnow()
         db = SessionLocal()
         try:
+            # 确定知识库ID
+            final_kb_id = knowledge_base_id
+            if not final_kb_id:
+                # 如果没有提供，使用默认知识库
+                default_kb = get_or_create_default_knowledge_base(db, user_id)
+                final_kb_id = default_kb.id
+            else:
+                # 验证知识库是否存在且属于当前用户
+                kb = (
+                    db.query(KnowledgeBase)
+                    .filter(
+                        KnowledgeBase.id == final_kb_id,
+                        KnowledgeBase.user_id == user_id,
+                    )
+                    .first()
+                )
+                if not kb:
+                    # 如果知识库不存在，使用默认知识库
+                    default_kb = get_or_create_default_knowledge_base(db, user_id)
+                    final_kb_id = default_kb.id
+            
             doc = MarkdownDoc(
                 id=doc_id,
                 user_id=user_id,
+                knowledge_base_id=final_kb_id,
                 title=title,
                 content=pdf_text,  # 存储提取的文本内容
                 doc_type="pdf",
@@ -213,6 +258,7 @@ async def process_pdf_extraction(
 async def upload_pdf(
     file: UploadFile = File(...),
     title: Optional[str] = None,
+    knowledge_base_id: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -264,6 +310,7 @@ async def upload_pdf(
                 pdf_path=pdf_path,
                 doc_id=doc_id,
                 user_id=current_user.id,
+                knowledge_base_id=knowledge_base_id,
                 title=title,
                 filename=file.filename,
             )

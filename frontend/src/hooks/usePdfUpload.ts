@@ -8,7 +8,10 @@ export interface PdfUploadProgress {
   status: "pending" | "processing" | "completed" | "failed";
 }
 
-export function usePdfUpload(onSuccess?: () => void) {
+export function usePdfUpload(
+  onSuccess?: () => void,
+  knowledgeBaseId?: string | null
+) {
   const [uploadingPdf, setUploadingPdf] = useState(false);
   const [uploadProgress, setUploadProgress] =
     useState<PdfUploadProgress | null>(null);
@@ -101,7 +104,11 @@ export function usePdfUpload(onSuccess?: () => void) {
     });
 
     try {
-      const response = await uploadPdf(file, file.name.replace(".pdf", ""));
+      const response = await uploadPdf(
+        file,
+        file.name.replace(".pdf", ""),
+        knowledgeBaseId || undefined
+      );
       // 开始轮询任务状态
       pollTaskStatus(response.task_id);
     } catch (e: any) {

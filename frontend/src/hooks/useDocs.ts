@@ -2,14 +2,14 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { listDocs, createDoc, deleteDoc, MarkdownDocItem } from "../api";
 
-export function useDocs() {
+export function useDocs(knowledgeBaseId?: string | null) {
   const [docs, setDocs] = useState<MarkdownDocItem[]>([]);
   const [loading, setLoading] = useState(false);
 
   const loadDocs = async () => {
     setLoading(true);
     try {
-      const data = await listDocs();
+      const data = await listDocs(knowledgeBaseId || undefined);
       setDocs(data);
     } catch (e) {
       console.error(e);
@@ -21,6 +21,7 @@ export function useDocs() {
   const handleCreate = async () => {
     try {
       const newDoc = await createDoc({
+        knowledge_base_id: knowledgeBaseId || undefined,
         title: "未命名文档",
         content: "",
       });
