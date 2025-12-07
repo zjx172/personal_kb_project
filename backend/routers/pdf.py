@@ -53,14 +53,21 @@ async def process_pdf_extraction(
             # 逐页提取文本并更新进度
             text_parts = []
             for i, doc in enumerate(pdf_docs):
-                text_parts.append(doc.page_content)
-                progress = 10 + int((i + 1) / total_pages * 60)  # 10-70%
-                await update_task(
-                    task_id,
-                    TaskStatus.PROCESSING,
-                    progress,
-                    f"正在提取第 {i+1}/{total_pages} 页...",
-                )
+                try:
+                    text_parts.append(doc.page_content)
+                    progress = 10 + int((i + 1) / total_pages * 60)  # 10-70%
+                    await update_task(
+                        task_id,
+                        TaskStatus.PROCESSING,
+                        progress,
+                        f"正在提取第 {i+1}/{total_pages} 页...",
+                    )
+                except Exception as page_error:
+                    logger.warning(f"提取第 {i+1} 页文本失败: {str(page_error)}")
+                    # 继续处理下一页，不阻塞
+                # 定期让出控制权，避免长时间阻塞
+                if (i + 1) % 10 == 0:
+                    await asyncio.sleep(0)
 
             pdf_text = "\n\n".join(text_parts)
         except Exception as load_error:
@@ -69,27 +76,44 @@ async def process_pdf_extraction(
             try:
                 import pypdf
 
-                with open(pdf_path, "rb") as pdf_file:
-                    pdf_reader = pypdf.PdfReader(pdf_file)
-                    total_pages = len(pdf_reader.pages)
-                    logger.info(f"使用pypdf加载PDF，共 {total_pages} 页")
+                # 将整个PDF提取过程放到线程池中执行，避免阻塞事件循环
+                loop = asyncio.get_event_loop()
+                
+                # 先获取总页数（快速操作）
+                def get_page_count():
+                    with open(pdf_path, "rb") as pdf_file:
+                        pdf_reader = pypdf.PdfReader(pdf_file)
+                        return len(pdf_reader.pages)
+                
+                total_pages = await loop.run_in_executor(None, get_page_count)
+                logger.info(f"使用pypdf加载PDF，共 {total_pages} 页")
+                
+                await update_task(
+                    task_id,
+                    TaskStatus.PROCESSING,
+                    15,
+                    f"开始提取 {total_pages} 页文本内容...",
+                )
+                
+                # 将文本提取放到线程池中执行，避免阻塞
+                def extract_pdf_text():
+                    """在线程池中执行PDF文本提取，避免阻塞事件循环"""
                     text_parts = []
-                    for i, page in enumerate(pdf_reader.pages):
-                        try:
-                            page_text = page.extract_text()
-                            if page_text:
-                                text_parts.append(page_text)
-                            progress = 10 + int((i + 1) / total_pages * 60)  # 10-70%
-                            await update_task(
-                                task_id,
-                                TaskStatus.PROCESSING,
-                                progress,
-                                f"正在提取第 {i+1}/{total_pages} 页...",
-                            )
-                        except Exception as page_error:
-                            logger.warning(f"提取第 {i+1} 页文本失败: {str(page_error)}")
-                    pdf_text = "\n\n".join(text_parts)
-                    logger.info(f"使用pypdf提取文本完成，文本长度: {len(pdf_text)} 字符")
+                    with open(pdf_path, "rb") as pdf_file:
+                        pdf_reader = pypdf.PdfReader(pdf_file)
+                        for i, page in enumerate(pdf_reader.pages):
+                            try:
+                                page_text = page.extract_text()
+                                if page_text:
+                                    text_parts.append(page_text)
+                            except Exception as page_error:
+                                logger.warning(f"提取第 {i+1} 页文本失败: {str(page_error)}")
+                                # 继续处理下一页，不阻塞
+                    return "\n\n".join(text_parts)
+                
+                # 异步执行提取，不阻塞事件循环
+                pdf_text = await loop.run_in_executor(None, extract_pdf_text)
+                logger.info(f"使用pypdf提取文本完成，文本长度: {len(pdf_text)} 字符")
             except Exception as pypdf_error:
                 logger.error(f"pypdf加载也失败: {str(pypdf_error)}", exc_info=True)
                 raise Exception(

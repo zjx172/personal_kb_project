@@ -72,12 +72,18 @@ const HomePage: React.FC = () => {
   // 加载对话消息
   useEffect(() => {
     if (currentConversationId) {
-      loadConversationMessages(currentConversationId).then((msgs) => {
-        setMessages(msgs);
-      });
+      loadConversationMessages(currentConversationId)
+        .then((msgs) => {
+          setMessages(msgs);
+        })
+        .catch((error) => {
+          console.error("加载对话消息失败:", error);
+          setMessages([]);
+        });
     } else {
       setMessages([]);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentConversationId]);
 
   // 初始化加载
@@ -239,7 +245,7 @@ const HomePage: React.FC = () => {
         )}
 
         {/* 对话消息列表 */}
-        <div className="flex-1 overflow-y-auto px-4 py-6">
+        <div className="flex-1 overflow-y-auto px-4 py-6 pt-16">
           <MessageList
             messages={messages}
             querying={querying}

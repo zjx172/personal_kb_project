@@ -31,10 +31,11 @@ export function useConversations() {
       const convs = await listConversations();
       setConversations(convs);
 
+      // 不再自动选中对话，让用户手动选择
       // 如果有对话但没有当前对话，选择最新的对话
-      if (convs.length > 0 && !currentConversationId) {
-        setCurrentConversationId(convs[0].id);
-      }
+      // if (convs.length > 0 && !currentConversationId) {
+      //   setCurrentConversationId(convs[0].id);
+      // }
     } catch (e) {
       console.error(e);
     } finally {

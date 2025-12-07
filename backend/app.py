@@ -46,7 +46,7 @@ async def timeout_middleware(request, call_next):
         return JSONResponse(
             status_code=504,
             content={"detail": "Request timeout"}
-        )
+)
 
 # 注册路由
 from routers import (

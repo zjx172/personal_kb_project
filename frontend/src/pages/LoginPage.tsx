@@ -254,11 +254,6 @@ const LoginPage: React.FC = () => {
                   <p className="text-xs text-muted-foreground text-center">
                     登录即表示你同意我们的服务条款
                   </p>
-                  <div className="flex items-center justify-center gap-4 text-xs text-muted-foreground">
-                    <span>• 免费使用</span>
-                    <span>• 数据私有</span>
-                    <span>• 随时导出</span>
-                  </div>
                 </div>
               </CardContent>
             </Card>

@@ -59,6 +59,7 @@ import {
   Citation,
   getPdfUrl,
 } from "../api";
+import { PdfViewer } from "../components/PdfViewer";
 
 const DocPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -1096,14 +1097,10 @@ const DocPage: React.FC = () => {
               <div className="flex-1 flex overflow-hidden">
                 {currentDoc?.doc_type === "pdf" ? (
                   // PDF预览模式
-                  <div className="w-full overflow-y-auto bg-background flex items-center justify-center">
-                    <embed
-                      src={getPdfUrl(currentDoc.id)}
-                      type="application/pdf"
-                      className="w-full h-full min-h-full"
-                      style={{ minHeight: "calc(100vh - 200px)" }}
+                  <PdfViewer
+                    url={getPdfUrl(currentDoc.id)}
+                    title={currentDoc.title || "PDF文档"}
                     />
-                  </div>
                 ) : (
                   // Markdown编辑模式
                   <>

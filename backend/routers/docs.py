@@ -10,7 +10,6 @@ from typing import List
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 from readability import Document
 import html2text
@@ -115,6 +114,69 @@ async def create_markdown_doc(
         updated_at=doc.updated_at,
     )
     return result
+
+
+# 注意：更具体的路由必须放在通用路由之前，否则会被通用路由先匹配
+@router.get("/{doc_id}/pdf")
+def get_pdf_file(
+    doc_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """获取PDF文件用于预览"""
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"请求PDF文件，doc_id: {doc_id}, user_id: {current_user.id}")
+    
+    # 先查询文档是否存在（不限制 doc_type）
+    doc = (
+        db.query(MarkdownDoc)
+        .filter(
+            MarkdownDoc.id == doc_id,
+            MarkdownDoc.user_id == current_user.id,
+        )
+        .first()
+    )
+    
+    if not doc:
+        logger.warning(f"文档不存在: doc_id={doc_id}, user_id={current_user.id}")
+        raise HTTPException(status_code=404, detail="文档不存在")
+    
+    logger.info(f"找到文档: id={doc.id}, doc_type={doc.doc_type}, pdf_file_path={doc.pdf_file_path}")
+    
+    # 检查文档类型
+    if doc.doc_type != "pdf":
+        logger.warning(f"文档类型不是PDF: doc_id={doc_id}, doc_type={doc.doc_type}")
+        raise HTTPException(status_code=404, detail=f"文档类型不是PDF，当前类型: {doc.doc_type}")
+
+    if not doc.pdf_file_path:
+        logger.warning(f"PDF文件路径不存在: doc_id={doc_id}")
+        raise HTTPException(status_code=404, detail="PDF文件路径不存在")
+
+    pdf_path = Path(doc.pdf_file_path)
+    logger.info(f"PDF文件路径: {pdf_path}, 是否存在: {pdf_path.exists()}")
+    
+    if not pdf_path.exists():
+        logger.error(f"PDF文件不存在: {pdf_path}")
+        raise HTTPException(status_code=404, detail=f"PDF文件不存在: {pdf_path}")
+
+    logger.info(f"返回PDF文件: {pdf_path}")
+    from fastapi.responses import Response
+    
+    # 读取文件内容
+    with open(pdf_path, "rb") as f:
+        content = f.read()
+    
+    # 返回响应，设置正确的 headers 以支持预览
+    return Response(
+        content=content,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'inline; filename="{Path(doc.pdf_file_path).name}"',
+            "Content-Type": "application/pdf",
+        },
+    )
 
 
 @router.get("/{doc_id}", response_model=MarkdownDocDetail)
@@ -300,40 +362,6 @@ async def extract_web_content(
         raise HTTPException(status_code=400, detail=f"无法获取网页内容: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"提取网页内容失败: {str(e)}")
-
-
-@router.get("/{doc_id}/pdf")
-def get_pdf_file(
-    doc_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """获取PDF文件用于预览"""
-    doc = (
-        db.query(MarkdownDoc)
-        .filter(
-            MarkdownDoc.id == doc_id,
-            MarkdownDoc.user_id == current_user.id,
-            MarkdownDoc.doc_type == "pdf",
-        )
-        .first()
-    )
-
-    if not doc:
-        raise HTTPException(status_code=404, detail="PDF文档不存在")
-
-    if not doc.pdf_file_path:
-        raise HTTPException(status_code=404, detail="PDF文件路径不存在")
-
-    pdf_path = Path(doc.pdf_file_path)
-    if not pdf_path.exists():
-        raise HTTPException(status_code=404, detail="PDF文件不存在")
-
-    return FileResponse(
-        path=str(pdf_path),
-        media_type="application/pdf",
-        filename=Path(doc.pdf_file_path).name,
-    )
 
 
 @router.post("/{doc_id}/generate-summary")
