@@ -45,6 +45,7 @@ class LocalRAGService(RAGServiceInterface):
     
     def __init__(self):
         import sys
+        import importlib.util
         from pathlib import Path
         
         # 添加 rag-service 到 Python 路径
@@ -53,8 +54,14 @@ class LocalRAGService(RAGServiceInterface):
         if str(RAG_SERVICE_PATH) not in sys.path:
             sys.path.insert(0, str(RAG_SERVICE_PATH))
         
-        from rag_service import rag_pipeline
-        self.pipeline = rag_pipeline
+        # 由于目录名包含连字符，使用 importlib 动态导入
+        services_spec = importlib.util.spec_from_file_location(
+            "rag_service_services",
+            RAG_SERVICE_PATH / "services.py"
+        )
+        rag_services_module = importlib.util.module_from_spec(services_spec)
+        services_spec.loader.exec_module(rag_services_module)
+        self.pipeline = rag_services_module.rag_pipeline
     
     def query(
         self,

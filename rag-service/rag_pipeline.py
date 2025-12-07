@@ -6,7 +6,12 @@ from typing import Dict, Any, Optional
 from langchain.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
 from langchain_core.runnables import RunnablePassthrough, RunnableLambda
-from .retrieval import VectorRetrievalService
+
+# 兼容相对导入和绝对导入
+try:
+    from .retrieval import VectorRetrievalService
+except ImportError:
+    from retrieval import VectorRetrievalService
 
 
 class RAGPipeline:

@@ -3,7 +3,6 @@ PDF 相关路由
 """
 import asyncio
 import logging
-import shutil
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -16,9 +15,9 @@ from db import get_db, SessionLocal
 from models import User, MarkdownDoc, KnowledgeBase
 from auth import get_current_user
 from schemas import UploadPdfResponse
-from config import BASE_DIR
 from tasks import update_task, TaskStatus
 from services.doc_service import upsert_markdown_doc_to_vectorstore
+from services.storage import storage
 
 router = APIRouter(tags=["pdf"])
 logger = logging.getLogger(__name__)
@@ -48,12 +47,13 @@ def get_or_create_default_knowledge_base(db: Session, user_id: str) -> Knowledge
 
 async def process_pdf_extraction(
     task_id: str,
-    pdf_path: Path,
-    doc_id: str,
-    user_id: str,
-    knowledge_base_id: Optional[str],
-    title: Optional[str],
-    filename: str,
+    pdf_path: Optional[Path] = None,
+    pdf_url: Optional[str] = None,
+    doc_id: str = "",
+    user_id: str = "",
+    knowledge_base_id: Optional[str] = None,
+    title: Optional[str] = None,
+    filename: str = "",
 ):
     """后台任务：处理PDF提取"""
     try:
@@ -63,6 +63,19 @@ async def process_pdf_extraction(
         pdf_text = ""
         pdf_docs = None
         total_pages = 0
+
+        # 如果使用 OSS，需要先下载文件到临时位置
+        temp_pdf_path = None
+        if pdf_url and not pdf_path:
+            # 从 OSS 下载文件
+            from services.storage import storage
+            import tempfile
+            temp_pdf_path = Path(tempfile.mktemp(suffix=".pdf"))
+            pdf_content = storage.download_file(pdf_url.split("/")[-1] if "/" in pdf_url else pdf_url)
+            with open(temp_pdf_path, "wb") as f:
+                f.write(pdf_content)
+            pdf_path = temp_pdf_path
+            logger.info(f"已从 OSS 下载文件到临时位置: {temp_pdf_path}")
 
         # 尝试使用 PyPDFLoader，如果失败则使用 pypdf 直接处理
         try:
@@ -271,35 +284,43 @@ async def upload_pdf(
     logger.info(f"开始上传PDF文件: {file.filename}, 用户: {current_user.id}")
 
     pdf_path = None
+    pdf_url = None
     try:
-        # 创建PDF存储目录
-        pdf_dir = Path(BASE_DIR) / "uploads" / "pdfs"
-        pdf_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"PDF存储目录: {pdf_dir}")
-
         # 生成唯一文件名和任务ID
         doc_id = str(uuid.uuid4())
         task_id = str(uuid.uuid4())
         file_extension = Path(file.filename).suffix
         pdf_filename = f"{doc_id}{file_extension}"
-        pdf_path = pdf_dir / pdf_filename
+        
+        # 使用存储适配器上传文件
+        # 文件路径：pdfs/{doc_id}.pdf
+        storage_path = f"pdfs/{pdf_filename}"
 
-        logger.info(f"保存PDF文件到: {pdf_path}")
+        logger.info(f"上传PDF文件: {storage_path}")
 
         # 初始化任务
         await update_task(task_id, TaskStatus.PENDING, 0, "准备上传PDF文件...")
 
-        # 保存PDF文件
+        # 读取文件内容
         file.file.seek(0)  # 确保文件指针在开头
-        with open(pdf_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        file_content = await file.read()
+        
+        # 上传到存储（本地或 OSS）
+        pdf_url = storage.upload_file(
+            file_content=file_content,
+            file_path=storage_path,
+            content_type="application/pdf",
+        )
 
-        # 验证文件是否成功保存
-        if not pdf_path.exists():
-            raise Exception(f"文件保存失败: {pdf_path}")
-
-        file_size = pdf_path.stat().st_size
-        logger.info(f"PDF文件已保存，大小: {file_size} 字节")
+        # 如果是本地存储，保存路径用于后续处理
+        if hasattr(storage, 'base_dir'):
+            pdf_path = Path(pdf_url)
+        else:
+            # OSS 存储，使用 URL
+            pdf_path = None
+        
+        file_size = len(file_content)
+        logger.info(f"PDF文件已上传，大小: {file_size} 字节，URL: {pdf_url}")
 
         await update_task(task_id, TaskStatus.PROCESSING, 5, "文件上传成功，开始处理...")
 

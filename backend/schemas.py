@@ -162,6 +162,43 @@ class UploadPdfResponse(BaseModel):
     message: str
 
 
+# ---- 分片上传相关 ----
+class ChunkUploadInitRequest(BaseModel):
+    filename: str
+    total_size: int
+    chunk_size: int
+    title: Optional[str] = None
+    knowledge_base_id: Optional[str] = None
+
+
+class ChunkUploadInitResponse(BaseModel):
+    upload_id: str
+    chunk_size: int
+    total_chunks: int
+
+
+class ChunkUploadRequest(BaseModel):
+    upload_id: str
+    chunk_index: int
+    chunk_data: bytes  # 实际使用时通过 FormData 传递
+
+
+class ChunkUploadResponse(BaseModel):
+    upload_id: str
+    chunk_index: int
+    uploaded: bool
+    message: str
+
+
+class ChunkUploadCompleteRequest(BaseModel):
+    upload_id: str
+
+
+class ChunkUploadCompleteResponse(BaseModel):
+    task_id: str
+    message: str
+
+
 # ---- 知识库相关 ----
 class KnowledgeBaseCreate(BaseModel):
     name: str

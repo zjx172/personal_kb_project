@@ -198,6 +198,15 @@ export async function uploadPdf(
   title?: string,
   knowledge_base_id?: string
 ): Promise<UploadPdfResponse> {
+  // 如果文件大于 10MB，使用分片上传
+  const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB per chunk
+  const USE_CHUNK_THRESHOLD = 10 * 1024 * 1024; // 10MB
+
+  if (file.size > USE_CHUNK_THRESHOLD) {
+    return uploadPdfChunked(file, title, knowledge_base_id, CHUNK_SIZE);
+  }
+
+  // 小文件使用普通上传
   const formData = new FormData();
   formData.append("file", file);
   if (title) {
@@ -222,6 +231,97 @@ export async function uploadPdf(
     }
   );
   return resp.data;
+}
+
+// 分片上传接口
+export interface ChunkUploadInitResponse {
+  upload_id: string;
+  chunk_size: number;
+  total_chunks: number;
+}
+
+export interface ChunkUploadResponse {
+  upload_id: string;
+  chunk_index: number;
+  uploaded: boolean;
+  message: string;
+}
+
+export async function uploadPdfChunked(
+  file: File,
+  title?: string,
+  knowledge_base_id?: string,
+  chunkSize: number = 5 * 1024 * 1024
+): Promise<UploadPdfResponse> {
+  const token = getToken();
+  const headers: Record<string, string> = {};
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  // 1. 初始化分片上传
+  const initResp = await axios.post<ChunkUploadInitResponse>(
+    `${API_BASE_URL}/chunk-upload/init`,
+    {
+      filename: file.name,
+      total_size: file.size,
+      chunk_size: chunkSize,
+      title,
+      knowledge_base_id,
+    },
+    { headers }
+  );
+
+  const { upload_id, total_chunks } = initResp.data;
+
+  // 2. 上传所有分片
+  for (let chunkIndex = 0; chunkIndex < total_chunks; chunkIndex++) {
+    const start = chunkIndex * chunkSize;
+    const end = Math.min(start + chunkSize, file.size);
+    const chunk = file.slice(start, end);
+
+    const chunkFormData = new FormData();
+    chunkFormData.append("upload_id", upload_id);
+    chunkFormData.append("chunk_index", chunkIndex.toString());
+    chunkFormData.append("chunk", chunk);
+
+    try {
+      await axios.post<ChunkUploadResponse>(
+        `${API_BASE_URL}/chunk-upload/upload`,
+        chunkFormData,
+        {
+          headers,
+          onUploadProgress: (progressEvent) => {
+            if (progressEvent.total) {
+              const chunkProgress =
+                (progressEvent.loaded / progressEvent.total) * 100;
+              const overallProgress =
+                ((chunkIndex * chunkSize + progressEvent.loaded) / file.size) *
+                100;
+              console.log(
+                `分片 ${chunkIndex + 1}/${total_chunks} 上传进度: ${chunkProgress.toFixed(1)}%, 总体进度: ${overallProgress.toFixed(1)}%`
+              );
+            }
+          },
+        }
+      );
+    } catch (error: any) {
+      // 上传失败，取消上传
+      await axios.delete(`${API_BASE_URL}/chunk-upload/${upload_id}`, {
+        headers,
+      });
+      throw new Error(`分片 ${chunkIndex + 1} 上传失败: ${error.message}`);
+    }
+  }
+
+  // 3. 完成上传
+  const completeResp = await axios.post<UploadPdfResponse>(
+    `${API_BASE_URL}/chunk-upload/complete`,
+    { upload_id },
+    { headers }
+  );
+
+  return completeResp.data;
 }
 
 export async function getTaskStatus(taskId: string): Promise<TaskInfo> {

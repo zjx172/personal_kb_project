@@ -104,6 +104,7 @@ export function usePdfUpload(
     });
 
     try {
+      // uploadPdf 会自动判断是否使用分片上传
       const response = await uploadPdf(
         file,
         file.name.replace(".pdf", ""),

@@ -29,3 +29,14 @@ LANGCHAIN_API_KEY = os.getenv("LANGCHAIN_API_KEY", "")
 LANGCHAIN_TRACING_V2 = os.getenv("LANGCHAIN_TRACING_V2", "false").lower() == "true"
 LANGCHAIN_PROJECT = os.getenv("LANGCHAIN_PROJECT", "wisdomvault-rag")
 LANGCHAIN_ENDPOINT = os.getenv("LANGCHAIN_ENDPOINT", "https://api.smith.langchain.com")
+
+# 环境配置
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development").lower()  # development | production
+
+# 存储配置
+USE_OSS_STORAGE = os.getenv("USE_OSS_STORAGE", "false").lower() == "true" or ENVIRONMENT == "production"
+OSS_ACCESS_KEY_ID = os.getenv("OSS_ACCESS_KEY_ID", "")
+OSS_ACCESS_KEY_SECRET = os.getenv("OSS_ACCESS_KEY_SECRET", "")
+OSS_ENDPOINT = os.getenv("OSS_ENDPOINT", "")  # 如：oss-cn-hangzhou.aliyuncs.com
+OSS_BUCKET_NAME = os.getenv("OSS_BUCKET_NAME", "")
+OSS_BASE_URL = os.getenv("OSS_BASE_URL", "")  # 可选，用于 CDN 加速
