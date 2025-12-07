@@ -44,9 +44,8 @@ export function useConversations() {
     }
   }, []);
 
-  const loadConversationMessages = async (
-    conversationId: string
-  ): Promise<Message[]> => {
+  const loadConversationMessages = useCallback(
+    async (conversationId: string): Promise<Message[]> => {
     try {
       const detail = await getConversation(conversationId);
 
@@ -78,7 +77,9 @@ export function useConversations() {
       console.error("loadConversationMessages 错误:", e);
       return [];
     }
-  };
+    },
+    []
+  );
 
   const handleCreateConversation = async (knowledgeBaseId: string) => {
     if (!knowledgeBaseId) {

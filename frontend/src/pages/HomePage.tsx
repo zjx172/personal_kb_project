@@ -28,6 +28,8 @@ const HomePage: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [searchFilters, setSearchFilters] = useState<SearchFilterOptions>({});
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const isNavigatingRef = useRef(false);
+  const hasInitializedRef = useRef(false);
 
   // Hooks
   const {
@@ -39,35 +41,55 @@ const HomePage: React.FC = () => {
     handleUpdateKnowledgeBase,
   } = useKnowledgeBases();
 
-  // 从 URL 参数同步知识库 ID
+  // 统一处理 URL 和知识库 ID 的同步
   useEffect(() => {
-    if (urlKnowledgeBaseId && urlKnowledgeBaseId !== currentKnowledgeBaseId) {
-      setCurrentKnowledgeBaseId(urlKnowledgeBaseId);
-    } else if (
+    // 如果正在导航中，跳过
+    if (isNavigatingRef.current) {
+      return;
+    }
+
+    // 情况1: URL 中有知识库 ID，同步到状态
+    if (urlKnowledgeBaseId) {
+      if (urlKnowledgeBaseId !== currentKnowledgeBaseId) {
+        setCurrentKnowledgeBaseId(urlKnowledgeBaseId);
+        hasInitializedRef.current = true;
+      }
+      return;
+    }
+
+    // 情况2: URL 中没有知识库 ID，但状态中有，更新 URL
+    if (currentKnowledgeBaseId && knowledgeBases.some((kb) => kb.id === currentKnowledgeBaseId)) {
+      isNavigatingRef.current = true;
+      navigate(`/kb/${currentKnowledgeBaseId}`, { replace: true });
+      setTimeout(() => {
+        isNavigatingRef.current = false;
+      }, 100);
+      return;
+    }
+
+    // 情况3: URL 和状态都没有，但有知识库列表，导航到第一个（只执行一次）
+    if (
+      !hasInitializedRef.current &&
       !urlKnowledgeBaseId &&
+      !currentKnowledgeBaseId &&
       knowledgeBases.length > 0 &&
-      !currentKnowledgeBaseId
+      !loadingKnowledgeBases
     ) {
-      // 如果 URL 中没有知识库 ID，但有知识库列表，导航到第一个知识库
+      isNavigatingRef.current = true;
+      hasInitializedRef.current = true;
       navigate(`/kb/${knowledgeBases[0].id}`, { replace: true });
+      setTimeout(() => {
+        isNavigatingRef.current = false;
+      }, 100);
     }
   }, [
     urlKnowledgeBaseId,
     currentKnowledgeBaseId,
     knowledgeBases,
+    loadingKnowledgeBases,
     navigate,
     setCurrentKnowledgeBaseId,
   ]);
-
-  // 当知识库 ID 变化时，更新 URL（但不包括从 URL 读取的情况）
-  useEffect(() => {
-    if (
-      currentKnowledgeBaseId &&
-      currentKnowledgeBaseId !== urlKnowledgeBaseId
-    ) {
-      navigate(`/kb/${currentKnowledgeBaseId}`, { replace: true });
-    }
-  }, [currentKnowledgeBaseId, urlKnowledgeBaseId, navigate]);
 
   const {
     docs,
@@ -106,6 +128,7 @@ const HomePage: React.FC = () => {
     currentSourcesCount,
     handleQuery,
     handleStop,
+    resetQueryState,
   } = useStreamQuery(
     currentConversationId,
     currentKnowledgeBaseId,
@@ -122,6 +145,9 @@ const HomePage: React.FC = () => {
 
   // 加载对话消息
   useEffect(() => {
+    // 切换对话时重置查询状态
+    resetQueryState();
+
     if (currentConversationId) {
       loadConversationMessages(currentConversationId)
         .then((msgs) => {
@@ -134,8 +160,7 @@ const HomePage: React.FC = () => {
     } else {
       setMessages([]);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentConversationId]);
+  }, [currentConversationId, loadConversationMessages, resetQueryState]);
 
   // 当知识库变化时，加载该知识库下的对话
   useEffect(() => {

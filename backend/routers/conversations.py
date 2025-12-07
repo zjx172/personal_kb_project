@@ -121,6 +121,7 @@ def get_conversation(
 
     return ConversationDetail(
         id=conversation.id,
+        knowledge_base_id=conversation.knowledge_base_id,
         title=conversation.title,
         created_at=conversation.created_at,
         updated_at=conversation.updated_at,

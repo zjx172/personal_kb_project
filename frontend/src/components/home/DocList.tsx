@@ -34,7 +34,7 @@ export const DocList: React.FC<DocListProps> = ({
     if (currentKnowledgeBaseId) {
       navigate(`/kb/${currentKnowledgeBaseId}/doc/${id}`);
     } else {
-      navigate(`/doc/${id}`);
+    navigate(`/doc/${id}`);
     }
   };
 

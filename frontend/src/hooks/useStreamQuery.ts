@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { toast } from "sonner";
 import { queryKnowledgeBaseStream, QueryResponse } from "../api";
 import { SearchFilterOptions } from "../components/SearchFilters";
@@ -87,6 +87,27 @@ export function useStreamQuery(
     streamBufferRef.current = "";
     streamDisplayRef.current = "";
   };
+
+  const resetQueryState = useCallback(() => {
+    // 停止任何正在进行的请求
+    setAbortController((prev) => {
+      if (prev) {
+        prev.abort();
+      }
+      return null;
+    });
+    if (streamTimerRef.current) {
+      clearTimeout(streamTimerRef.current);
+      streamTimerRef.current = null;
+    }
+    // 重置所有查询相关状态
+    setQuerying(false);
+    setCurrentAnswer("");
+    setCurrentCitations([]);
+    setCurrentSourcesCount(0);
+    streamBufferRef.current = "";
+    streamDisplayRef.current = "";
+  }, []);
 
   const handleQuery = async (
     messages: Message[],
@@ -255,5 +276,6 @@ export function useStreamQuery(
     currentSourcesCount,
     handleQuery,
     handleStop,
+    resetQueryState,
   };
 }

@@ -28,18 +28,14 @@ export function useKnowledgeBases() {
     try {
       const data = await listKnowledgeBases();
       setKnowledgeBases(data);
-      // 如果没有选中的知识库，且存在知识库，自动选中第一个
-      if (!currentKnowledgeBaseId && data.length > 0) {
-        setCurrentKnowledgeBaseId(data[0].id);
-        setExpandedBases(new Set([data[0].id]));
-      }
+      // 不再自动设置知识库，由调用方（如 HomePage）根据 URL 来决定
     } catch (error: any) {
       console.error("加载知识库失败:", error);
       toast.error(error?.message || "加载知识库失败");
     } finally {
       setLoading(false);
     }
-  }, [currentKnowledgeBaseId]);
+  }, []);
 
   const handleCreateKnowledgeBase = useCallback(async () => {
     try {
