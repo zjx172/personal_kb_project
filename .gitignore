@@ -11,3 +11,4 @@ backend/app.log.2
 backend/app.log.3
 backend/app.log.4
 backend/app.log.5
+backend/.env

@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Layout, Spin, Message, Card, Typography } from "@arco-design/web-react";
 import { getDocsGraph, DocsGraph } from "../api";
+import { useAuth } from "../contexts/AuthContext";
 
 const { Content, Header } = Layout;
 
@@ -8,12 +10,21 @@ const { Content, Header } = Layout;
  * 知识图谱页面：可视化文档之间的关系
  */
 const GraphPage: React.FC = () => {
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [graph, setGraph] = useState<DocsGraph | null>(null);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    loadGraph();
-  }, []);
+    // 检查认证状态
+    if (!authLoading && !user) {
+      navigate("/login");
+      return;
+    }
+    if (user) {
+      loadGraph();
+    }
+  }, [user, authLoading, navigate]);
 
   const loadGraph = async () => {
     setLoading(true);

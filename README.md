@@ -1,105 +1,290 @@
 # Personal Knowledge Base Project
 
-一个基于 RAG (Retrieval-Augmented Generation) 的个人知识库系统，支持文档管理、向量检索和智能问答。
+一个基于 RAG (Retrieval-Augmented Generation) 的个人知识库系统，支持文档管理、向量检索和智能问答，集成 Google OAuth 登录认证。
 
 ## 主要功能
 
-### 1. 向量检索层
+### 1. 用户认证
+
+- Google OAuth 2.0 登录
+- JWT Token 认证
+- 用户数据隔离（每个用户只能访问自己的文档）
+
+### 2. 向量检索层
 
 - 使用 Chroma 存储文档向量
-- 支持按主题标签（topic）和文档类型（doc_type）过滤
+- 支持按主题标签（tags）和文档类型（doc_type）过滤
+- 支持日期范围过滤
 - 集成 rerank 模型提升长尾技术问题的命中率
+- 支持混合搜索（向量搜索 + 关键词搜索）
 
-### 2. RAG Pipeline
+### 3. RAG Pipeline
 
 - 基于 LangChain Runnable 构建的 RAG pipeline
 - 检索文档重组为结构化上下文
 - 优化的 prompt 模板，回答包含引用标注（[1], [2] 等）
 - 支持流式返回
+- 支持严格模式（相关性低于阈值时拒绝回答）
 
-### 3. 文档管理
+### 4. 文档管理
 
 - 在线编辑 Markdown 文档（飞书风格）
 - 支持主题标签和文档类型分类
 - 网页内容提取并转换为 Markdown
 - 文档自动同步到向量库
+- AI 自动生成摘要和推荐标签
+- 文档关系图谱可视化
 
-### 4. 前端功能
+### 5. 前端功能
 
+- Google 登录界面
 - 对话式检索界面
 - 答案中的引用标号可点击，跳转到对应文档
 - 支持按引用高亮对应原文段落
 - 文档列表和编辑界面
+- 知识图谱可视化
 
 ## 技术栈
 
 ### 后端
 
-- FastAPI
-- SQLAlchemy (SQLite)
-- LangChain
-- Chroma (向量数据库)
-- OpenAI API (Embeddings & LLM)
+- **FastAPI** - Web 框架
+- **SQLAlchemy** - ORM (SQLite)
+- **LangChain** - LLM 应用框架
+- **Chroma** - 向量数据库
+- **OpenAI API** - Embeddings & LLM
+- **python-jose** - JWT Token 处理
+- **authlib** - OAuth 2.0 客户端
+- **pyjwt** - JWT 编码/解码
 
 ### 前端
 
-- React + TypeScript
-- Vite
-- Arco Design
-- Vditor (Markdown 编辑器)
+- **React 18** + **TypeScript** - UI 框架
+- **Vite** - 构建工具
+- **React Router** - 路由管理
+- **Axios** - HTTP 客户端
+- **Tailwind CSS** - 样式框架
+- **Radix UI** - UI 组件库
+- **Sonner** - Toast 通知
+- **Lucide React** - 图标库
 
 ## 安装和运行
 
-### 后端
+### 前置要求
+
+- Python 3.9+
+- Node.js 18+
+- pnpm (推荐) 或 npm
+
+### 1. 克隆项目
+
+```bash
+git clone <repository-url>
+cd personal_kb_project
+```
+
+### 2. 后端设置
+
+#### 安装依赖
 
 ```bash
 cd backend
 pip3 install -r requirements.txt
+```
+
+#### 配置环境变量
+
+在 `backend` 目录下创建 `.env` 文件：
+
+```env
+# OpenAI 配置
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_BASE_URL=https://api.openai.com/v1
+
+# Google OAuth 配置
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google/callback
+
+# JWT 配置
+JWT_SECRET_KEY=your-random-secret-key
+```
+
+**获取 Google OAuth 凭据：**
+
+1. 访问 [Google Cloud Console](https://console.cloud.google.com/)
+2. 创建项目并启用 Google+ API
+3. 配置 OAuth 同意屏幕
+4. 创建 OAuth 2.0 客户端 ID（Web 应用类型）
+5. 添加授权重定向 URI: `http://localhost:8000/auth/google/callback`
+6. 复制客户端 ID 和密钥到 `.env` 文件
+
+**生成 JWT Secret Key：**
+
+```bash
+python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+#### 初始化数据库
+
+```bash
 python3 init_db.py
-python3 ingest.py  # 可选：导入 docs/ 目录下的文档
+```
+
+#### 启动后端服务
+
+```bash
 python3 -m uvicorn app:app --reload --port 8000
 ```
 
-### 前端
+### 3. 前端设置
+
+#### 安装依赖
 
 ```bash
 cd frontend
 pnpm install
+```
+
+#### 启动开发服务器
+
+```bash
 pnpm run dev
 ```
 
+前端将在 `http://localhost:5173` 运行。
+
 ## 使用说明
+
+### 首次使用
+
+1. 访问 `http://localhost:5173`
+2. 点击"使用 Google 登录"按钮
+3. 使用 Google 账号登录
+4. 登录成功后自动跳转到首页
+
+### 主要功能
 
 1. **创建文档**：在左侧边栏点击"新建文档"或使用"提取网页内容"功能
 2. **编辑文档**：点击文档列表中的文档进行编辑，支持设置主题标签和文档类型
 3. **搜索知识库**：在主界面输入问题，系统会从知识库中检索相关文档并生成答案
 4. **查看引用**：答案中的引用标号（如 [1], [2]）可点击，会跳转到对应文档并高亮相关段落
+5. **知识图谱**：访问 `/graph` 页面查看文档关系图谱
 
 ## 项目结构
 
 ```
-backend/
-  ├── app.py              # FastAPI 主应用
-  ├── models.py           # 数据模型
-  ├── db.py               # 数据库配置
-  ├── config.py           # 配置文件
-  ├── retrieval.py        # 向量检索服务层
-  ├── rag_pipeline.py     # RAG Pipeline
-  └── ingest.py           # 文档导入脚本
-
-frontend/
-  ├── src/
-  │   ├── pages/          # 页面组件
-  │   ├── components/     # 通用组件
-  │   └── api.ts          # API 接口
-  └── ...
+personal_kb_project/
+├── backend/
+│   ├── app.py              # FastAPI 主应用
+│   ├── auth.py              # 认证相关函数（JWT、用户管理）
+│   ├── models.py            # 数据模型（User, MarkdownDoc, Highlight 等）
+│   ├── db.py                # 数据库配置
+│   ├── config.py             # 配置文件
+│   ├── retrieval.py          # 向量检索服务层
+│   ├── rag_pipeline.py       # RAG Pipeline
+│   ├── hybrid_search.py      # 混合搜索服务
+│   ├── ai_services.py        # AI 服务（摘要、标签推荐等）
+│   ├── ingest.py             # 文档导入脚本
+│   ├── requirements.txt      # Python 依赖
+│   ├── .env                  # 环境变量（需自行创建）
+│   └── kb.db                 # SQLite 数据库
+│
+└── frontend/
+    ├── src/
+    │   ├── pages/            # 页面组件
+    │   │   ├── HomePage.tsx  # 首页（搜索界面）
+    │   │   ├── DocPage.tsx   # 文档编辑页
+    │   │   ├── GraphPage.tsx # 知识图谱页
+    │   │   └── LoginPage.tsx # 登录页
+    │   ├── components/       # 通用组件
+    │   │   ├── AnswerWithCitations.tsx
+    │   │   ├── SearchFilters.tsx
+    │   │   └── ui/           # UI 组件库
+    │   ├── contexts/         # React Context
+    │   │   └── AuthContext.tsx  # 认证上下文
+    │   ├── api.ts            # API 接口封装
+    │   └── utils/            # 工具函数
+    ├── package.json
+    └── vite.config.ts
 ```
 
-## 配置
+## API 端点
 
-在 `backend/config.py` 中配置：
+### 认证相关
 
-- `OPENAI_API_KEY`: OpenAI API Key
-- `OPENAI_BASE_URL`: API 基础 URL
-- `DOCS_DIR`: 文档目录
-- `VECTOR_STORE_DIR`: 向量库存储目录
+- `GET /auth/google` - 获取 Google OAuth 授权 URL
+- `GET /auth/google/callback` - Google OAuth 回调处理
+- `GET /auth/me` - 获取当前用户信息
+- `POST /auth/logout` - 登出
+
+### 文档相关
+
+- `GET /all/docs` - 获取文档列表（当前用户）
+- `POST /docs` - 创建文档
+- `GET /docs/{doc_id}` - 获取文档详情
+- `PUT /docs/{doc_id}` - 更新文档
+- `DELETE /docs/{doc_id}` - 删除文档
+- `POST /extract-web` - 提取网页内容
+
+### 知识库查询
+
+- `POST /query` - 查询知识库（流式返回）
+
+### 智能功能
+
+- `POST /docs/{doc_id}/generate-summary` - 生成文档摘要
+- `POST /docs/{doc_id}/recommend-tags` - 推荐标签
+- `GET /docs/{doc_id}/related` - 获取相关文档
+- `GET /docs/graph` - 获取文档关系图谱
+
+## 配置说明
+
+### 后端配置 (`backend/config.py`)
+
+主要配置项通过环境变量设置：
+
+- `OPENAI_API_KEY`: OpenAI API 密钥
+- `OPENAI_BASE_URL`: OpenAI API 基础 URL
+- `GOOGLE_CLIENT_ID`: Google OAuth 客户端 ID
+- `GOOGLE_CLIENT_SECRET`: Google OAuth 客户端密钥
+- `GOOGLE_REDIRECT_URI`: OAuth 回调 URI
+- `JWT_SECRET_KEY`: JWT 签名密钥
+
+### 前端配置
+
+API 基础 URL 在 `frontend/src/api.ts` 中配置：
+
+```typescript
+const API_BASE_URL = "http://localhost:8000";
+```
+
+## 开发说明
+
+### 数据库迁移
+
+如果修改了数据模型，需要重新初始化数据库：
+
+```bash
+cd backend
+python3 init_db.py
+```
+
+**注意**：这会清空现有数据，生产环境请使用数据库迁移工具。
+
+### 添加新功能
+
+1. 后端：在 `app.py` 中添加新的 API 端点
+2. 前端：在 `api.ts` 中添加 API 调用函数，在相应页面中使用
+
+## 注意事项
+
+1. **环境变量安全**：不要将 `.env` 文件提交到版本控制系统
+2. **JWT Secret Key**：生产环境请使用强随机字符串
+3. **CORS 配置**：生产环境需要更新 `app.py` 中的 CORS 配置
+4. **数据库备份**：定期备份 `kb.db` 文件
+5. **Google OAuth**：生产环境需要在 Google Cloud Console 添加实际域名
+
+## 许可证
+
+MIT License

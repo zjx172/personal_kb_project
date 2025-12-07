@@ -1,4 +1,7 @@
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -10,3 +13,13 @@ OPENAI_API_KEY = 'sk-SnAyrib3JgD6sCXgTIzLDlrlssCUfeMVb0ExDfvRiuhtNotT'
 OPENAI_BASE_URL ='https://api.chatanywhere.tech'
 
 DB_PATH = os.path.join(BASE_DIR, "kb.db")
+
+# Google OAuth 配置
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID", "")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET", "")
+GOOGLE_REDIRECT_URI = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:8000/auth/google/callback")
+
+# JWT 配置
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRATION_HOURS = 24 * 7  # 7 days

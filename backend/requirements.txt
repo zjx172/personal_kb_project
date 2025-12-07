@@ -12,3 +12,6 @@ beautifulsoup4
 readability-lxml
 requests
 html2text
+authlib
+pyjwt
+python-jose[cryptography]

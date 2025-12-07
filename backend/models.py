@@ -3,6 +3,18 @@ from datetime import datetime
 import uuid
 from db import Base
 
+# 用户模型
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(String, primary_key=True, index=True)
+    email = Column(String, unique=True, nullable=False, index=True)
+    name = Column(String, nullable=True)
+    picture = Column(String, nullable=True)
+    google_id = Column(String, unique=True, nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
 # 
 # 高亮
 # Highlight: 高亮，用于记录文档的阅读次数和最后阅读时间

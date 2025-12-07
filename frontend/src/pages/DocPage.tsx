@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
@@ -61,6 +62,7 @@ import {
 const DocPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [searchParams] = useSearchParams();
   const docId = id || null;
   const highlightTextParam = searchParams.get("highlight");
@@ -108,10 +110,15 @@ const DocPage: React.FC = () => {
   };
 
   useEffect(() => {
-    if (docId) {
+    // 检查认证状态
+    if (!authLoading && !user) {
+      navigate("/login");
+      return;
+    }
+    if (docId && user) {
       loadDoc();
     }
-  }, [docId]);
+  }, [docId, user, authLoading, navigate]);
 
   // 处理高亮文本
   useEffect(() => {

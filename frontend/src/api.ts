@@ -2,6 +2,39 @@ import axios from "axios";
 
 const API_BASE_URL = "http://localhost:8000";
 
+// 从 localStorage 获取 token
+const getToken = (): string | null => {
+  return localStorage.getItem("auth_token");
+};
+
+// 设置 axios 默认请求头
+axios.interceptors.request.use(
+  (config) => {
+    const token = getToken();
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// 处理 401 未授权错误
+axios.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      // 清除 token 并重定向到登录页
+      localStorage.removeItem("auth_token");
+      localStorage.removeItem("user");
+      window.location.href = "/";
+    }
+    return Promise.reject(error);
+  }
+);
+
 // // ---- KB docs in filesystem ----
 
 // export interface KbDocItem {
@@ -326,4 +359,34 @@ export async function queryKnowledgeBase(
     question,
   });
   return resp.data;
+}
+
+// ---- Authentication ----
+
+export interface User {
+  id: string;
+  email: string;
+  name?: string;
+  picture?: string;
+}
+
+export interface AuthResponse {
+  authorization_url: string;
+  state: string;
+}
+
+export async function getGoogleAuthUrl(): Promise<AuthResponse> {
+  const resp = await axios.get<AuthResponse>(`${API_BASE_URL}/auth/google`);
+  return resp.data;
+}
+
+export async function getCurrentUser(): Promise<User> {
+  const resp = await axios.get<User>(`${API_BASE_URL}/auth/me`);
+  return resp.data;
+}
+
+export async function logout(): Promise<void> {
+  await axios.post(`${API_BASE_URL}/auth/logout`);
+  localStorage.removeItem("auth_token");
+  localStorage.removeItem("user");
 }

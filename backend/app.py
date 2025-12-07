@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Depends, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, RedirectResponse
 from pydantic import BaseModel
 from typing import Optional, List
 from pathlib import Path
@@ -14,8 +14,12 @@ import html2text
 from sqlalchemy.orm import Session
 
 from db import get_db
-from models import Highlight, DocumentStat, MarkdownDoc
-from config import DOCS_DIR, VECTOR_STORE_DIR, COLLECTION_NAME, OPENAI_API_KEY, OPENAI_BASE_URL
+from models import Highlight, DocumentStat, MarkdownDoc, User
+from config import (
+    DOCS_DIR, VECTOR_STORE_DIR, COLLECTION_NAME, OPENAI_API_KEY, OPENAI_BASE_URL,
+    GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI
+)
+from auth import get_current_user, get_or_create_user, create_access_token
 
 from langchain_chroma import Chroma
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
@@ -36,6 +40,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Google OAuth 配置
+GOOGLE_AUTHORIZATION_BASE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
+GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo"
 
 
 # ---- LangChain / Vector Store ----
@@ -116,6 +125,110 @@ class Citation(BaseModel):
 class QueryResponse(BaseModel):
     answer: str
     citations: List[Citation]
+
+
+# ---- Authentication ----
+
+class UserResponse(BaseModel):
+    id: str
+    email: str
+    name: Optional[str] = None
+    picture: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+@app.get("/auth/google")
+def google_login():
+    """启动 Google OAuth 登录流程"""
+    if not GOOGLE_CLIENT_ID:
+        raise HTTPException(status_code=500, detail="Google OAuth not configured")
+    
+    # 构建授权 URL
+    from urllib.parse import urlencode
+    params = {
+        "client_id": GOOGLE_CLIENT_ID,
+        "redirect_uri": GOOGLE_REDIRECT_URI,
+        "response_type": "code",
+        "scope": "openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile",
+        "access_type": "online",
+    }
+    authorization_url = f"{GOOGLE_AUTHORIZATION_BASE_URL}?{urlencode(params)}"
+    
+    return {"authorization_url": authorization_url}
+
+
+@app.get("/auth/google/callback")
+def google_callback(code: str, state: Optional[str] = None, db: Session = Depends(get_db)):
+    """Google OAuth 回调处理"""
+    if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
+        raise HTTPException(status_code=500, detail="Google OAuth not configured")
+    
+    try:
+        # 使用 requests 直接交换 token
+        token_response = requests.post(
+            GOOGLE_TOKEN_URL,
+            data={
+                "code": code,
+                "client_id": GOOGLE_CLIENT_ID,
+                "client_secret": GOOGLE_CLIENT_SECRET,
+                "redirect_uri": GOOGLE_REDIRECT_URI,
+                "grant_type": "authorization_code",
+            },
+        )
+        token_response.raise_for_status()
+        token_data = token_response.json()
+        access_token_value = token_data.get("access_token")
+        
+        if not access_token_value:
+            raise HTTPException(status_code=400, detail="Failed to get access token")
+        
+        # 获取用户信息
+        user_info_response = requests.get(
+            GOOGLE_USERINFO_URL,
+            headers={"Authorization": f"Bearer {access_token_value}"}
+        )
+        user_info_response.raise_for_status()
+        user_info = user_info_response.json()
+        
+        # 获取或创建用户
+        user = get_or_create_user(
+            db=db,
+            google_id=user_info["id"],
+            email=user_info["email"],
+            name=user_info.get("name"),
+            picture=user_info.get("picture"),
+        )
+        
+        # 创建 JWT token
+        jwt_token = create_access_token(data={"sub": user.id})
+        
+        # 重定向到前端，携带 token
+        frontend_url = f"http://localhost:5173/auth/callback?token={jwt_token}"
+        return RedirectResponse(url=frontend_url)
+        
+    except requests.RequestException as e:
+        raise HTTPException(status_code=400, detail=f"Authentication failed: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Authentication failed: {str(e)}")
+
+
+@app.get("/auth/me", response_model=UserResponse)
+def get_current_user_info(current_user: User = Depends(get_current_user)):
+    """获取当前用户信息"""
+    return UserResponse(
+        id=current_user.id,
+        email=current_user.email,
+        name=current_user.name,
+        picture=current_user.picture,
+    )
+
+
+@app.post("/auth/logout")
+def logout():
+    """登出（客户端删除 token 即可）"""
+    return {"message": "Logged out successfully"}
 
 
 @app.post("/query")

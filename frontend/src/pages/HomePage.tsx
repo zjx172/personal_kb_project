@@ -26,6 +26,7 @@ import {
 } from "../api";
 import { AnswerWithCitations } from "../components/AnswerWithCitations";
 import { SearchFilterOptions } from "../components/SearchFilters";
+import { useAuth } from "../contexts/AuthContext";
 import {
   Plus,
   Search,
@@ -36,10 +37,13 @@ import {
   ChevronLeft,
   ChevronRight,
   Menu,
+  LogOut,
+  User,
 } from "lucide-react";
 
 const HomePage: React.FC = () => {
   const navigate = useNavigate();
+  const { user, loading: authLoading, logout } = useAuth();
   const [docs, setDocs] = useState<MarkdownDocItem[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -75,8 +79,15 @@ const HomePage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadDocs();
-  }, []);
+    // 检查认证状态
+    if (!authLoading && !user) {
+      navigate("/login");
+      return;
+    }
+    if (user) {
+      loadDocs();
+    }
+  }, [user, authLoading, navigate]);
 
   const handleCreate = async () => {
     try {
@@ -247,6 +258,24 @@ const HomePage: React.FC = () => {
     }
   };
 
+  const handleLogout = () => {
+    logout();
+    navigate("/login");
+    toast.success("已登出");
+  };
+
+  if (authLoading) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="flex h-screen bg-background relative">
       {/* 侧边栏 */}
@@ -395,6 +424,30 @@ const HomePage: React.FC = () => {
 
       {/* 主内容区 */}
       <main className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto relative">
+        {/* 用户信息和登出按钮 */}
+        <div className="absolute top-4 right-4 flex items-center gap-3 z-10">
+          {user.picture && (
+            <img
+              src={user.picture}
+              alt={user.name || user.email}
+              className="h-8 w-8 rounded-full"
+            />
+          )}
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <User className="h-4 w-4" />
+            <span>{user.name || user.email}</span>
+          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="gap-2"
+          >
+            <LogOut className="h-4 w-4" />
+            登出
+          </Button>
+        </div>
+
         {/* 侧边栏切换按钮（当侧边栏隐藏时显示） */}
         {!sidebarOpen && (
           <Button
