@@ -2,12 +2,6 @@
 RAG 评估服务
 集成 RAGAS 和 LangSmith 进行 RAG 系统评估
 """
-# 兼容 Python 3.9 的新类型语法（必须在导入 ragas 之前）
-try:
-    import eval_type_backport  # noqa: F401
-except ImportError:
-    pass
-
 import os
 import logging
 from typing import List, Dict, Any, Optional
@@ -31,10 +25,10 @@ from config import (
     LANGCHAIN_TRACING_V2,
     LANGCHAIN_PROJECT,
     LANGCHAIN_ENDPOINT,
+    OPENAI_API_KEY,
+    OPENAI_BASE_URL,
 )
-from services.vector_store import rag_pipeline, retrieval_service
-from retrieval import VectorRetrievalService
-from rag_pipeline import RAGPipeline
+from rag_client import rag_client
 
 logger = logging.getLogger(__name__)
 
@@ -42,13 +36,12 @@ logger = logging.getLogger(__name__)
 class RAGEvaluationService:
     """RAG 评估服务"""
     
-    def __init__(
-        self,
-        rag_pipeline: RAGPipeline,
-        retrieval_service: VectorRetrievalService,
-    ):
-        self.rag_pipeline = rag_pipeline
-        self.retrieval_service = retrieval_service
+    def __init__(self):
+        # 配置 OpenAI（RAGAS 需要）
+        if OPENAI_API_KEY:
+            os.environ["OPENAI_API_KEY"] = OPENAI_API_KEY
+            if OPENAI_BASE_URL:
+                os.environ["OPENAI_BASE_URL"] = OPENAI_BASE_URL
         
         # 配置 LangSmith（如果启用）
         if LANGCHAIN_TRACING_V2 and LANGCHAIN_API_KEY:
@@ -64,6 +57,7 @@ class RAGEvaluationService:
     def _prepare_evaluation_data(
         self,
         questions: List[str],
+        knowledge_base_id: Optional[str] = None,
         ground_truths: Optional[List[str]] = None,
         contexts_list: Optional[List[List[str]]] = None,
     ) -> Dataset:
@@ -72,24 +66,30 @@ class RAGEvaluationService:
         
         Args:
             questions: 问题列表
+            knowledge_base_id: 知识库 ID
             ground_truths: 参考答案列表（可选）
-            contexts_list: 上下文列表（可选，如果不提供则从 RAG pipeline 获取）
+            contexts_list: 上下文列表（可选，如果不提供则从 RAG 服务获取）
         
         Returns:
             RAGAS 格式的 Dataset
         """
-        # 如果没有提供上下文，从 RAG pipeline 获取
+        # 如果没有提供上下文，从 RAG 服务获取
         if contexts_list is None:
             contexts_list = []
             for question in questions:
-                # 检索文档
-                results = self.retrieval_service.retrieve_with_metadata(
-                    query=question,
-                    k=10,
-                )
-                # 提取上下文
-                contexts = [result["content"] for result in results]
-                contexts_list.append(contexts)
+                try:
+                    # 检索文档
+                    results = rag_client.retrieve(
+                        query=question,
+                        knowledge_base_id=knowledge_base_id,
+                        k=10,
+                    )
+                    # 提取上下文
+                    contexts = [result.get("content", result.get("snippet", "")) for result in results]
+                    contexts_list.append(contexts)
+                except Exception as e:
+                    logger.error(f"检索上下文失败: {str(e)}")
+                    contexts_list.append([])
         
         # 如果没有提供参考答案，设置为 None
         if ground_truths is None:
@@ -99,7 +99,10 @@ class RAGEvaluationService:
         answers = []
         for question in questions:
             try:
-                result = self.rag_pipeline.query(question=question)
+                result = rag_client.query(
+                    question=question,
+                    knowledge_base_id=knowledge_base_id,
+                )
                 answers.append(result["answer"])
             except Exception as e:
                 logger.error(f"生成答案失败: {str(e)}")
@@ -121,6 +124,7 @@ class RAGEvaluationService:
     def evaluate_with_ragas(
         self,
         questions: List[str],
+        knowledge_base_id: Optional[str] = None,
         ground_truths: Optional[List[str]] = None,
         contexts_list: Optional[List[List[str]]] = None,
         metrics: Optional[List] = None,
@@ -130,6 +134,7 @@ class RAGEvaluationService:
         
         Args:
             questions: 问题列表
+            knowledge_base_id: 知识库 ID
             ground_truths: 参考答案列表（可选）
             contexts_list: 上下文列表（可选）
             metrics: 评估指标列表（可选，默认使用所有指标）
@@ -141,6 +146,7 @@ class RAGEvaluationService:
             # 准备数据
             dataset = self._prepare_evaluation_data(
                 questions=questions,
+                knowledge_base_id=knowledge_base_id,
                 ground_truths=ground_truths,
                 contexts_list=contexts_list,
             )
@@ -191,11 +197,13 @@ class RAGEvaluationService:
             return {
                 "success": False,
                 "error": str(e),
+                "total_items": len(questions),
             }
     
     def evaluate_single_item(
         self,
         question: str,
+        knowledge_base_id: Optional[str] = None,
         ground_truth: Optional[str] = None,
         context_doc_ids: Optional[List[str]] = None,
     ) -> Dict[str, Any]:
@@ -204,6 +212,7 @@ class RAGEvaluationService:
         
         Args:
             question: 问题
+            knowledge_base_id: 知识库 ID
             ground_truth: 参考答案（可选）
             context_doc_ids: 相关文档 ID 列表（用于计算召回率，可选）
         
@@ -214,12 +223,15 @@ class RAGEvaluationService:
             # 使用 LangSmith tracing（如果启用）
             with tracing_v2_enabled() if LANGCHAIN_TRACING_V2 else nullcontext():
                 # 执行 RAG pipeline
-                result = self.rag_pipeline.query(question=question)
+                result = rag_client.query(
+                    question=question,
+                    knowledge_base_id=knowledge_base_id,
+                )
                 answer = result["answer"]
                 citations = result["citations"]
                 
                 # 提取上下文
-                contexts = [citation["snippet"] for citation in citations]
+                contexts = [citation.get("snippet", "") for citation in citations]
                 
                 # 准备评估数据
                 data = {
@@ -270,6 +282,7 @@ class RAGEvaluationService:
     def evaluate_batch(
         self,
         questions: List[str],
+        knowledge_base_id: Optional[str] = None,
         ground_truths: Optional[List[str]] = None,
         batch_size: int = 10,
     ) -> List[Dict[str, Any]]:
@@ -278,6 +291,7 @@ class RAGEvaluationService:
         
         Args:
             questions: 问题列表
+            knowledge_base_id: 知识库 ID
             ground_truths: 参考答案列表（可选）
             batch_size: 批处理大小（暂未使用，逐个处理）
         
@@ -293,6 +307,7 @@ class RAGEvaluationService:
             
             result = self.evaluate_single_item(
                 question=question,
+                knowledge_base_id=knowledge_base_id,
                 ground_truth=ground_truth,
             )
             results.append(result)
@@ -301,8 +316,5 @@ class RAGEvaluationService:
 
 
 # 创建全局评估服务实例
-evaluation_service = RAGEvaluationService(
-    rag_pipeline=rag_pipeline,
-    retrieval_service=retrieval_service,
-)
+evaluation_service = RAGEvaluationService()
 

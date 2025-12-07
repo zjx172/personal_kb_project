@@ -83,12 +83,12 @@ else:
     # gRPC 模式下，llm 需要从本地导入（如果需要）
     from langchain_openai import ChatOpenAI
     from config import OPENAI_API_KEY, OPENAI_BASE_URL
-llm = ChatOpenAI(
-    api_key=OPENAI_API_KEY,
-    base_url=OPENAI_BASE_URL,
-    model="gpt-4o-mini",
-    temperature=0.2,
-)
+    llm = ChatOpenAI(
+        api_key=OPENAI_API_KEY,
+        base_url=OPENAI_BASE_URL,
+        model="gpt-4o-mini",
+        temperature=0.2,
+    )
 
 # 导出服务（保持向后兼容）
 __all__ = [

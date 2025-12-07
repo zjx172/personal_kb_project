@@ -1,3 +1,8 @@
+# OpenAPI 生成文件
+openapi.json
+
+# 生成的 API 客户端（可选，如果不想提交到 git）
+# frontend/src/generated/
 frontend/node_modules
 backend/venv
 backend/vector_store

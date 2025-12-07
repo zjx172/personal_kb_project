@@ -163,7 +163,7 @@ class RAGPipeline:
         
         Yields:
             {
-                "type": "citations" | "chunk" | "final",
+                "type": "citations" 或 "chunk" 或 "final",
                 "citations": List[Dict] (仅 type="citations" 或 "final"),
                 "chunk": str (仅 type="chunk"),
                 "answer": str (仅 type="final"),

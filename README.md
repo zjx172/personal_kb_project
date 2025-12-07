@@ -28,682 +28,230 @@
 
 ### 4. 多知识库管理
 
-- 支持创建多个独立的知识库
-- 每个知识库拥有独立的文档和对话
-- 知识库切换和编辑功能
-- 默认知识库自动创建
-- 基于知识库的路由系统（`/kb/:knowledgeBaseId`）
+- 支持创建多个知识库
+- 每个知识库独立的文档集合
+- 知识库级别的权限管理
 
 ### 5. 文档管理
 
-- 在线编辑 Markdown 文档（飞书风格）
-- 支持主题标签和文档类型分类
-- 网页内容提取并转换为 Markdown
-- 文档自动同步到向量库
-- AI 自动生成摘要和推荐标签
-- 文档关系图谱可视化
-- 文档按知识库隔离管理
+- Markdown 文档在线编辑
+- PDF 文件上传和解析
+- 网页内容提取
+- 文档标签和摘要自动生成
+- 文档高亮和标注
 
-### 6. 前端功能
+### 6. 对话管理
 
-- Google 登录界面
-- 对话式检索界面
-- 答案中的引用标号可点击，跳转到对应文档
-- 支持按引用高亮对应原文段落
-- 文档列表和编辑界面
-- 知识图谱可视化
-- 知识库选择器和切换功能
-- 基于知识库的路由导航
+- 多轮对话支持
+- 对话历史保存
+- 引用来源追踪
 
-### 7. Chrome 浏览器插件
+### 7. 文件存储
 
-- 🔐 Google OAuth 登录集成
-- 📄 一键保存当前网页到知识库
-- 🎯 自动提取网页正文内容
-- 📝 支持自定义标题
-- 💾 Token 自动管理
-- 🔄 实时同步登录状态
+- **开发环境**：本地文件存储
+- **生产环境**：OSS 对象存储（阿里云 OSS）
+- **大文件上传**：自动分片上传（>10MB）
 
-### 8. RAG 评估系统
+### 8. API 客户端自动生成
 
-- **RAGAS 集成**：自动化评估 RAG 系统性能
-  - 忠实度（Faithfulness）：评估答案是否基于上下文
-  - 答案相关性（Answer Relevancy）：评估答案是否回答问题
-  - 上下文精确度（Context Precision）：评估检索质量
-  - 上下文召回率（Context Recall）：评估检索完整性
-- **LangSmith 集成**：自动追踪和分析 RAG pipeline 执行
-  - 详细的执行链路追踪
-  - 性能监控（延迟、token 使用、成本）
-  - 可视化分析界面
-- **评估数据集管理**：创建和管理评估数据集
-- **批量评估**：支持异步批量评估和结果分析
+- 基于 OpenAPI/Swagger 规范
+- 自动生成 TypeScript 客户端
+- 类型安全的前后端通信
 
 ## 技术栈
 
 ### 后端
 
-- **FastAPI** - Web 框架
-- **SQLAlchemy** - ORM (SQLite)
-- **LangChain** - LLM 应用框架
-- **Chroma** - 向量数据库
-- **OpenAI API** - Embeddings & LLM
-- **python-jose** - JWT Token 处理
-- **authlib** - OAuth 2.0 客户端
-- **pyjwt** - JWT 编码/解码
-- **RAGAS** - RAG 评估框架
-- **LangSmith** - LangChain 追踪和评估平台
+- **FastAPI**: 高性能 Python Web 框架
+- **OpenAPI/Swagger**: 接口定义和文档
+- **SQLAlchemy**: ORM
+- **LangChain**: RAG 流程
+- **ChromaDB**: 向量数据库
+- **Pydantic**: 数据验证
 
 ### 前端
 
-- **React 18** + **TypeScript** - UI 框架
-- **Vite** - 构建工具
-- **React Router** - 路由管理
-- **Axios** - HTTP 客户端
-- **Tailwind CSS** - 样式框架
-- **Radix UI** - UI 组件库
-- **Sonner** - Toast 通知
-- **Lucide React** - 图标库
+- **React + TypeScript**: 前端框架
+- **Vite**: 构建工具
+- **自动生成的 API 客户端**: 基于 OpenAPI
+- **Tailwind CSS**: 样式框架
 
-### Chrome 插件
+### RAG 服务
 
-- **Plasmo** - 现代浏览器扩展开发框架（基于 Vite）
-- **React 18** + **TypeScript** - UI 框架
-- **Chrome Extension Manifest V3** - 最新扩展标准
-- **Chrome Storage API** - 本地存储
-- **Chrome Tabs API** - 标签页管理
+- **独立 Python 包**: 代码分离，易于维护
+- **支持 gRPC**: 可扩展为微服务架构
 
-## 安装和运行
+## 快速开始
 
-### 前置要求
-
-- Python 3.9+
-- Node.js 18+
-- pnpm (推荐) 或 npm
-
-### 1. 克隆项目
+### 1. 安装依赖
 
 ```bash
-git clone <repository-url>
-cd personal_kb_project
+# 后端
+cd backend
+pip install -r requirements.txt
+
+# 前端
+cd frontend
+npm install
 ```
 
-### 2. 后端设置
+### 2. 配置环境变量
 
-#### 安装依赖
+创建 `backend/.env` 文件：
+
+```bash
+# OpenAI 配置
+OPENAI_API_KEY=your_openai_api_key
+OPENAI_BASE_URL=https://api.openai.com/v1
+
+# JWT 配置
+JWT_SECRET_KEY=your-secret-key-change-in-production
+
+# Google OAuth（可选）
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+
+# 存储配置（生产环境）
+ENVIRONMENT=development  # development | production
+USE_OSS_STORAGE=false    # 开发环境使用本地存储
+OSS_ACCESS_KEY_ID=       # 生产环境 OSS 配置
+OSS_ACCESS_KEY_SECRET=
+OSS_ENDPOINT=
+OSS_BUCKET_NAME=
+```
+
+### 3. 初始化数据库
 
 ```bash
 cd backend
-pip3 install -r requirements.txt
+python init_db.py
 ```
 
-#### 配置环境变量
-
-在 `backend` 目录下创建 `.env` 文件：
-
-```env
-# OpenAI 配置
-OPENAI_API_KEY=your-openai-api-key
-OPENAI_BASE_URL=https://api.openai.com/v1
-
-# Google OAuth 配置
-GOOGLE_CLIENT_ID=your-google-client-id
-GOOGLE_CLIENT_SECRET=your-google-client-secret
-GOOGLE_REDIRECT_URI=http://localhost:8000/auth/google/callback
-
-# JWT 配置
-JWT_SECRET_KEY=your-random-secret-key
-
-# LangSmith 配置（可选，用于 RAG 评估和追踪）
-LANGCHAIN_API_KEY=your-langsmith-api-key
-LANGCHAIN_TRACING_V2=true
-LANGCHAIN_PROJECT=personal-kb-rag
-LANGCHAIN_ENDPOINT=https://api.smith.langchain.com
-```
-
-**获取 Google OAuth 凭据：**
-
-1. 访问 [Google Cloud Console](https://console.cloud.google.com/)
-2. 创建项目并启用 Google+ API
-3. 配置 OAuth 同意屏幕
-4. 创建 OAuth 2.0 客户端 ID（Web 应用类型）
-5. 添加授权重定向 URI: `http://localhost:8000/auth/google/callback`
-6. 复制客户端 ID 和密钥到 `.env` 文件
-
-**生成 JWT Secret Key：**
+### 4. 启动服务
 
 ```bash
-python3 -c "import secrets; print(secrets.token_urlsafe(32))"
-```
+# 后端（终端 1）
+cd backend
+uvicorn app:app --reload
 
-#### 初始化数据库
-
-```bash
-python3 init_db.py
-```
-
-#### 初始化评估功能（可选）
-
-如果需要使用 RAG 评估功能，需要运行评估迁移脚本：
-
-```bash
-python3 migrate_evaluation.py
-```
-
-这个脚本会创建评估相关的数据表：
-
-- `evaluation_datasets` - 评估数据集
-- `evaluation_data_items` - 评估数据项
-- `evaluation_runs` - 评估运行记录
-- `evaluation_results` - 评估结果详情
-
-**配置 LangSmith（可选）：**
-
-1. 访问 [LangSmith](https://smith.langchain.com/) 注册账号
-2. 在设置中获取 API Key
-3. 将 API Key 添加到 `.env` 文件中
-4. 设置 `LANGCHAIN_TRACING_V2=true` 启用追踪
-
-#### 启动后端服务
-
-```bash
-python3 -m uvicorn app:app --reload --port 8000
-```
-
-### 3. 前端设置
-
-#### 安装前端依赖
-
-```bash
+# 前端（终端 2）
 cd frontend
-pnpm install
+npm run dev
 ```
 
-#### 启动开发服务器
+### 5. 生成 API 客户端（首次使用）
 
 ```bash
-pnpm run dev
+# 方法 1: 使用 Makefile（推荐）
+make generate-api
+
+# 方法 2: 使用 npm 脚本
+cd frontend
+npm run api:update
+
+# 方法 3: 使用 shell 脚本
+./scripts/generate-api-client.sh
 ```
-
-前端将在 `http://localhost:5173` 运行。
-
-### 4. Chrome 插件设置
-
-#### 安装插件依赖
-
-```bash
-cd chrome-extension
-pnpm install
-```
-
-#### 开发模式
-
-```bash
-pnpm dev
-```
-
-#### 构建插件
-
-```bash
-pnpm build
-```
-
-#### 加载到 Chrome
-
-1. 运行 `pnpm build` 构建插件
-2. 打开 Chrome，访问 `chrome://extensions/`
-3. 开启右上角的"开发者模式"
-4. 点击"加载已解压的扩展程序"
-5. 选择 `chrome-extension/build/chrome-mv3-dev` 目录
-6. 插件图标将出现在浏览器工具栏中
-
-## 使用说明
-
-### 首次使用
-
-1. 访问 `http://localhost:5173`
-2. 点击"使用 Google 登录"按钮
-3. 使用 Google 账号登录
-4. 登录成功后自动跳转到首页
-
-### Web 应用功能
-
-1. **管理知识库**：
-
-   - 在左上角的知识库选择器中切换知识库
-   - 点击"新建知识库"创建新的知识库
-   - 悬停在知识库名称上，点击编辑图标可修改名称
-   - 每个知识库拥有独立的文档和对话列表
-
-2. **创建文档**：在左侧边栏点击"新建文档"或使用"提取网页内容"功能（文档会保存到当前选中的知识库）
-
-3. **编辑文档**：点击文档列表中的文档进行编辑，支持设置主题标签和文档类型
-
-4. **搜索知识库**：在主界面输入问题，系统会从当前知识库中检索相关文档并生成答案。如果没有选中对话，系统会自动创建新对话
-
-5. **查看引用**：答案中的引用标号（如 [1], [2]）可点击，会跳转到对应文档并高亮相关段落
-
-6. **知识图谱**：访问 `/kb/:knowledgeBaseId/graph` 页面查看当前知识库的文档关系图谱
-
-7. **路由结构**：
-   - `/kb/:knowledgeBaseId` - 知识库主页（对话界面）
-   - `/kb/:knowledgeBaseId/doc/:id` - 文档编辑页
-   - `/kb/:knowledgeBaseId/graph` - 知识图谱页
-   - 访问根路径 `/` 会自动重定向到默认知识库
-
-### Chrome 插件使用
-
-1. **首次使用**：
-
-   - 点击浏览器工具栏中的插件图标
-   - 点击"使用 Google 登录"按钮
-   - 在新标签页完成 Google 登录
-   - 登录成功后，插件会自动检测并更新状态
-
-2. **保存网页**：
-
-   - 在任意网页浏览时，点击插件图标
-   - 点击"保存当前页面"按钮
-   - 网页内容会自动提取并保存到知识库
-   - 保存成功后，可以在 Web 应用中查看该文档
-
-3. **功能特点**：
-   - 自动提取网页正文，过滤广告和无关内容
-   - 保留原始 URL 作为来源链接
-   - 支持自定义标题（使用网页标题或手动输入）
-   - Token 自动管理，无需重复登录
 
 ## 项目结构
 
-```text
+```
 personal_kb_project/
-├── backend/
-│   ├── app.py              # FastAPI 主应用
-│   ├── auth.py              # 认证相关函数（JWT、用户管理）
-│   ├── models.py            # 数据模型（User, KnowledgeBase, MarkdownDoc, Conversation, Highlight 等）
-│   ├── db.py                # 数据库配置
-│   ├── config.py             # 配置文件
-│   ├── routers/              # API 路由模块
-│   │   ├── knowledge_bases.py  # 知识库路由
-│   │   ├── conversations.py    # 对话路由
-│   │   ├── docs.py              # 文档路由
-│   │   ├── pdf.py               # PDF 路由
-│   │   ├── search.py            # 搜索路由
-│   │   └── evaluation.py        # 评估路由
-│   ├── retrieval.py          # 向量检索服务层
-│   ├── rag_pipeline.py       # RAG Pipeline
-│   ├── hybrid_search.py      # 混合搜索服务
-│   ├── ai_services.py        # AI 服务（摘要、标签推荐等）
-│   ├── evaluation.py         # RAG 评估服务（RAGAS + LangSmith）
-│   ├── ingest.py             # 文档导入脚本
-│   ├── migrate_knowledge_bases.py  # 知识库数据库迁移脚本
-│   ├── migrate_evaluation.py      # 评估功能数据库迁移脚本
-│   ├── EVALUATION.md         # 评估功能使用指南
-│   ├── requirements.txt      # Python 依赖
-│   ├── .env                  # 环境变量（需自行创建）
-│   └── kb.db                 # SQLite 数据库
+├── backend/              # FastAPI 后端
+│   ├── routers/         # API 路由
+│   ├── services/        # 业务服务
+│   │   ├── storage.py   # 存储服务（本地/OSS）
+│   │   ├── rag_adapter.py  # RAG 服务适配器
+│   │   └── vector_store.py
+│   ├── scripts/         # 工具脚本
+│   │   └── export_openapi.py
+│   ├── models.py        # 数据模型
+│   ├── schemas.py       # Pydantic 模型
+│   └── app.py           # 应用入口
 │
-└── frontend/
-    ├── src/
-    │   ├── pages/            # 页面组件
-    │   │   ├── HomePage.tsx  # 首页（搜索界面，支持知识库路由）
-    │   │   ├── DocPage.tsx   # 文档编辑页（支持知识库路由）
-    │   │   ├── GraphPage.tsx # 知识图谱页（支持知识库路由）
-    │   │   └── LoginPage.tsx # 登录页
-    │   ├── components/       # 通用组件
-    │   │   ├── home/         # 首页相关组件
-    │   │   │   ├── Sidebar.tsx
-    │   │   │   ├── DocList.tsx
-    │   │   │   ├── ConversationList.tsx
-    │   │   │   └── KnowledgeBaseSelector.tsx
-    │   │   ├── AnswerWithCitations.tsx
-    │   │   ├── SearchFilters.tsx
-    │   │   ├── KnowledgeBaseRedirect.tsx  # 知识库重定向组件
-    │   │   └── ui/           # UI 组件库
-    │   ├── hooks/            # React Hooks
-    │   │   ├── useKnowledgeBases.ts  # 知识库管理 Hook
-    │   │   ├── useConversations.ts   # 对话管理 Hook
-    │   │   ├── useDocs.ts            # 文档管理 Hook
-    │   │   ├── useStreamQuery.ts     # 流式查询 Hook
-    │   │   ├── useWebExtract.ts      # 网页提取 Hook
-    │   │   └── usePdfUpload.ts       # PDF 上传 Hook
-    │   ├── contexts/         # React Context
-    │   │   └── AuthContext.tsx  # 认证上下文
-    │   ├── api.ts            # API 接口封装
-    │   └── utils/            # 工具函数
-    ├── package.json
-    └── vite.config.ts
+├── frontend/            # React 前端
+│   ├── src/
+│   │   ├── generated/   # 自动生成的 API 客户端
+│   │   ├── api-client.ts # API 客户端封装
+│   │   ├── components/  # React 组件
+│   │   └── pages/       # 页面
+│   └── package.json
 │
-└── chrome-extension/
-    ├── popup.tsx             # 插件弹窗 UI
-    ├── popup.css             # 弹窗样式
-    ├── background.ts         # 后台脚本（处理 OAuth 回调）
-    ├── content.ts            # 内容脚本（可选）
-    ├── options.tsx           # 设置页面（可选）
-    ├── utils/
-    │   └── api.ts            # API 封装（登录、保存网页）
-    ├── package.json          # 插件配置
-    ├── tsconfig.json         # TypeScript 配置
-    └── README.md             # 插件使用说明
+├── rag-service/         # RAG 服务（Python 包）
+│   ├── __init__.py
+│   ├── rag_pipeline.py  # RAG Pipeline
+│   ├── retrieval.py    # 向量检索
+│   ├── services.py     # 服务初始化
+│   └── grpc_server.py  # gRPC 服务器（可选）
+│
+├── chrome-extension/   # Chrome 浏览器扩展
+│   └── ...
+│
+└── scripts/             # 项目级脚本
+    └── generate-api-client.sh
 ```
 
-## API 端点
+## API 文档
 
-### 认证相关
+启动后端后访问：
 
-- `GET /auth/google` - 获取 Google OAuth 授权 URL
-- `GET /auth/google/callback` - Google OAuth 回调处理
-- `GET /auth/me` - 获取当前用户信息
-- `POST /auth/logout` - 登出
+- **Swagger UI**: <http://localhost:8000/docs>
+- **ReDoc**: <http://localhost:8000/redoc>
+- **OpenAPI JSON**: <http://localhost:8000/openapi.json>
 
-### 知识库相关
+## 开发指南
 
-- `GET /knowledge-bases` - 获取知识库列表（当前用户）
-- `POST /knowledge-bases` - 创建知识库
-- `GET /knowledge-bases/{kb_id}` - 获取知识库详情
-- `PUT /knowledge-bases/{kb_id}` - 更新知识库
-- `DELETE /knowledge-bases/{kb_id}` - 删除知识库
+### 添加新接口
 
-### 对话相关
+1. 在 `backend/routers/` 中添加路由
+2. 运行 `make generate-api` 生成客户端
+3. 在代码中使用生成的 API 客户端
 
-- `GET /conversations` - 获取对话列表（支持按知识库过滤）
-- `POST /conversations` - 创建对话（需指定知识库 ID）
-- `GET /conversations/{conv_id}` - 获取对话详情
-- `PUT /conversations/{conv_id}` - 更新对话
-- `DELETE /conversations/{conv_id}` - 删除对话
+详细说明请参考 [API_CLIENT_GUIDE.md](./API_CLIENT_GUIDE.md)
 
-### 文档相关
-
-- `GET /docs` - 获取文档列表（支持按知识库过滤）
-- `POST /docs` - 创建文档（需指定知识库 ID）
-- `GET /docs/{doc_id}` - 获取文档详情
-- `PUT /docs/{doc_id}` - 更新文档
-- `DELETE /docs/{doc_id}` - 删除文档
-- `POST /extract-web` - 提取网页内容（需指定知识库 ID）
-- `POST /upload-pdf` - 上传 PDF 文档（需指定知识库 ID）
-
-### 知识库查询
-
-- `POST /query` - 查询知识库（流式返回，需指定知识库 ID 和可选的对话 ID）
-
-### 智能功能
-
-- `POST /docs/{doc_id}/generate-summary` - 生成文档摘要
-- `POST /docs/{doc_id}/recommend-tags` - 推荐标签
-- `GET /docs/{doc_id}/related` - 获取相关文档
-- `GET /docs/graph` - 获取文档关系图谱
-
-### 评估相关
-
-- `POST /evaluation/quick` - 快速评估（不保存到数据库）
-- `GET /evaluation/datasets` - 获取评估数据集列表
-- `POST /evaluation/datasets` - 创建评估数据集
-- `GET /evaluation/datasets/{dataset_id}` - 获取数据集详情
-- `PUT /evaluation/datasets/{dataset_id}` - 更新数据集
-- `DELETE /evaluation/datasets/{dataset_id}` - 删除数据集
-- `GET /evaluation/datasets/{dataset_id}/items` - 获取数据项列表
-- `POST /evaluation/datasets/{dataset_id}/items` - 添加评估数据项
-- `PUT /evaluation/datasets/{dataset_id}/items/{item_id}` - 更新数据项
-- `DELETE /evaluation/datasets/{dataset_id}/items/{item_id}` - 删除数据项
-- `POST /evaluation/runs` - 创建评估运行
-- `GET /evaluation/runs` - 获取评估运行列表
-- `GET /evaluation/runs/{run_id}` - 获取运行详情
-- `GET /evaluation/runs/{run_id}/results` - 获取评估结果详情
-
-## 配置说明
-
-### 后端配置 (`backend/config.py`)
-
-主要配置项通过环境变量设置：
-
-- `OPENAI_API_KEY`: OpenAI API 密钥
-- `OPENAI_BASE_URL`: OpenAI API 基础 URL
-- `GOOGLE_CLIENT_ID`: Google OAuth 客户端 ID
-- `GOOGLE_CLIENT_SECRET`: Google OAuth 客户端密钥
-- `GOOGLE_REDIRECT_URI`: OAuth 回调 URI
-- `JWT_SECRET_KEY`: JWT 签名密钥
-- `LANGCHAIN_API_KEY`: LangSmith API 密钥（可选）
-- `LANGCHAIN_TRACING_V2`: 是否启用 LangSmith 追踪（可选）
-- `LANGCHAIN_PROJECT`: LangSmith 项目名称（可选）
-- `LANGCHAIN_ENDPOINT`: LangSmith API 端点（可选）
-
-### 前端配置
-
-API 基础 URL 在 `frontend/src/api.ts` 中配置：
+### 使用生成的 API 客户端
 
 ```typescript
-const API_BASE_URL = "http://localhost:8000";
-```
+import { Api } from "@/api-client";
 
-### Chrome 插件配置
-
-API 基础 URL 在 `chrome-extension/utils/api.ts` 中配置：
-
-```typescript
-const API_BASE_URL = "http://localhost:8000";
-```
-
-**注意**：如果后端运行在不同的地址，需要同时更新前端和插件的 API_BASE_URL。
-
-## 开发说明
-
-### 数据库迁移
-
-#### 初始化数据库
-
-首次使用或需要清空数据时：
-
-```bash
-cd backend
-python3 init_db.py
-```
-
-**注意**：这会清空现有数据，生产环境请使用数据库迁移工具。
-
-#### 知识库功能迁移
-
-如果从旧版本升级到支持多知识库的版本，需要运行迁移脚本：
-
-```bash
-cd backend
-python3 migrate_knowledge_bases.py
-```
-
-这个脚本会：
-
-- 创建 `knowledge_bases` 表
-- 为每个现有用户创建默认知识库
-- 将现有的对话和文档关联到默认知识库
-- 添加 `knowledge_base_id` 字段到相关表
-
-#### 评估功能迁移
-
-如果需要使用 RAG 评估功能，需要运行评估迁移脚本：
-
-```bash
-cd backend
-python3 migrate_evaluation.py
-```
-
-这个脚本会创建评估相关的数据表。
-
-### 添加新功能
-
-1. 后端：在 `app.py` 中添加新的 API 端点
-2. 前端：在 `api.ts` 中添加 API 调用函数，在相应页面中使用
-3. Chrome 插件：在 `utils/api.ts` 中添加 API 调用，在 `popup.tsx` 中使用
-
-### Chrome 插件开发
-
-插件使用 Plasmo 框架开发，支持热更新：
-
-```bash
-cd chrome-extension
-pnpm dev  # 开发模式，自动监听文件变化并重新构建
-```
-
-**热更新工作流**：
-
-1. **启动开发服务器**：运行 `pnpm dev`
-2. **修改代码**：编辑 `popup.tsx`、`background.ts` 等文件
-3. **重新加载插件**：在 `chrome://extensions/` 页面点击插件的"重新加载"按钮（🔄）
-4. **查看变化**：重新打开 popup 或刷新相关页面
-
-**自动重载（可选）**：
-
-- 安装 [plasmo-reload](https://github.com/PlasmoHQ/plasmo-reload) Chrome 扩展
-- 安装后，代码修改会自动触发插件重载，无需手动点击
-
-**调试技巧**：
-
-- **Popup 调试**：右键点击插件图标 → "检查弹出内容"
-- **Background 调试**：在 `chrome://extensions/` 中点击插件的"service worker"链接
-- **查看日志**：在 DevTools Console 中查看 `console.log` 输出
-
-**详细开发指南**：查看 `chrome-extension/DEVELOPMENT.md`
-
-## RAG 评估使用指南
-
-### 快速开始
-
-#### 1. 快速评估（不保存到数据库）
-
-适用于快速测试和验证 RAG 系统性能：
-
-```bash
-curl -X POST http://localhost:8000/evaluation/quick \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -d '{
-    "questions": [
-      "什么是 Python？",
-      "如何安装 Python？"
-    ],
-    "ground_truths": [
-      "Python 是一种编程语言",
-      "从官网下载安装包"
-    ],
-    "knowledge_base_id": "your-kb-id"
-  }'
-```
-
-**响应示例：**
-
-```json
-{
-  "success": true,
-  "metrics_summary": {
-    "faithfulness": {
-      "mean": 0.85,
-      "min": 0.7,
-      "max": 1.0,
-      "count": 2
-    },
-    "answer_relevancy": {
-      "mean": 0.9,
-      "min": 0.8,
-      "max": 1.0,
-      "count": 2
-    }
+// 调用 API
+const response = await Api.DocsService.createMarkdownDoc({
+  requestBody: {
+    title: "新文档",
+    content: "内容",
   },
-  "total_items": 2
-}
+});
 ```
 
-#### 2. 创建评估数据集
+## 架构文档
 
-```bash
-# 创建数据集
-curl -X POST http://localhost:8000/evaluation/datasets \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -d '{
-    "knowledge_base_id": "your-kb-id",
-    "name": "测试数据集",
-    "description": "用于测试 RAG 系统"
-  }'
+- [架构设计](./ARCHITECTURE.md) - 系统架构和组件说明
+- [架构决策](./ARCHITECTURE_DECISION.md) - 技术选型说明
+- [部署指南](./DEPLOYMENT.md) - 生产环境部署
 
-# 添加评估数据项
-curl -X POST http://localhost:8000/evaluation/datasets/{dataset_id}/items \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -d '{
-    "question": "什么是 Python？",
-    "ground_truth": "Python 是一种编程语言",
-    "context_doc_ids": ["doc-id-1", "doc-id-2"]
-  }'
-```
+## 特性说明
 
-#### 3. 执行评估运行
+### 存储服务
 
-```bash
-# 创建评估运行（后台异步执行）
-curl -X POST http://localhost:8000/evaluation/runs \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer YOUR_TOKEN" \
-  -d '{
-    "knowledge_base_id": "your-kb-id",
-    "dataset_id": "dataset-id"
-  }'
+- **开发环境**：自动使用本地文件存储
+- **生产环境**：自动使用 OSS 对象存储
+- **大文件**：自动分片上传（>10MB）
 
-# 查询运行状态
-curl -X GET http://localhost:8000/evaluation/runs/{run_id} \
-  -H "Authorization: Bearer YOUR_TOKEN"
+### RAG 服务
 
-# 获取详细结果
-curl -X GET http://localhost:8000/evaluation/runs/{run_id}/results \
-  -H "Authorization: Bearer YOUR_TOKEN"
-```
+- **Python 包模式**（默认）：直接导入，零延迟
+- **gRPC 模式**（可选）：独立部署，可扩展
 
-### 评估指标说明
+### API 客户端
 
-- **faithfulness（忠实度）**：0-1，答案是否完全基于检索到的上下文，目标 > 0.8
-- **answer_relevancy（答案相关性）**：0-1，答案是否回答了问题，目标 > 0.8
-- **context_precision（上下文精确度）**：0-1，检索到的上下文是否与问题相关，目标 > 0.7
-- **context_recall（上下文召回率）**：0-1，是否检索到了所有相关信息，目标 > 0.7
+- **自动生成**：基于 OpenAPI 规范
+- **类型安全**：TypeScript 类型自动同步
+- **自动更新**：接口变更时重新生成即可
 
-### LangSmith 追踪
+## 部署
 
-如果配置了 LangSmith，所有 RAG pipeline 的执行都会被自动追踪：
+详细部署说明请参考 [DEPLOYMENT.md](./DEPLOYMENT.md)
 
-1. 访问 [LangSmith](https://smith.langchain.com/)
-2. 选择项目 `personal-kb-rag`（或你配置的项目名）
-3. 查看详细的执行链路、性能指标和错误追踪
+## License
 
-### 最佳实践
-
-1. **构建评估数据集**：
-
-   - 涵盖不同类型的问题（事实性、解释性、操作指南等）
-   - 提供高质量的参考答案（可选，但能提升评估准确性）
-   - 标注相关文档 ID（用于计算召回率）
-
-2. **定期评估**：
-
-   - 新文档添加后评估检索质量
-   - 参数调整后评估影响
-   - Prompt 优化后评估生成质量
-
-3. **分析结果**：
-   - 低 faithfulness：检查 prompt 或检索质量
-   - 低 answer_relevancy：检查 prompt 或 LLM 理解
-   - 低 context_precision：调整检索参数或优化 embedding
-   - 低 context_recall：增加检索数量或优化文档分块
-
-**详细文档**：查看 `backend/EVALUATION.md` 获取完整的评估使用指南。
-
-## 注意事项
-
-1. **环境变量安全**：不要将 `.env` 文件提交到版本控制系统
-2. **JWT Secret Key**：生产环境请使用强随机字符串
-3. **CORS 配置**：生产环境需要更新 `app.py` 中的 CORS 配置
-4. **数据库备份**：定期备份 `kb.db` 文件
-5. **Google OAuth**：生产环境需要在 Google Cloud Console 添加实际域名
-6. **Chrome 插件权限**：插件需要 `activeTab` 和 `storage` 权限，以及访问 `localhost:8000` 的权限
-7. **插件 API 地址**：确保后端服务运行在 `http://localhost:8000`，或修改插件中的 API_BASE_URL
-8. **RAG 评估成本**：RAGAS 评估会调用 LLM，会产生 API 成本，注意控制评估规模
-9. **LangSmith 费用**：LangSmith 可能有使用限制和费用，请查看官方文档
-10. **评估数据隐私**：评估数据会发送到 RAGAS 和 LangSmith，注意数据隐私保护
-
-## 许可证
-
-MIT License
+MIT

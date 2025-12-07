@@ -2,6 +2,12 @@
 FastAPI 应用主文件（重构版）
 只负责应用初始化和路由注册
 """
+# 兼容 Python 3.9 的新类型语法（必须在所有导入之前）
+try:
+    import eval_type_backport  # noqa: F401
+except ImportError:
+    pass
+
 import asyncio
 import logging
 from fastapi import FastAPI
@@ -20,7 +26,14 @@ logging.basicConfig(
 sentry = init_sentry()
 
 # 创建 FastAPI 应用
-app = FastAPI(title="WisdomVault（智慧宝库）Backend")
+app = FastAPI(
+    title="WisdomVault（智慧宝库）Backend",
+    description="个人知识库系统 API",
+    version="1.0.0",
+    docs_url="/docs",  # Swagger UI
+    redoc_url="/redoc",  # ReDoc
+    openapi_url="/openapi.json",  # OpenAPI JSON
+)
 
 # 添加 CORS 中间件
 app.add_middleware(
