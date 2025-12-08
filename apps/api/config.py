@@ -9,8 +9,9 @@ DOCS_DIR = os.path.join(BASE_DIR, "docs")
 VECTOR_STORE_DIR = os.path.join(BASE_DIR, "vector_store")
 COLLECTION_NAME = "personal_kb"
 
-OPENAI_API_KEY = 'sk-SnAyrib3JgD6sCXgTIzLDlrlssCUfeMVb0ExDfvRiuhtNotT'
-OPENAI_BASE_URL ='https://api.chatanywhere.tech'
+# OpenAI 配置从环境变量读取，避免硬编码敏感信息
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "https://api.chatanywhere.tech")
 
 DB_PATH = os.path.join(BASE_DIR, "kb.db")
 

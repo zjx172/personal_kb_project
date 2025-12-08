@@ -83,7 +83,6 @@ from routers import (
     pdf,
     highlights,
     kb,
-    search_history,
     knowledge_bases,
     evaluation,
     chunk_upload,
@@ -99,7 +98,6 @@ app.include_router(conversations.router)
 app.include_router(pdf.router)
 app.include_router(highlights.router)
 app.include_router(kb.router)
-app.include_router(search_history.router)
 app.include_router(knowledge_bases.router)
 app.include_router(evaluation.router)
 app.include_router(chunk_upload.router)

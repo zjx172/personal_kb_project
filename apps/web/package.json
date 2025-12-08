@@ -8,7 +8,7 @@
     "preview": "vite preview",
     "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css}\"",
     "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css}\"",
-    "generate:api": "openapi --input ./openapi.json --output src/generated/api --client axios --useOptions --exportCore false --exportServices true --exportModels true --exportSchemas false",
+    "generate:api": "openapi --input ./openapi.json --output src/generated/api --client axios --useOptions --exportCore true --exportServices true --exportModels true --exportSchemas false",
     "api:update": "cd ../backend && python scripts/export_openapi.py -o ../openapi.json && cd ../frontend && npm run generate:api"
   },
   "dependencies": {
