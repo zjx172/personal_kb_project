@@ -27,6 +27,8 @@ interface HighlightsContextValue {
   scrollToHighlight: (id: string) => void;
   flashHighlightId: string | null;
   loading: boolean;
+  selectedHighlightId: string | null;
+  selectHighlight: (id: string | null) => void;
 }
 
 interface HighlightsProviderProps {
@@ -73,6 +75,9 @@ export const HighlightsProvider: React.FC<HighlightsProviderProps> = ({
   const [highlights, setHighlights] = useState<Highlight[]>([]);
   const [flashHighlightId, setFlashHighlightId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selectedHighlightId, setSelectedHighlightId] = useState<string | null>(
+    null
+  );
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef(false);
 
@@ -132,10 +137,10 @@ export const HighlightsProvider: React.FC<HighlightsProviderProps> = ({
     const tempId = crypto.randomUUID();
     const optimistic: Highlight = {
       id: tempId,
-        pageNumber,
-        rects,
-        quoteText: quote,
-        createdAt: new Date().toISOString(),
+      pageNumber,
+      rects,
+      quoteText: quote,
+      createdAt: new Date().toISOString(),
       color: defaultColor,
     };
 
@@ -169,7 +174,7 @@ export const HighlightsProvider: React.FC<HighlightsProviderProps> = ({
       toast.error(err?.message || "保存高亮失败");
     } finally {
       savingRef.current = false;
-    selection.removeAllRanges();
+      selection.removeAllRanges();
     }
   };
 
@@ -177,6 +182,9 @@ export const HighlightsProvider: React.FC<HighlightsProviderProps> = ({
     const numericId = Number(id);
     const prev = highlights;
     setHighlights((h) => h.filter((item) => item.id !== id));
+    if (selectedHighlightId === id) {
+      setSelectedHighlightId(null);
+    }
     try {
       if (!Number.isNaN(numericId)) {
         await deleteHighlightApi(numericId);
@@ -211,6 +219,8 @@ export const HighlightsProvider: React.FC<HighlightsProviderProps> = ({
         scrollToHighlight,
         flashHighlightId,
         loading,
+        selectedHighlightId,
+        selectHighlight: setSelectedHighlightId,
       }}
     >
       {children}
