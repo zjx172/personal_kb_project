@@ -55,6 +55,12 @@ if LANGCHAIN_TRACING_V2 and LANGCHAIN_API_KEY:
     if LANGCHAIN_ENDPOINT:
         os.environ["LANGCHAIN_ENDPOINT"] = LANGCHAIN_ENDPOINT
 
+# 确保已配置 API Key，便于在导入阶段快速暴露配置问题
+if not OPENAI_API_KEY:
+    raise RuntimeError(
+        "OPENAI_API_KEY 未配置，请在项目根目录的 .env 或环境变量中设置"
+    )
+
 # 初始化 OpenAI Embeddings
 embeddings = OpenAIEmbeddings(
     api_key=OPENAI_API_KEY,

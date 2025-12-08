@@ -37,14 +37,17 @@ export const markdownToHtml = (
   // 先处理代码块（避免代码块内的内容被其他规则处理）
   const codeBlocks: string[] = [];
   let codeBlockIndex = 0;
-  markdown = markdown.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
-    const id = `__CODE_BLOCK_${codeBlockIndex++}__`;
-    const escapedCode = escapeHtml(code.trim());
-    codeBlocks.push(
-      `<pre class="bg-gray-50 border border-gray-200 rounded-md p-4 overflow-x-auto my-2"><code${lang ? ` class="language-${lang}"` : ""}>${escapedCode}</code></pre>`
-    );
-    return id;
-  });
+  markdown = markdown.replace(
+    /```(\w+)?\n([\s\S]*?)```/g,
+    (match, lang, code) => {
+      const id = `__CODE_BLOCK_${codeBlockIndex++}__`;
+      const escapedCode = escapeHtml(code.trim());
+      codeBlocks.push(
+        `<pre class="bg-gray-50 border border-gray-200 rounded-md p-4 overflow-x-auto my-2"><code${lang ? ` class="language-${lang}"` : ""}>${escapedCode}</code></pre>`
+      );
+      return id;
+    }
+  );
 
   // 处理行内代码
   const inlineCodes: string[] = [];
@@ -65,35 +68,32 @@ export const markdownToHtml = (
   let listType: "ul" | "ol" | null = null;
   let listItems: string[] = [];
 
-    const processInline = (text: string): string => {
-      // 高亮（使用 ==text== 语法，需要在粗体之前处理，避免冲突）
-      text = text.replace(/==(.+?)==/g, '<mark class="bg-yellow-200 px-1 rounded">$1</mark>');
-      
-      // 粗体
-      text = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-      text = text.replace(/__(.+?)__/g, "<strong>$1</strong>");
+  const processInline = (text: string): string => {
+    // 高亮（使用 ==text== 语法，需要在粗体之前处理，避免冲突）
+    text = text.replace(
+      /==(.+?)==/g,
+      '<mark class="bg-yellow-200 px-1 rounded">$1</mark>'
+    );
 
-      // 斜体（避免与粗体冲突）
-      text = text.replace(
-        /(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g,
-        "<em>$1</em>"
-      );
-      text = text.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, "<em>$1</em>");
+    // 粗体
+    text = text.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    text = text.replace(/__(.+?)__/g, "<strong>$1</strong>");
 
-      // 删除线
-      text = text.replace(/~~(.+?)~~/g, "<del>$1</del>");
+    // 斜体（避免与粗体冲突）
+    text = text.replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, "<em>$1</em>");
+    text = text.replace(/(?<!_)_(?!_)(.+?)(?<!_)_(?!_)/g, "<em>$1</em>");
+
+    // 删除线
+    text = text.replace(/~~(.+?)~~/g, "<del>$1</del>");
 
     // 链接（支持 citation: 格式的特殊链接）
-    text = text.replace(
-      /\[([^\]]+)\]\(([^)]+)\)/g,
-      (match, linkText, href) => {
-        if (href.startsWith("citation:")) {
-          // 引用链接，保持原样，让调用者处理
-          return `<a href="${href}" class="citation-link text-blue-600 hover:underline cursor-pointer" data-citation="${href.replace("citation:", "")}">${linkText}</a>`;
-        }
-        return `<a href="${href}" class="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">${linkText}</a>`;
+    text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, (match, linkText, href) => {
+      if (href.startsWith("citation:")) {
+        // 引用链接，保持原样，让调用者处理
+        return `<a href="${href}" class="citation-link inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 hover:border-primary/40 transition-colors cursor-pointer" data-citation="${href.replace("citation:", "")}">${linkText}</a>`;
       }
-    );
+      return `<a href="${href}" class="text-blue-600 hover:underline" target="_blank" rel="noopener noreferrer">${linkText}</a>`;
+    });
 
     return text;
   };
@@ -140,40 +140,40 @@ export const markdownToHtml = (
       continue;
     }
 
-      // 标题
-      if (trimmed.startsWith("### ")) {
-        flushList();
-        const text = processInline(escapeHtml(trimmed.substring(4)));
-        const idAttr = generateHeadingIds
-          ? ` id="${generateSlug(text.replace(/<[^>]*>/g, ""))}"`
-          : "";
-        result.push(
-          `<h3${idAttr} class="text-xl font-semibold my-3">${text}</h3>`
-        );
-        continue;
-      }
-      if (trimmed.startsWith("## ")) {
-        flushList();
-        const text = processInline(escapeHtml(trimmed.substring(3)));
-        const idAttr = generateHeadingIds
-          ? ` id="${generateSlug(text.replace(/<[^>]*>/g, ""))}"`
-          : "";
-        result.push(
-          `<h2${idAttr} class="text-2xl font-semibold my-4">${text}</h2>`
-        );
-        continue;
-      }
-      if (trimmed.startsWith("# ")) {
-        flushList();
-        const text = processInline(escapeHtml(trimmed.substring(2)));
-        const idAttr = generateHeadingIds
-          ? ` id="${generateSlug(text.replace(/<[^>]*>/g, ""))}"`
-          : "";
-        result.push(
-          `<h1${idAttr} class="text-3xl font-semibold my-5">${text}</h1>`
-        );
-        continue;
-      }
+    // 标题
+    if (trimmed.startsWith("### ")) {
+      flushList();
+      const text = processInline(escapeHtml(trimmed.substring(4)));
+      const idAttr = generateHeadingIds
+        ? ` id="${generateSlug(text.replace(/<[^>]*>/g, ""))}"`
+        : "";
+      result.push(
+        `<h3${idAttr} class="text-xl font-semibold my-3">${text}</h3>`
+      );
+      continue;
+    }
+    if (trimmed.startsWith("## ")) {
+      flushList();
+      const text = processInline(escapeHtml(trimmed.substring(3)));
+      const idAttr = generateHeadingIds
+        ? ` id="${generateSlug(text.replace(/<[^>]*>/g, ""))}"`
+        : "";
+      result.push(
+        `<h2${idAttr} class="text-2xl font-semibold my-4">${text}</h2>`
+      );
+      continue;
+    }
+    if (trimmed.startsWith("# ")) {
+      flushList();
+      const text = processInline(escapeHtml(trimmed.substring(2)));
+      const idAttr = generateHeadingIds
+        ? ` id="${generateSlug(text.replace(/<[^>]*>/g, ""))}"`
+        : "";
+      result.push(
+        `<h1${idAttr} class="text-3xl font-semibold my-5">${text}</h1>`
+      );
+      continue;
+    }
 
     // 引用
     if (trimmed.startsWith("> ")) {
@@ -215,9 +215,12 @@ export const markdownToHtml = (
     flushList();
     let processedLine = escapeHtml(trimmed);
     // 恢复行内代码占位符
-    processedLine = processedLine.replace(/__INLINE_CODE_(\d+)__/g, (match, index) => {
-      return inlineCodes[parseInt(index)] || match;
-    });
+    processedLine = processedLine.replace(
+      /__INLINE_CODE_(\d+)__/g,
+      (match, index) => {
+        return inlineCodes[parseInt(index)] || match;
+      }
+    );
     processedLine = processInline(processedLine);
     result.push(`<p class="my-2">${processedLine}</p>`);
   }
@@ -233,4 +236,3 @@ export const markdownToHtml = (
 
   return html;
 };
-

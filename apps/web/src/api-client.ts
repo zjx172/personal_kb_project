@@ -5,7 +5,7 @@
  */
 import axios from "axios";
 import { OpenAPI } from "./generated/api/core/OpenAPI";
-import * as ApiServices from "./generated/api/services";
+import * as ApiServices from "./generated/api";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";

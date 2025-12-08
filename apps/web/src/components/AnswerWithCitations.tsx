@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { Citation } from "../api";
 import { markdownToHtml } from "../utils/markdown";
 
@@ -16,6 +16,7 @@ export const AnswerWithCitations: React.FC<AnswerWithCitationsProps> = ({
   answer,
   citations,
 }) => {
+  const { knowledgeBaseId } = useParams<{ knowledgeBaseId: string }>();
   const navigate = useNavigate();
 
   // 处理引用标号的点击
@@ -33,7 +34,9 @@ export const AnswerWithCitations: React.FC<AnswerWithCitationsProps> = ({
       const highlightParam = citation.snippet
         ? encodeURIComponent(citation.snippet.substring(0, 100))
         : "";
-      navigate(`/doc/${citation.doc_id}?highlight=${highlightParam}`);
+      navigate(
+        `/kb/${knowledgeBaseId}/doc/${citation.doc_id}?highlight=${highlightParam}`
+      );
     }
   };
 

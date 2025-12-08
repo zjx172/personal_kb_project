@@ -24,9 +24,6 @@ const App: React.FC = () => {
             element={<TableDataPage />}
           />
           <Route path="/" element={<KnowledgeBaseRedirect />} />
-          {/* 保留旧路由以兼容 */}
-          <Route path="/doc/:id" element={<DocPage />} />
-          <Route path="/graph" element={<GraphPage />} />
         </Routes>
         <Toaster position="top-center" />
       </BrowserRouter>

@@ -9,7 +9,7 @@ export function useDocs(knowledgeBaseId?: string | null) {
   // 当知识库 ID 变化时，自动重新加载文档
   useEffect(() => {
     if (knowledgeBaseId) {
-  const loadDocs = async () => {
+      const loadDocs = async () => {
         setLoading(true);
         try {
           const data = await listDocs(knowledgeBaseId || undefined);
@@ -47,7 +47,8 @@ export function useDocs(knowledgeBaseId?: string | null) {
         title: "未命名文档",
         content: "",
       });
-      window.open(`/doc/${newDoc.id}`, "_blank");
+
+      window.open(`/kb/${knowledgeBaseId}/doc/${newDoc.id}`, "_blank");
       toast.success("文档已创建");
     } catch (e) {
       console.error(e);

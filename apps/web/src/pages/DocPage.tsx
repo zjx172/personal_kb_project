@@ -266,9 +266,11 @@ const DocPage: React.FC = () => {
       const highlightParam = encodeURIComponent(
         citation.snippet.substring(0, 100)
       );
-      navigate(`/doc/${docId}?highlight=${highlightParam}`);
+      navigate(
+        `/kb/${knowledgeBaseId}/doc/${docId}?highlight=${highlightParam}`
+      );
     } else if (docId) {
-      navigate(`/doc/${docId}`);
+      navigate(`/kb/${knowledgeBaseId}/doc/${docId}`);
     }
   };
 
