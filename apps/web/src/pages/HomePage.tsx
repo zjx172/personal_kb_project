@@ -358,58 +358,57 @@ const HomePage: React.FC = () => {
 
       {/* 主内容区 */}
       <main className="flex-1 flex flex-col relative overflow-hidden">
-        {/* 知识库选择器和用户信息 */}
-        <div
-          className="absolute top-4 right-4 flex items-center justify-between z-10 transition-all duration-300 gap-4"
-          style={{
-            left: !sidebarOpen ? `${sidebarWidth}px` : "16px",
-          }}
-        >
-          <KnowledgeBaseSelector
-            knowledgeBases={knowledgeBases}
-            loading={loadingKnowledgeBases}
-            currentKnowledgeBaseId={currentKnowledgeBaseId}
-            onSelect={(id) => {
-              navigate(`/kb/${id}`);
-              // 对话和消息的重置由 useEffect 自动处理
-            }}
-            onCreate={async (payload) => {
-              try {
-                const newKb = await createKnowledgeBase(payload);
-                await loadKnowledgeBases();
-                navigate(`/kb/${newKb.id}`);
-                toast.success("知识库创建成功");
-              } catch (error: any) {
-                console.error("创建知识库失败:", error);
-                toast.error(error?.message || "创建知识库失败");
-              }
-            }}
-            onUpdate={async (id, name) => {
-              await handleUpdateKnowledgeBase(id, name);
-            }}
-            onDelete={async (id) => {
-              try {
-                await handleDeleteKnowledgeBase(id);
-                await loadKnowledgeBases();
-                // 如果删除的是当前知识库，导航到其他知识库或根路径
-                if (currentKnowledgeBaseId === id) {
-                  const remaining = knowledgeBases.filter((kb) => kb.id !== id);
-                  if (remaining.length > 0) {
-                    navigate(`/kb/${remaining[0].id}`);
-                  } else {
-                    navigate("/");
-                  }
-                  setCurrentConversationId(null);
-                  setMessages([]);
+        {/* 顶部栏：选择器 + 用户信息，使用 sticky 避免与内容重叠 */}
+        <header className="sticky top-0 z-20 flex items-center justify-between gap-4 px-4 py-3 bg-background/80 backdrop-blur border-b">
+          <div className="flex-1 min-w-0">
+            <KnowledgeBaseSelector
+              knowledgeBases={knowledgeBases}
+              loading={loadingKnowledgeBases}
+              currentKnowledgeBaseId={currentKnowledgeBaseId}
+              onSelect={(id) => {
+                navigate(`/kb/${id}`);
+                // 对话和消息的重置由 useEffect 自动处理
+              }}
+              onCreate={async (payload) => {
+                try {
+                  const newKb = await createKnowledgeBase(payload);
+                  await loadKnowledgeBases();
+                  navigate(`/kb/${newKb.id}`);
+                  toast.success("知识库创建成功");
+                } catch (error: any) {
+                  console.error("创建知识库失败:", error);
+                  toast.error(error?.message || "创建知识库失败");
                 }
-              } catch (error: any) {
-                // 错误已在 handleDeleteKnowledgeBase 中处理
-                console.error("删除知识库失败:", error);
-              }
-            }}
-          />
+              }}
+              onUpdate={async (id, name) => {
+                await handleUpdateKnowledgeBase(id, name);
+              }}
+              onDelete={async (id) => {
+                try {
+                  await handleDeleteKnowledgeBase(id);
+                  await loadKnowledgeBases();
+                  // 如果删除的是当前知识库，导航到其他知识库或根路径
+                  if (currentKnowledgeBaseId === id) {
+                    const remaining = knowledgeBases.filter(
+                      (kb) => kb.id !== id
+                    );
+                    if (remaining.length > 0) {
+                      navigate(`/kb/${remaining[0].id}`);
+                    } else {
+                      navigate("/");
+                    }
+                    setCurrentConversationId(null);
+                    setMessages([]);
+                  }
+                } catch (error: any) {
+                  // 错误已在 handleDeleteKnowledgeBase 中处理
+                  console.error("删除知识库失败:", error);
+                }
+              }}
+            />
+          </div>
           {/* 用户信息和登出按钮 */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             {user.picture && (
               <img
                 src={user.picture}
@@ -419,7 +418,9 @@ const HomePage: React.FC = () => {
             )}
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <User className="h-4 w-4" />
-              <span>{user.name || user.email}</span>
+              <span className="truncate max-w-[140px]">
+                {user.name || user.email}
+              </span>
             </div>
             <Button
               variant="ghost"
@@ -431,7 +432,7 @@ const HomePage: React.FC = () => {
               登出
             </Button>
           </div>
-        </div>
+        </header>
 
         {/* 侧边栏切换按钮（当侧边栏隐藏时显示） */}
         {!sidebarOpen && (
@@ -446,7 +447,7 @@ const HomePage: React.FC = () => {
         )}
 
         {/* 对话消息列表 */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 pt-16">
+        <div className="flex-1 overflow-y-auto px-4 py-6">
           <MessageList
             messages={messages}
             querying={querying}
