@@ -9,14 +9,8 @@ import {
   Spin,
   Empty,
 } from "@arco-design/web-react";
-import {
-  listDocs,
-  createDoc,
-  getDoc,
-  updateDoc,
-  MarkdownDocItem,
-  MarkdownDocDetail,
-} from "../../api";
+import type { MarkdownDocDetail, MarkdownDocItem } from "../../generated/api";
+import { listDocs, createDoc, getDoc, updateDoc } from "../../api";
 import { useAuth } from "../../contexts/AuthContext";
 
 const { Sider, Content, Header } = Layout;

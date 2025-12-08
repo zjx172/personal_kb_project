@@ -1,5 +1,5 @@
 import React from "react";
-import { MarkdownDocDetail } from "../../api";
+import type { MarkdownDocDetail } from "../../generated/api";
 
 interface DocTitleProps {
   currentDoc: MarkdownDocDetail | null;

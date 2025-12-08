@@ -31,6 +31,7 @@ import type {
 
 // re-export types for external consumers
 export type { MarkdownDocItem } from "./generated/api";
+export type { MarkdownDocDetail } from "./generated/api";
 
 const API_BASE_URL =
   OpenAPI.BASE || import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -52,6 +53,12 @@ export const createHighlight = (payload: HighlightCreate): Promise<Highlight> =>
     requestBody: payload,
     token: getToken(),
   });
+
+export const deleteHighlight = (id: number): Promise<void> =>
+  Api.HighlightsService.deleteHighlightHighlightsHighlightIdDelete({
+    highlightId: id,
+    token: getToken(),
+  }).then(() => {});
 
 // ---- Online Markdown Docs ----
 

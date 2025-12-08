@@ -1,7 +1,7 @@
 """
 高亮相关路由
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional
 
@@ -19,12 +19,16 @@ def create_highlight(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    rects = [r.dict() for r in req.rects] if req.rects else []
+
     h = Highlight(
         user_id=current_user.id,
         source=req.source,
         page=req.page,
         selected_text=req.selected_text,
         note=req.note,
+        rects=rects,
+        color=req.color,
     )
     db.add(h)
     db.commit()
@@ -44,3 +48,20 @@ def list_highlights(
     rows = q.order_by(Highlight.created_at.desc()).all()
     return rows
 
+
+@router.delete("/{highlight_id}", status_code=204)
+def delete_highlight(
+    highlight_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    h = (
+        db.query(Highlight)
+        .filter(Highlight.id == highlight_id, Highlight.user_id == current_user.id)
+        .first()
+    )
+    if not h:
+        raise HTTPException(status_code=404, detail="Highlight not found")
+
+    db.delete(h)
+    db.commit()

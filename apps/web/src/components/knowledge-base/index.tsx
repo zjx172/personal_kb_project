@@ -9,15 +9,12 @@ import {
   Empty,
   Typography,
 } from "@arco-design/web-react";
-import {
-  listHighlights,
-  createHighlight,
-  Highlight,
+import type {
+  HighlightOut as Highlight,
   MarkdownDocDetail,
   MarkdownDocItem,
-  listDocs,
-  getDoc,
-} from "../../api";
+} from "../../generated/api";
+import { listHighlights, createHighlight, listDocs, getDoc } from "../../api";
 
 const { Sider, Content, Header } = Layout;
 const { TextArea } = Input;
@@ -116,6 +113,7 @@ const KnowledgeBase: React.FC = () => {
       const source = `markdown_doc:${selectedDoc.id}`;
       await createHighlight({
         source: source,
+        rects: [],
         selected_text: text,
         note: highlightNote.trim() || undefined,
       });

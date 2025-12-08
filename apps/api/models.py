@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, Text, DateTime, String
+from sqlalchemy import Column, Integer, Text, DateTime, String, JSON
 from datetime import datetime
 import uuid
 from db import Base
@@ -32,6 +32,8 @@ class Highlight(Base):
     page = Column(Integer, nullable=True)
     selected_text = Column(Text, nullable=False)
     note = Column(Text, nullable=True)
+    rects = Column(JSON, nullable=False, default=list)  # 规范化后的坐标
+    color = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 # 文档统计

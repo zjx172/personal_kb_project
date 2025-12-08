@@ -31,54 +31,38 @@ export const MarkdownEditor = forwardRef<
   useEffect(() => {
     if (!previewRef.current) return;
 
-    // 清除之前的高亮
+    const previewElement = previewRef.current;
+
     const clearHighlights = () => {
-      const highlights = previewRef.current?.querySelectorAll(
-        "mark.highlight-search"
-      );
-      highlights?.forEach((highlight) => {
+      const highlights = previewElement.querySelectorAll("mark.highlight-search");
+      highlights.forEach((highlight) => {
         const parent = highlight.parentNode;
-        if (parent) {
-          parent.replaceChild(
-            document.createTextNode(highlight.textContent || ""),
-            highlight
-          );
-          parent.normalize();
-        }
+        if (!parent) return;
+        parent.replaceChild(
+          document.createTextNode(highlight.textContent || ""),
+          highlight
+        );
+        parent.normalize();
       });
     };
 
-    if (!highlightText) {
+    const trimmedHighlight = highlightText?.trim();
+    if (!trimmedHighlight) {
       clearHighlights();
       return;
     }
 
-    const timer = setTimeout(() => {
-      const normalizeMarkdownText = (text: string) =>
-        text
-          .replace(/\r?\n/g, " ")
-          // 去掉标题/引用/列表等标记，便于与渲染后的纯文本匹配
-          .replace(/^#{1,6}\s+/gm, "")
-          .replace(/^\s{0,3}>\s?/gm, "")
-          .replace(/^\s{0,3}([-*+]|\d+\.)\s+/gm, "")
-          .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
-          .replace(/\[([^\]]*)\]\([^)]+\)/g, "$1")
-          .replace(/[`*_~]/g, "")
-          .trim();
+    const escapeRegex = (value: string) =>
+      value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-      const searchText = normalizeMarkdownText(highlightText.substring(0, 100));
-      if (!searchText || !previewRef.current) return;
-
-      // 先清除之前的高亮
+    const timer = window.setTimeout(() => {
       clearHighlights();
 
-      // 递归查找所有文本节点
       const walker = document.createTreeWalker(
-        previewRef.current,
+        previewElement,
         NodeFilter.SHOW_TEXT,
         {
           acceptNode: (node) => {
-            // 跳过代码块、代码行、链接等特殊元素内的文本
             let parent = node.parentElement;
             while (parent) {
               if (
@@ -96,7 +80,6 @@ export const MarkdownEditor = forwardRef<
         }
       );
 
-      // 收集所有文本节点及其位置信息
       interface TextNodeInfo {
         node: Text;
         text: string;
@@ -106,93 +89,62 @@ export const MarkdownEditor = forwardRef<
 
       const textNodeInfos: TextNodeInfo[] = [];
       let fullText = "";
-      let node;
-      while ((node = walker.nextNode())) {
-        if (node.nodeType === Node.TEXT_NODE) {
-          const text = node.textContent || "";
-          const startIndex = fullText.length;
-          const endIndex = startIndex + text.length;
-          textNodeInfos.push({
-            node: node as Text,
-            text,
-            startIndex,
-            endIndex,
-          });
-          fullText += text;
-        }
+      let currentNode: Node | null;
+      while ((currentNode = walker.nextNode())) {
+        if (currentNode.nodeType !== Node.TEXT_NODE) continue;
+        const text = currentNode.textContent || "";
+        const startIndex = fullText.length;
+        const endIndex = startIndex + text.length;
+        textNodeInfos.push({
+          node: currentNode as Text,
+          text,
+          startIndex,
+          endIndex,
+        });
+        fullText += text;
       }
 
-      // 在全文中查找匹配的位置（大小写不敏感）
-      // 将换行符统一替换为空格进行匹配，并建立索引映射
-      const normalizedFullText = normalizeMarkdownText(fullText);
-      const searchLower = searchText.toLowerCase();
-      const fullTextLower = normalizedFullText.toLowerCase();
-      const normalizedMatchIndex = fullTextLower.indexOf(searchLower);
-      console.log(normalizedMatchIndex, "normalizedMatchIndex");
-      // console.log(fullText, "fullText");
-      console.log(searchText, "searchText");
-      console.log(fullTextLower, "fullTextLower");
+      const normalizedSearch = trimmedHighlight.replace(/\u00A0/g, " ");
+      const cappedSearch =
+        normalizedSearch.length > 2000
+          ? normalizedSearch.slice(0, 2000)
+          : normalizedSearch;
+      const searchTokens = cappedSearch.split(/\s+/).filter(Boolean);
+      if (!searchTokens.length) return;
 
-      if (normalizedMatchIndex === -1) return;
+      const pattern = searchTokens
+        .map((token) => escapeRegex(token))
+        .join("[\\s\\u00A0]+");
+      const match = new RegExp(pattern, "i").exec(fullText);
+      if (!match) return;
 
-      // 将归一化后的索引映射回原始文本索引
-      // 建立索引映射：normalizedIndex -> originalIndex
-      const indexMap: number[] = [];
-      let normalizedPos = 0;
-      for (let i = 0; i < fullText.length; i++) {
-        if (fullText[i] !== "\n" && fullText[i] !== "\r") {
-          indexMap[normalizedPos] = i;
-          normalizedPos++;
-        }
-      }
+      const matchStart = match.index;
+      const matchEnd = match.index + match[0].length;
 
-      // 获取原始文本中的匹配位置
-      const matchIndex = indexMap[normalizedMatchIndex] ?? normalizedMatchIndex;
-      const normalizedMatchEndIndex = normalizedMatchIndex + searchText.length;
-      // 如果结束索引超出映射范围，使用文本末尾作为上限
-      const matchEndIndex =
-        normalizedMatchEndIndex < indexMap.length
-          ? indexMap[normalizedMatchEndIndex]
-          : fullText.length;
-
-      // 找到所有需要高亮的文本节点及其高亮范围
       interface HighlightRange {
         nodeInfo: TextNodeInfo;
-        highlightStart: number; // 在该节点中的相对位置
-        highlightEnd: number; // 在该节点中的相对位置
+        highlightStart: number;
+        highlightEnd: number;
       }
 
       const highlightRanges: HighlightRange[] = [];
 
       for (const nodeInfo of textNodeInfos) {
-        // 检查这个节点是否与匹配范围有交集
-        const nodeStart = nodeInfo.startIndex;
-        const nodeEnd = nodeInfo.endIndex;
-
-        // 计算交集范围
-        const intersectStart = Math.max(nodeStart, matchIndex);
-        const intersectEnd = Math.min(nodeEnd, matchEndIndex);
+        const intersectStart = Math.max(nodeInfo.startIndex, matchStart);
+        const intersectEnd = Math.min(nodeInfo.endIndex, matchEnd);
 
         if (intersectStart < intersectEnd) {
-          // 计算在这个节点中需要高亮的范围（相对位置）
-          const highlightStart = intersectStart - nodeStart;
-          const highlightEnd = intersectEnd - nodeStart;
-
           highlightRanges.push({
             nodeInfo,
-            highlightStart,
-            highlightEnd,
+            highlightStart: intersectStart - nodeInfo.startIndex,
+            highlightEnd: intersectEnd - nodeInfo.startIndex,
           });
         }
       }
 
-      // 从后往前处理，避免索引变化影响
-      // 依次高亮每个节点中的匹配部分
       for (let i = highlightRanges.length - 1; i >= 0; i--) {
         const { nodeInfo, highlightStart, highlightEnd } = highlightRanges[i];
         const text = nodeInfo.text;
-
-        // 只高亮匹配的部分
         const beforeText = text.substring(0, highlightStart);
         const matchText = text.substring(highlightStart, highlightEnd);
         const afterText = text.substring(highlightEnd);
@@ -200,9 +152,7 @@ export const MarkdownEditor = forwardRef<
         const parent = nodeInfo.node.parentNode;
         if (!parent) continue;
 
-        // 创建新的节点
         const nodesToInsert: Node[] = [];
-
         if (afterText) {
           nodesToInsert.push(document.createTextNode(afterText));
         }
@@ -216,13 +166,12 @@ export const MarkdownEditor = forwardRef<
           nodesToInsert.push(document.createTextNode(beforeText));
         }
 
-        // 替换原文本节点
         nodesToInsert.forEach((newNode) => {
           parent.insertBefore(newNode, nodeInfo.node);
         });
         parent.removeChild(nodeInfo.node);
       }
-    }, 300);
+    }, 250);
 
     return () => {
       clearTimeout(timer);

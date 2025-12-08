@@ -13,7 +13,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Save, Trash2, Loader2, Brain } from "lucide-react";
-import { MarkdownDocDetail } from "../../api";
+import type { MarkdownDocDetail } from "../../generated/api";
 
 interface DocHeaderProps {
   saving: boolean;

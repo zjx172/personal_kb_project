@@ -90,10 +90,19 @@ class KbDocDetail(BaseModel):
 
 
 # ---- 高亮 ----
+class HighlightRect(BaseModel):
+    x: float
+    y: float
+    width: float
+    height: float
+
+
 class HighlightCreate(BaseModel):
     source: str
     page: Optional[int] = None
     selected_text: str
+    rects: List[HighlightRect] = []
+    color: Optional[str] = None
     note: Optional[str] = None
 
 
@@ -102,6 +111,8 @@ class HighlightOut(BaseModel):
     source: str
     page: Optional[int]
     selected_text: str
+    rects: List[HighlightRect]
+    color: Optional[str]
     note: Optional[str]
     created_at: datetime
 
