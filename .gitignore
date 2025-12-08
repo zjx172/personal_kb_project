@@ -3,6 +3,7 @@ openapi.json
 
 # 前端依赖与可选的生成代码
 apps/**/node_modules
+apps/web/src/generated
 
 # 后端虚拟环境/本地数据
 apps/api/venv
