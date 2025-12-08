@@ -23,7 +23,6 @@ export const MarkdownEditor = forwardRef<
 >(({ content, viewMode, highlightText, onContentChange }, ref) => {
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const previewRef = useRef<HTMLDivElement>(null);
-
   useImperativeHandle(ref, () => ({
     editorRef,
   }));
@@ -55,7 +54,19 @@ export const MarkdownEditor = forwardRef<
     }
 
     const timer = setTimeout(() => {
-      const searchText = highlightText.substring(0, 100).trim();
+      const normalizeMarkdownText = (text: string) =>
+        text
+          .replace(/\r?\n/g, " ")
+          // 去掉标题/引用/列表等标记，便于与渲染后的纯文本匹配
+          .replace(/^#{1,6}\s+/gm, "")
+          .replace(/^\s{0,3}>\s?/gm, "")
+          .replace(/^\s{0,3}([-*+]|\d+\.)\s+/gm, "")
+          .replace(/!\[([^\]]*)\]\([^)]+\)/g, "$1")
+          .replace(/\[([^\]]*)\]\([^)]+\)/g, "$1")
+          .replace(/[`*_~]/g, "")
+          .trim();
+
+      const searchText = normalizeMarkdownText(highlightText.substring(0, 100));
       if (!searchText || !previewRef.current) return;
 
       // 先清除之前的高亮
@@ -112,19 +123,37 @@ export const MarkdownEditor = forwardRef<
       }
 
       // 在全文中查找匹配的位置（大小写不敏感）
+      // 将换行符统一替换为空格进行匹配，并建立索引映射
+      const normalizedFullText = normalizeMarkdownText(fullText);
       const searchLower = searchText.toLowerCase();
-      const fullTextLower = fullText.toLowerCase();
-      const matchIndex = fullTextLower.indexOf(searchLower);
+      const fullTextLower = normalizedFullText.toLowerCase();
+      const normalizedMatchIndex = fullTextLower.indexOf(searchLower);
+      console.log(normalizedMatchIndex, "normalizedMatchIndex");
+      // console.log(fullText, "fullText");
+      console.log(searchText, "searchText");
+      console.log(fullTextLower, "fullTextLower");
 
-      if (matchIndex === -1) return;
+      if (normalizedMatchIndex === -1) return;
 
-      // 使用原始文本确定实际匹配的长度（考虑大小写）
-      // 从全文中提取实际匹配的文本段
-      const actualMatchText = fullText.substring(
-        matchIndex,
-        matchIndex + searchText.length
-      );
-      const matchEndIndex = matchIndex + actualMatchText.length;
+      // 将归一化后的索引映射回原始文本索引
+      // 建立索引映射：normalizedIndex -> originalIndex
+      const indexMap: number[] = [];
+      let normalizedPos = 0;
+      for (let i = 0; i < fullText.length; i++) {
+        if (fullText[i] !== "\n" && fullText[i] !== "\r") {
+          indexMap[normalizedPos] = i;
+          normalizedPos++;
+        }
+      }
+
+      // 获取原始文本中的匹配位置
+      const matchIndex = indexMap[normalizedMatchIndex] ?? normalizedMatchIndex;
+      const normalizedMatchEndIndex = normalizedMatchIndex + searchText.length;
+      // 如果结束索引超出映射范围，使用文本末尾作为上限
+      const matchEndIndex =
+        normalizedMatchEndIndex < indexMap.length
+          ? indexMap[normalizedMatchEndIndex]
+          : fullText.length;
 
       // 找到所有需要高亮的文本节点及其高亮范围
       interface HighlightRange {
