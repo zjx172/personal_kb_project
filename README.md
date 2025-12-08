@@ -106,17 +106,17 @@
 
 ```bash
 # 后端
-cd backend
+cd apps/api
 pip install -r requirements.txt
 
 # 前端
-cd frontend
+cd ../../apps/web
 npm install
 ```
 
 ### 2. 配置环境变量
 
-创建 `backend/.env` 文件：
+创建 `apps/api/.env` 文件：
 
 ```bash
 # OpenAI 配置
@@ -142,7 +142,7 @@ OSS_BUCKET_NAME=
 ### 3.2. 初始化数据库
 
 ```bash
-cd backend
+cd apps/api
 python init_db.py
 
 # 如果已有数据库，运行迁移脚本添加新字段
@@ -153,11 +153,11 @@ python migrate_knowledge_base_types.py
 
 ```bash
 # 后端（终端 1）
-cd backend
+cd apps/api
 uvicorn app:app --reload
 
 # 前端（终端 2）
-cd frontend
+cd ../../apps/web
 npm run dev
 ```
 
@@ -168,7 +168,7 @@ npm run dev
 make generate-api
 
 # 方法 2: 使用 npm 脚本
-cd frontend
+cd apps/web
 npm run api:update
 
 # 方法 3: 使用 shell 脚本
@@ -179,38 +179,24 @@ npm run api:update
 
 ```
 personal_kb_project/
-├── backend/              # FastAPI 后端
-│   ├── routers/         # API 路由
-│   ├── services/        # 业务服务
-│   │   ├── storage.py   # 存储服务（本地/OSS）
-│   │   ├── rag_adapter.py  # RAG 服务适配器
-│   │   └── vector_store.py
-│   ├── scripts/         # 工具脚本
-│   │   └── export_openapi.py
-│   ├── models.py        # 数据模型
-│   ├── schemas.py       # Pydantic 模型
-│   └── app.py           # 应用入口
-│
-├── frontend/            # React 前端
-│   ├── src/
-│   │   ├── generated/   # 自动生成的 API 客户端
-│   │   ├── api-client.ts # API 客户端封装
-│   │   ├── components/  # React 组件
-│   │   └── pages/       # 页面
-│   └── package.json
-│
-├── rag-service/         # RAG 服务（Python 包）
-│   ├── __init__.py
-│   ├── rag_pipeline.py  # RAG Pipeline
-│   ├── retrieval.py    # 向量检索
-│   ├── services.py     # 服务初始化
-│   └── grpc_server.py  # gRPC 服务器（可选）
-│
-├── chrome-extension/   # Chrome 浏览器扩展
-│   └── ...
-│
-└── scripts/             # 项目级脚本
-    └── generate-api-client.sh
+├── apps/                         # 各独立应用
+│   ├── api/                      # FastAPI 主后端
+│   ├── web/                      # React 主前端
+│   ├── eval-api/                 # 评测系统后端
+│   ├── eval-web/                 # 评测系统前端
+│   ├── rag-service/              # RAG 独立服务
+│   └── chrome-ext/               # Chrome 扩展
+├── docs/                         # 文档
+│   ├── ARCHITECTURE.md
+│   ├── ARCHITECTURE_DECISION.md
+│   ├── API_CLIENT_GUIDE.md
+│   ├── DEPLOYMENT.md
+│   ├── EVALUATION.md
+│   └── evaluation-system/        # 评测系统文档
+└── scripts/                      # 项目级脚本
+    ├── generate-api-client.sh
+    ├── generate-api-client.ps1
+    └── start-evaluation.sh
 ```
 
 ## API 文档
@@ -225,11 +211,11 @@ personal_kb_project/
 
 ### 添加新接口
 
-1. 在 `backend/routers/` 中添加路由
+1. 在 `apps/api/routers/` 中添加路由
 2. 运行 `make generate-api` 生成客户端
 3. 在代码中使用生成的 API 客户端
 
-详细说明请参考 [API_CLIENT_GUIDE.md](./API_CLIENT_GUIDE.md)
+详细说明请参考 [API_CLIENT_GUIDE.md](./docs/API_CLIENT_GUIDE.md)
 
 ### 使用生成的 API 客户端
 
@@ -247,9 +233,9 @@ const response = await Api.DocsService.createMarkdownDoc({
 
 ## 架构文档
 
-- [架构设计](./ARCHITECTURE.md) - 系统架构和组件说明
-- [架构决策](./ARCHITECTURE_DECISION.md) - 技术选型说明
-- [部署指南](./DEPLOYMENT.md) - 生产环境部署
+- [架构设计](./docs/ARCHITECTURE.md) - 系统架构和组件说明
+- [架构决策](./docs/ARCHITECTURE_DECISION.md) - 技术选型说明
+- [部署指南](./docs/DEPLOYMENT.md) - 生产环境部署
 
 ## 特性说明
 
@@ -294,7 +280,7 @@ const response = await Api.DocsService.createMarkdownDoc({
 
 ## 部署
 
-详细部署说明请参考 [DEPLOYMENT.md](./DEPLOYMENT.md)
+详细部署说明请参考 [DEPLOYMENT.md](./docs/DEPLOYMENT.md)
 
 ## License
 

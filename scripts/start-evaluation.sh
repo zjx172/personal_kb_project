@@ -1,12 +1,19 @@
 #!/bin/bash
 
-# 启动评估系统（前后端）
+set -e
+
+# 定位到仓库根目录
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+BACKEND_DIR="$PROJECT_ROOT/apps/eval-api"
+FRONTEND_DIR="$PROJECT_ROOT/apps/eval-web"
 
 echo "启动 RAG 评估系统..."
 
 # 启动后端
 echo "启动后端服务..."
-cd backend
+cd "$BACKEND_DIR"
 if [ ! -d "venv" ]; then
     echo "创建虚拟环境..."
     python3 -m venv venv
@@ -22,7 +29,7 @@ sleep 3
 
 # 启动前端
 echo "启动前端服务..."
-cd ../frontend
+cd "$FRONTEND_DIR"
 if [ ! -d "node_modules" ]; then
     echo "安装前端依赖..."
     npm install

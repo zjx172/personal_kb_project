@@ -3,8 +3,8 @@
 $ErrorActionPreference = "Stop"
 
 $PROJECT_ROOT = Split-Path -Parent $PSScriptRoot
-$BACKEND_DIR = Join-Path $PROJECT_ROOT "backend"
-$FRONTEND_DIR = Join-Path $PROJECT_ROOT "frontend"
+$BACKEND_DIR = Join-Path $PROJECT_ROOT "apps/api"
+$FRONTEND_DIR = Join-Path $PROJECT_ROOT "apps/web"
 
 Write-Host "🚀 开始生成 API 客户端..." -ForegroundColor Green
 

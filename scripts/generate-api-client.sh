@@ -4,8 +4,8 @@
 set -e
 
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-BACKEND_DIR="$PROJECT_ROOT/backend"
-FRONTEND_DIR="$PROJECT_ROOT/frontend"
+BACKEND_DIR="$PROJECT_ROOT/apps/api"
+FRONTEND_DIR="$PROJECT_ROOT/apps/web"
 
 echo "🚀 开始生成 API 客户端..."
 

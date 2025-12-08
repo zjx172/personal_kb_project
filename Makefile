@@ -7,12 +7,12 @@ help:
 
 generate-api:
 	@echo "🚀 生成 API 客户端..."
-	@cd backend && python scripts/export_openapi.py -o ../openapi.json
-	@cd frontend && npm run generate:api
+	@cd apps/api && python scripts/export_openapi.py -o ../../openapi.json
+	@cd apps/web && npm run generate:api
 	@echo "✅ 完成！"
 
 export-openapi:
 	@echo "📝 导出 OpenAPI schema..."
-	@cd backend && python scripts/export_openapi.py
+	@cd apps/api && python scripts/export_openapi.py
 	@echo "✅ 完成！"
 
