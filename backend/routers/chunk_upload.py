@@ -249,6 +249,7 @@ async def complete_chunk_upload(
                     knowledge_base_id=session.get("knowledge_base_id"),
                     title=session.get("title"),
                     filename=session["filename"],
+                    file_type=file_type,
                 )
             )
         

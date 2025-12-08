@@ -153,61 +153,61 @@ export const KnowledgeBaseSelector: React.FC<KnowledgeBaseSelectorProps> = ({
                     {/* 默认知识库不允许编辑和删除 */}
                     {kb.name !== "默认知识库" && (
                       <>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="h-6 w-6"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        handleStartEdit(kb, e);
+                      }}
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                      }}
+                    >
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
                         <Button
                           size="icon"
                           variant="ghost"
-                          className="h-6 w-6"
+                          className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
                           onClick={(e) => {
                             e.stopPropagation();
-                            e.preventDefault();
-                            handleStartEdit(kb, e);
                           }}
                           onMouseDown={(e) => {
                             e.stopPropagation();
-                            e.preventDefault();
                           }}
                         >
-                          <Pencil className="h-3 w-3" />
+                          <Trash2 className="h-3 w-3" />
                         </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="h-6 w-6 text-destructive hover:text-destructive hover:bg-destructive/10"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                              }}
-                              onMouseDown={(e) => {
-                                e.stopPropagation();
-                              }}
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>
-                                确定要删除这个知识库吗？
-                              </AlertDialogTitle>
-                              <AlertDialogDescription>
-                                此操作无法撤销。知识库中的所有文档、对话和消息将被永久删除。
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>取消</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  await onDelete(kb.id);
-                                }}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                删除
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>
+                            确定要删除这个知识库吗？
+                          </AlertDialogTitle>
+                          <AlertDialogDescription>
+                            此操作无法撤销。知识库中的所有文档、对话和消息将被永久删除。
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>取消</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await onDelete(kb.id);
+                            }}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            删除
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                       </>
                     )}
                   </div>
@@ -216,15 +216,15 @@ export const KnowledgeBaseSelector: React.FC<KnowledgeBaseSelectorProps> = ({
             </div>
           ))}
           <div className="border-t p-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full justify-start"
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start"
               onClick={() => setShowCreateDialog(true)}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              新建知识库
-            </Button>
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                新建知识库
+              </Button>
           </div>
         </SelectContent>
       </Select>
