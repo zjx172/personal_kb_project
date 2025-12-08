@@ -8,11 +8,9 @@ import { TextLayer } from "./TextLayer";
 
 export const PdfPage = ({
   pageNumber,
-  onVisibleChange,
   onSize,
 }: {
   pageNumber: number;
-  onVisibleChange?: (pageNumber: number, visible: boolean) => void;
   onSize?: (
     pageNumber: number,
     size: { width: number; height: number }
@@ -29,19 +27,9 @@ export const PdfPage = ({
   }, [viewportSize, onSize, pageNumber]);
 
   useEffect(() => {
-    if (!ref.current || !onVisibleChange) return;
-    const el = ref.current;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          onVisibleChange(pageNumber, entry.isIntersecting);
-        });
-      },
-      { rootMargin: "200px 0px 200px 0px", threshold: 0.1 }
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [onVisibleChange, pageNumber]);
+    // no-op: visibility handled by parent virtualizer
+    return;
+  }, []);
 
   if (!page || !viewportSize) return null;
 

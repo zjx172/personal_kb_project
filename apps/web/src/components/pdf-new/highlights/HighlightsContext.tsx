@@ -132,10 +132,10 @@ export const HighlightsProvider: React.FC<HighlightsProviderProps> = ({
     const tempId = crypto.randomUUID();
     const optimistic: Highlight = {
       id: tempId,
-      pageNumber,
-      rects,
-      quoteText: quote,
-      createdAt: new Date().toISOString(),
+        pageNumber,
+        rects,
+        quoteText: quote,
+        createdAt: new Date().toISOString(),
       color: defaultColor,
     };
 
@@ -169,7 +169,7 @@ export const HighlightsProvider: React.FC<HighlightsProviderProps> = ({
       toast.error(err?.message || "保存高亮失败");
     } finally {
       savingRef.current = false;
-      selection.removeAllRanges();
+    selection.removeAllRanges();
     }
   };
 

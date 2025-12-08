@@ -4,57 +4,29 @@ import { PdfPage } from "./PdfPage";
 
 export const PageList = ({
   numPages,
-  onVisibleChange,
   visiblePages = [],
   pageHeights = {},
   onSize,
+  beforeHeight = 0,
+  afterHeight = 0,
 }: {
   numPages: number;
-  onVisibleChange?: (pageNumber: number, visible: boolean) => void;
   visiblePages?: number[];
   pageHeights?: Record<number, number>;
   onSize?: (
     pageNumber: number,
     size: { width: number; height: number }
   ) => void;
+  beforeHeight?: number;
+  afterHeight?: number;
 }) => {
-  const renderSet = new Set<number>();
-  visiblePages.forEach((p) => {
-    renderSet.add(p);
-    renderSet.add(p - 1);
-    renderSet.add(p + 1);
-    renderSet.add(p - 2);
-    renderSet.add(p + 2);
-  });
-
   return (
-    <div className="py-4">
-      {Array.from({ length: numPages }, (_, i) => i + 1).map((pageNumber) => {
-        const shouldRender = renderSet.size === 0 || renderSet.has(pageNumber);
-        const placeholderHeight = pageHeights[pageNumber] ?? 1200;
-
-        if (!shouldRender) {
-          return (
-            <div
-              key={`placeholder-${pageNumber}`}
-              style={{
-                height: placeholderHeight,
-                margin: "0 auto 16px",
-                width: "100%",
-              }}
-            />
-          );
-        }
-
-        return (
-          <PdfPage
-            key={pageNumber}
-            pageNumber={pageNumber}
-            onVisibleChange={onVisibleChange}
-            onSize={onSize}
-          />
-        );
-      })}
+    <div className="py-4" style={{ position: "relative" }}>
+      {beforeHeight > 0 && <div style={{ height: beforeHeight }} />}
+      {visiblePages.map((pageNumber) => (
+        <PdfPage key={pageNumber} pageNumber={pageNumber} onSize={onSize} />
+      ))}
+      {afterHeight > 0 && <div style={{ height: afterHeight }} />}
     </div>
   );
 };
