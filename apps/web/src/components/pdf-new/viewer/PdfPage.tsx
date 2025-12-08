@@ -1,4 +1,4 @@
-import React, { useRef } from "react";
+import React, { useEffect, useRef } from "react";
 
 import { useHighlights } from "../highlights/useHighlights";
 import { usePdfPage } from "../pdf/usePdfPage";
@@ -6,11 +6,42 @@ import { CanvasLayer } from "./CanvasLayer";
 import { HighlightLayer } from "./HighlightLayer";
 import { TextLayer } from "./TextLayer";
 
-export const PdfPage = ({ pageNumber }: { pageNumber: number }) => {
+export const PdfPage = ({
+  pageNumber,
+  onVisibleChange,
+  onSize,
+}: {
+  pageNumber: number;
+  onVisibleChange?: (pageNumber: number, visible: boolean) => void;
+  onSize?: (
+    pageNumber: number,
+    size: { width: number; height: number }
+  ) => void;
+}) => {
   const ref = useRef<HTMLDivElement | null>(null);
   const { page, viewportSize, scale } = usePdfPage(pageNumber);
   const { getHighlightsForPage, createHighlightFromSelection } =
     useHighlights();
+
+  useEffect(() => {
+    if (!viewportSize || !onSize) return;
+    onSize(pageNumber, viewportSize);
+  }, [viewportSize, onSize, pageNumber]);
+
+  useEffect(() => {
+    if (!ref.current || !onVisibleChange) return;
+    const el = ref.current;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          onVisibleChange(pageNumber, entry.isIntersecting);
+        });
+      },
+      { rootMargin: "200px 0px 200px 0px", threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [onVisibleChange, pageNumber]);
 
   if (!page || !viewportSize) return null;
 

@@ -1,18 +1,22 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useDeferredValue } from "react";
 
-import { pdfjsLib } from './pdfjs';
-import type { PDFDocumentProxy } from './pdfjs';
-import { PdfContext } from './PdfContext';
+import { pdfjsLib } from "./pdfjs";
+import type { PDFDocumentProxy } from "./pdfjs";
+import { PdfContext } from "./PdfContext";
 
 interface PdfProviderProps {
   fileUrl: string;
   children: React.ReactNode;
 }
 
-export const PdfProvider: React.FC<PdfProviderProps> = ({ fileUrl, children }) => {
+export const PdfProvider: React.FC<PdfProviderProps> = ({
+  fileUrl,
+  children,
+}) => {
   const [pdfDoc, setPdfDoc] = useState<PDFDocumentProxy | null>(null);
   const [numPages, setNumPages] = useState(0);
   const [scale, setScale] = useState(1.2);
+  const deferredScale = useDeferredValue(scale);
 
   useEffect(() => {
     let cancelled = false;
@@ -32,7 +36,9 @@ export const PdfProvider: React.FC<PdfProviderProps> = ({ fileUrl, children }) =
   }, [fileUrl]);
 
   return (
-    <PdfContext.Provider value={{ pdfDoc, numPages, scale, setScale }}>
+    <PdfContext.Provider
+      value={{ pdfDoc, numPages, scale: deferredScale, setScale }}
+    >
       {children}
     </PdfContext.Provider>
   );
