@@ -7,6 +7,7 @@ import React, {
 } from "react";
 
 import { usePdfContext } from "../pdf/PdfContext";
+import { useHighlights } from "../highlights/useHighlights";
 import { PageList } from "./PageList";
 import { Sidebar } from "./Sidebar";
 import { Toolbar } from "./Toolbar";
@@ -16,6 +17,7 @@ const BUFFER_PX = 800;
 
 export const PdfViewer = () => {
   const { numPages } = usePdfContext();
+  const { highlights, registerScrollHandler } = useHighlights();
   const [visiblePages, setVisiblePages] = useState<Set<number>>(
     new Set([1, 2])
   );
@@ -119,6 +121,39 @@ export const PdfViewer = () => {
     if (!el) return;
     recomputeVisible(el.scrollTop, el.clientHeight);
   }, [recomputeVisible, pageHeights, numPages]);
+
+  const handleExternalScrollToHighlight = useCallback(
+    (id: string) => {
+      const target = highlights.find((h) => h.id === id);
+      if (!target) return;
+      const pageIndex = target.pageNumber - 1;
+      if (pageIndex < 0) return;
+
+      const heights = getHeightsArray();
+      const pageHeight = heights[pageIndex] ?? DEFAULT_PAGE_HEIGHT;
+      const pageTop = heights.slice(0, pageIndex).reduce((s, h) => s + h, 0);
+      const rect = target.rects?.[0];
+      const offsetInPage = rect ? rect.y * pageHeight : 0;
+      const targetTop = Math.max(0, pageTop + offsetInPage - 80);
+
+      setVisiblePages((prev) => {
+        const next = new Set(prev);
+        next.add(pageIndex + 1);
+        return next;
+      });
+
+      const el = scrollContainerRef.current;
+      if (el) {
+        el.scrollTo({ top: targetTop, behavior: "smooth" });
+      }
+    },
+    [getHeightsArray, highlights]
+  );
+
+  useEffect(() => {
+    registerScrollHandler(handleExternalScrollToHighlight);
+    return () => registerScrollHandler(null);
+  }, [handleExternalScrollToHighlight, registerScrollHandler]);
 
   if (!numPages) return <div style={{ padding: 24 }}>Loading…</div>;
 

@@ -29,6 +29,7 @@ interface HighlightsContextValue {
   loading: boolean;
   selectedHighlightId: string | null;
   selectHighlight: (id: string | null) => void;
+  registerScrollHandler: (fn: ((id: string) => void) | null) => void;
 }
 
 interface HighlightsProviderProps {
@@ -80,6 +81,7 @@ export const HighlightsProvider: React.FC<HighlightsProviderProps> = ({
   );
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const savingRef = useRef(false);
+  const externalScrollHandlerRef = useRef<((id: string) => void) | null>(null);
 
   useEffect(() => {
     return () => {
@@ -204,9 +206,19 @@ export const HighlightsProvider: React.FC<HighlightsProviderProps> = ({
   };
 
   const scrollToHighlight = (id: string) => {
+    if (externalScrollHandlerRef.current) {
+      externalScrollHandlerRef.current(id);
+      flash(id);
+      return;
+    }
+
     const el = document.getElementById(`highlight-${id}`);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
     flash(id);
+  };
+
+  const registerScrollHandler = (fn: ((id: string) => void) | null) => {
+    externalScrollHandlerRef.current = fn || null;
   };
 
   return (
@@ -221,6 +233,7 @@ export const HighlightsProvider: React.FC<HighlightsProviderProps> = ({
         loading,
         selectedHighlightId,
         selectHighlight: setSelectedHighlightId,
+        registerScrollHandler,
       }}
     >
       {children}
