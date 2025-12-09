@@ -27,15 +27,17 @@ export const AnswerWithCitations: React.FC<AnswerWithCitationsProps> = ({
     const citation = citations.find((c) => c.index === index);
     if (!citation) return;
 
-    // 检查是否是 Markdown 文档
-    const isMarkdownDoc = citation.source.startsWith("markdown_doc:");
-    if (isMarkdownDoc && citation.doc_id) {
-      // 跳转到文档页面，并传递高亮信息
-      const highlightParam = citation.snippet
-        ? encodeURIComponent(citation.snippet.substring(0, 100))
-        : "";
+    const highlightParam = citation.snippet
+      ? encodeURIComponent(citation.snippet.substring(0, 120))
+      : "";
+
+    // PDF 优先按 page 定位；否则按 markdown 方式高亮
+    if (citation.doc_id) {
+      const params = new URLSearchParams();
+      if (highlightParam) params.set("highlight", highlightParam);
+      if (citation.page) params.set("page", String(citation.page));
       navigate(
-        `/kb/${knowledgeBaseId}/doc/${citation.doc_id}?highlight=${highlightParam}`
+        `/kb/${knowledgeBaseId}/doc/${citation.doc_id}?${params.toString()}`
       );
     }
   };
@@ -56,11 +58,9 @@ export const AnswerWithCitations: React.FC<AnswerWithCitationsProps> = ({
 
       if (numbers.length === 0) return match;
 
-      // 检查第一个引用是否是 Markdown 文档
+      // 检查第一个引用是否可点击（有 doc_id）
       const firstCitation = citations.find((c) => c.index === numbers[0]);
-      const isClickable =
-        firstCitation?.source.startsWith("markdown_doc:") &&
-        firstCitation?.doc_id;
+      const isClickable = Boolean(firstCitation?.doc_id);
 
       if (isClickable) {
         // 创建 Markdown 链接格式，使用特殊的 href 来标识引用链接

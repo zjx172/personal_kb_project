@@ -15,6 +15,8 @@ export type Highlight = {
   createdAt: string;
 };
 
+export type ExtraHighlight = Highlight;
+
 export type CreateHighlightInput = {
   pageNumber: number;
   rects: HighlightRect[];

@@ -9,12 +9,16 @@ interface PdfViewerProps {
   url: string;
   docId: string;
   title?: string;
+  initialPage?: number;
+  focusText?: string;
 }
 
 export const PdfViewer: React.FC<PdfViewerProps> = ({
   url,
   docId,
   title: _title,
+  initialPage,
+  focusText,
 }) => {
   const source = `markdown_doc:${docId}`;
 
@@ -22,7 +26,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = ({
     <div style={{ height: "100%", width: "100%" }}>
       <PdfProvider fileUrl={url}>
         <HighlightsProvider source={source}>
-          <InternalPdfViewer />
+          <InternalPdfViewer initialPage={initialPage} focusText={focusText} />
         </HighlightsProvider>
       </PdfProvider>
     </div>

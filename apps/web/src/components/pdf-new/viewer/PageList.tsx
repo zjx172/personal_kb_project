@@ -1,5 +1,6 @@
 import React from "react";
 
+import type { Highlight } from "../highlights/highlightTypes";
 import { PdfPage } from "./PdfPage";
 
 export const PageList = ({
@@ -9,6 +10,7 @@ export const PageList = ({
   onSize,
   beforeHeight = 0,
   afterHeight = 0,
+  extraHighlights = [],
 }: {
   numPages: number;
   visiblePages?: number[];
@@ -19,12 +21,20 @@ export const PageList = ({
   ) => void;
   beforeHeight?: number;
   afterHeight?: number;
+  extraHighlights?: Highlight[];
 }) => {
   return (
     <div className="py-4" style={{ position: "relative" }}>
       {beforeHeight > 0 && <div style={{ height: beforeHeight }} />}
       {visiblePages.map((pageNumber) => (
-        <PdfPage key={pageNumber} pageNumber={pageNumber} onSize={onSize} />
+        <PdfPage
+          key={pageNumber}
+          pageNumber={pageNumber}
+          onSize={onSize}
+          extraHighlights={extraHighlights.filter(
+            (h) => h.pageNumber === pageNumber
+          )}
+        />
       ))}
       {afterHeight > 0 && <div style={{ height: afterHeight }} />}
     </div>

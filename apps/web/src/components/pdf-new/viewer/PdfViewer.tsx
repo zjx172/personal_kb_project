@@ -6,8 +6,9 @@ import React, {
   useState,
 } from "react";
 
-import { usePdfContext } from "../pdf/PdfContext";
 import { useHighlights } from "../highlights/useHighlights";
+import type { ExtraHighlight } from "../highlights/highlightTypes";
+import { usePdfContext } from "../pdf/PdfContext";
 import { PageList } from "./PageList";
 import { Sidebar } from "./Sidebar";
 import { Toolbar } from "./Toolbar";
@@ -15,7 +16,15 @@ import { Toolbar } from "./Toolbar";
 const DEFAULT_PAGE_HEIGHT = 1200;
 const BUFFER_PX = 800;
 
-export const PdfViewer = () => {
+interface PdfViewerProps {
+  initialPage?: number;
+  focusText?: string;
+}
+
+export const PdfViewer: React.FC<PdfViewerProps> = ({
+  initialPage,
+  focusText,
+}) => {
   const { numPages } = usePdfContext();
   const { highlights, registerScrollHandler } = useHighlights();
   const [visiblePages, setVisiblePages] = useState<Set<number>>(
@@ -155,6 +164,64 @@ export const PdfViewer = () => {
     return () => registerScrollHandler(null);
   }, [handleExternalScrollToHighlight, registerScrollHandler]);
 
+  const ensurePageVisible = useCallback((pageNumber: number) => {
+    if (!pageNumber || pageNumber < 1) return;
+    setVisiblePages((prev) => {
+      const next = new Set(prev);
+      next.add(pageNumber);
+      next.add(pageNumber + 1);
+      next.add(pageNumber - 1);
+      return next;
+    });
+  }, []);
+
+  const scrollToPageOffset = useCallback(
+    (pageNumber: number, offsetY: number = 0) => {
+      const heights = getHeightsArray();
+      if (pageNumber < 1 || pageNumber > heights.length) return;
+      const pageTop = heights
+        .slice(0, pageNumber - 1)
+        .reduce((s, h) => s + h, 0);
+      const targetTop = Math.max(0, pageTop + offsetY - 80);
+      ensurePageVisible(pageNumber);
+      const el = scrollContainerRef.current;
+      if (el) el.scrollTo({ top: targetTop, behavior: "smooth" });
+    },
+    [ensurePageVisible, getHeightsArray]
+  );
+
+  useEffect(() => {
+    if (initialPage) {
+      ensurePageVisible(initialPage);
+    }
+  }, [initialPage, ensurePageVisible]);
+
+  useEffect(() => {
+    if (!initialPage) return;
+    scrollToPageOffset(initialPage, 0);
+  }, [initialPage, scrollToPageOffset, pageHeights]);
+
+  const focusHighlights: ExtraHighlight[] = useMemo(() => {
+    if (!initialPage || !focusText) return [];
+    return [
+      {
+        id: "__focus",
+        pageNumber: initialPage,
+        rects: [
+          {
+            x: 0.08,
+            y: 0.08,
+            width: 0.84,
+            height: 0.03,
+          },
+        ],
+        quoteText: focusText,
+        color: "rgba(255,230,140,0.35)",
+        createdAt: new Date().toISOString(),
+      },
+    ];
+  }, [initialPage, focusText]);
+
   if (!numPages) return <div style={{ padding: 24 }}>Loading…</div>;
 
   return (
@@ -172,6 +239,7 @@ export const PdfViewer = () => {
             beforeHeight={virtualHeights.before}
             afterHeight={virtualHeights.after}
             onSize={handleSize}
+            extraHighlights={focusHighlights}
           />
         </div>
         <Sidebar />

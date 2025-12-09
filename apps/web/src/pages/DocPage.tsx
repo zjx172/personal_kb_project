@@ -39,6 +39,10 @@ const DocPage: React.FC = () => {
   const highlightText = highlightTextParam
     ? decodeURIComponent(highlightTextParam)
     : null;
+  const highlightPageParam = searchParams.get("page");
+  const highlightPage = highlightPageParam
+    ? parseInt(highlightPageParam, 10)
+    : null;
 
   const [currentDoc, setCurrentDoc] = useState<MarkdownDocDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -241,6 +245,7 @@ const DocPage: React.FC = () => {
           }
         },
         {
+          question: reviewQuery,
           k: 5,
           rerank_k: 3,
         }
@@ -350,6 +355,8 @@ const DocPage: React.FC = () => {
                       url={getPdfUrl(currentDoc.id)}
                       title={currentDoc.title || "PDF文档"}
                       docId={currentDoc.id}
+                      initialPage={highlightPage ?? undefined}
+                      focusText={highlightText ?? undefined}
                     />
                   </div>
                 ) : (
