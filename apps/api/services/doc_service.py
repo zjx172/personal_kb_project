@@ -1,6 +1,7 @@
 """
 文档服务：处理文档与向量库的同步
 """
+import logging
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.schema import Document as LCDocument
 from models import MarkdownDoc
@@ -9,6 +10,7 @@ from services.vector_store import vectordb
 
 def upsert_markdown_doc_to_vectorstore(doc: MarkdownDoc):
     """将单个在线 Markdown 文档同步到向量库"""
+    logger = logging.getLogger(__name__)
     try:
         # 删除文档对应的向量
         vectordb.delete(where={"doc_id": str(doc.id)})
@@ -45,5 +47,17 @@ def upsert_markdown_doc_to_vectorstore(doc: MarkdownDoc):
         lc_docs.append(lc_doc)
 
     if lc_docs:
-        vectordb.add_documents(lc_docs)
+        try:
+            vectordb.add_documents(lc_docs)
+        except Exception as exc:
+            # 外部嵌入服务异常时不要让整个接口失败
+            logger.error(
+                "向量库同步失败，doc_id=%s，原因=%s",
+                doc.id,
+                exc,
+                exc_info=True,
+            )
+            return False
+
+    return True
 

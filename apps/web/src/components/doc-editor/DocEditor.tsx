@@ -102,13 +102,27 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
 
     const blockRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
     const flashTimerRef = useRef<number | null>(null);
+    const isFirstRender = useRef(true);
+
+    // 使用 ref 追踪 onChangeBlocks，避免它变化导致 useEffect 重新执行
+    const onChangeBlocksRef = useRef(onChangeBlocks);
+    useEffect(() => {
+      onChangeBlocksRef.current = onChangeBlocks;
+    }, [onChangeBlocks]);
 
     useEffect(() => {
       setOutline(buildOutline(blocks));
-      if (onChangeBlocks) {
-        onChangeBlocks(blocks);
+
+      // 跳过首次渲染的回调，避免打开文档即触发自动保存
+      if (isFirstRender.current) {
+        isFirstRender.current = false;
+        return;
       }
-    }, [blocks, onChangeBlocks]);
+
+      if (onChangeBlocksRef.current) {
+        onChangeBlocksRef.current(blocks);
+      }
+    }, [blocks]); // 仅依赖 blocks，切断与 onChangeBlocks 的依赖
 
     useEffect(() => {
       return () => {

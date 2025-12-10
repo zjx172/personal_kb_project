@@ -25,6 +25,26 @@ import {
   markdownToBlocks,
 } from "../components/doc-editor/docModel";
 
+function areBlocksEqual(a: DocBlock[] | null, b: DocBlock[] | null): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    const x = a[i];
+    const y = b[i];
+    if (
+      x.id !== y.id ||
+      x.type !== y.type ||
+      x.text !== y.text ||
+      x.refId !== y.refId ||
+      x.refTitle !== y.refTitle
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 const DocPage: React.FC = () => {
   const { id, knowledgeBaseId } = useParams<{
     id: string;
@@ -123,6 +143,8 @@ const DocPage: React.FC = () => {
 
   // 处理内容变化
   const handleBlocksChange = (value: DocBlock[]) => {
+    // 避免滚动等无内容变更时重复触发保存
+    if (areBlocksEqual(blocksDraft, value)) return;
     setBlocksDraft(value);
     triggerAutoSave(value);
   };
