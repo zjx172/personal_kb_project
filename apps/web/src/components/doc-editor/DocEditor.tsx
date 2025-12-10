@@ -99,6 +99,8 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
     const [currentType, setCurrentType] = useState<BlockType>(
       blocks[0]?.type ?? "paragraph"
     );
+    const [textColor, setTextColor] = useState("#0f172a");
+    const [highlightColor, setHighlightColor] = useState("#fef08a");
 
     const blockRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
     const flashTimerRef = useRef<number | null>(null);
@@ -335,6 +337,18 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
       setCurrentType(newType as BlockType);
     }
 
+    function applyColor(color: string) {
+      document.execCommand("foreColor", false, color);
+    }
+
+    function applyHighlight(color: string) {
+      // hiliteColor 对大多数现代浏览器兼容；作为 fallback 使用 backColor
+      const success = document.execCommand("hiliteColor", false, color);
+      if (!success) {
+        document.execCommand("backColor", false, color);
+      }
+    }
+
     function handleOutlineClick(item: OutlineItem) {
       setActiveId(item.blockId);
       scrollToBlock(item.blockId);
@@ -392,6 +406,31 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
               >
                 {"</>"}
               </button>
+            </div>
+
+            <div className="doc-toolbar-group doc-toolbar-group--color">
+              <label className="doc-color-label">
+                文本色
+                <input
+                  type="color"
+                  value={textColor}
+                  onChange={(e) => {
+                    setTextColor(e.target.value);
+                    applyColor(e.target.value);
+                  }}
+                />
+              </label>
+              <label className="doc-color-label">
+                高亮
+                <input
+                  type="color"
+                  value={highlightColor}
+                  onChange={(e) => {
+                    setHighlightColor(e.target.value);
+                    applyHighlight(e.target.value);
+                  }}
+                />
+              </label>
             </div>
 
             <span className="doc-toolbar-divider" />
