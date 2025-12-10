@@ -101,6 +101,7 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
     );
     const [textColor, setTextColor] = useState("#0f172a");
     const [highlightColor, setHighlightColor] = useState("#fef08a");
+    const [outlineCollapsed, setOutlineCollapsed] = useState(false);
 
     const blockRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
     const flashTimerRef = useRef<number | null>(null);
@@ -371,7 +372,9 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
       [blocks]
     );
 
-    const rootClassName = className ? `doc-root ${className}` : "doc-root";
+    const rootClassName =
+      (className ? `doc-root ${className}` : "doc-root") +
+      (outlineCollapsed ? " doc-root--outline-hidden" : "");
     const resolvedTitle = title ?? "Feishu-like Doc Editor（简化版）";
 
     return (
@@ -516,6 +519,16 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
                 引用块
               </button>
             </div>
+
+            <div className="doc-toolbar-group doc-toolbar-group--outline-toggle">
+              <button
+                type="button"
+                className="doc-btn"
+                onClick={() => setOutlineCollapsed((v) => !v)}
+              >
+                {outlineCollapsed ? "展开大纲" : "隐藏大纲"}
+              </button>
+            </div>
           </div>
 
           {/* 文档内容 */}
@@ -596,48 +609,50 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
         </div>
 
         {/* 右侧：大纲 */}
-        <div className="doc-outline-panel">
-          <div className="doc-outline-title">大纲 / 引用</div>
-          <div className="doc-outline-subtitle">
-            光标所在块会在这里高亮，点击可定位
-          </div>
-          <div className="doc-outline-list">
-            {outline.length === 0 ? (
-              <div style={{ fontSize: 12, color: "#9ca3af" }}>
-                暂无标题或引用块，试试添加一个标题或引用块。
-              </div>
-            ) : (
-              outline.map((item) => {
-                const active = item.blockId === activeId;
-                const indent =
-                  item.type === "ref" ? 0 : Math.max(0, item.level - 1) * 12;
-                const tagText =
-                  item.type === "ref"
-                    ? "REF"
-                    : item.level === 1
-                      ? "H1"
-                      : item.level === 2
-                        ? "H2"
-                        : "H3";
+        {!outlineCollapsed && (
+          <div className="doc-outline-panel">
+            <div className="doc-outline-title">大纲 / 引用</div>
+            <div className="doc-outline-subtitle">
+              光标所在块会在这里高亮，点击可定位
+            </div>
+            <div className="doc-outline-list">
+              {outline.length === 0 ? (
+                <div style={{ fontSize: 12, color: "#9ca3af" }}>
+                  暂无标题或引用块，试试添加一个标题或引用块。
+                </div>
+              ) : (
+                outline.map((item) => {
+                  const active = item.blockId === activeId;
+                  const indent =
+                    item.type === "ref" ? 0 : Math.max(0, item.level - 1) * 12;
+                  const tagText =
+                    item.type === "ref"
+                      ? "REF"
+                      : item.level === 1
+                        ? "H1"
+                        : item.level === 2
+                          ? "H2"
+                          : "H3";
 
-                return (
-                  <div
-                    key={item.id}
-                    className={
-                      "doc-outline-item" +
-                      (active ? " doc-outline-item--active" : "")
-                    }
-                    style={{ marginLeft: indent }}
-                    onClick={() => handleOutlineClick(item)}
-                  >
-                    <span className="doc-outline-tag">{tagText}</span>
-                    <span className="doc-outline-text">{item.text}</span>
-                  </div>
-                );
-              })
-            )}
+                  return (
+                    <div
+                      key={item.id}
+                      className={
+                        "doc-outline-item" +
+                        (active ? " doc-outline-item--active" : "")
+                      }
+                      style={{ marginLeft: indent }}
+                      onClick={() => handleOutlineClick(item)}
+                    >
+                      <span className="doc-outline-tag">{tagText}</span>
+                      <span className="doc-outline-text">{item.text}</span>
+                    </div>
+                  );
+                })
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }

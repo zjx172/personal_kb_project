@@ -15,6 +15,10 @@
   background: hsl(var(--muted));
 }
 
+.doc-root--outline-hidden {
+  grid-template-columns: 1fr;
+}
+
 /* 左侧：文档区域 */
 
 .doc-editor-panel {
@@ -89,6 +93,10 @@
   gap: 8px;
   padding: 2px 8px;
   border-left: 1px dashed rgba(148, 163, 184, 0.5);
+}
+
+.doc-toolbar-group--outline-toggle {
+  margin-left: auto;
 }
 
 .doc-color-label {
