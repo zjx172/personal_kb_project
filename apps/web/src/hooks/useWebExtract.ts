@@ -31,7 +31,7 @@ export function useWebExtract(
       toast.success("网页内容已提取并保存");
       setWebUrl("");
       onSuccess?.();
-      window.open(`/doc/${newDoc.id}`, "_blank");
+      window.open(`/kb/${knowledgeBaseId}/doc/${newDoc.id}`, "_blank");
     } catch (e: any) {
       console.error(e);
       toast.error(e?.response?.data?.detail || e?.message || "提取失败");
