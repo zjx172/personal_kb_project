@@ -207,8 +207,39 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
     }
 
     function handleBlockInput(id: string, e: React.FormEvent<HTMLDivElement>) {
-      const text = (e.target as HTMLDivElement).innerText.replace(/\n$/, "");
+      const inner = e.target as HTMLDivElement;
+      const selection = window.getSelection();
+      const anchorNode = selection?.anchorNode;
+      const anchorOffset = selection?.anchorOffset ?? null;
+      const shouldRestoreCaret =
+        !!anchorNode && anchorOffset != null && inner.contains(anchorNode);
+
+      const text = inner.innerText.replace(/\n$/, "");
       setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, text } : b)));
+
+      if (shouldRestoreCaret) {
+        setTimeout(() => {
+          const el = blockRefs.current.get(id);
+          const innerEl = el?.querySelector(".doc-block-inner");
+          if (!innerEl) return;
+          const textNode =
+            innerEl.firstChild && innerEl.firstChild.nodeType === 3
+              ? innerEl.firstChild
+              : null;
+          if (!textNode) return;
+          const offset = Math.min(
+            anchorOffset as number,
+            (textNode.textContent || "").length
+          );
+          const sel = window.getSelection();
+          if (!sel) return;
+          const range = document.createRange();
+          range.setStart(textNode, offset);
+          range.collapse(true);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }, 0);
+      }
     }
 
     // 处理粘贴：尝试解析 HTML 保留块级结构
@@ -376,24 +407,29 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
 
     function deleteBlock(targetId: string | null) {
       if (!targetId) return;
+
+      let nextId: string | null = null;
+
       setBlocks((prev) => {
         if (prev.length === 1) {
           const only = prev[0];
           const reset: DocBlock = { ...only, type: "paragraph", text: "" };
-          setActiveId(reset.id);
-          setTimeout(() => focusBlock(reset.id), 0);
+          nextId = reset.id;
           return [reset];
         }
+
         const idx = prev.findIndex((b) => b.id === targetId);
         if (idx === -1) return prev;
+
         const nextBlocks = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
         const fallback =
           nextBlocks[idx] ?? nextBlocks[Math.max(0, idx - 1)] ?? null;
-        const nextId = fallback?.id ?? null;
-        setActiveId(nextId);
-        setTimeout(() => focusBlock(nextId), 0);
+        nextId = fallback?.id ?? null;
         return nextBlocks;
       });
+
+      setActiveId(nextId);
+      setTimeout(() => focusBlock(nextId), 0);
     }
 
     const deleteActiveBlock = () => deleteBlock(activeId);
@@ -426,10 +462,9 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
       }
 
       if (e.key === "Backspace" || e.key === "Delete") {
-        const text = (e.currentTarget.innerText || "")
-          .replace(/\n/g, "")
-          .trim();
-        const isEmpty = text.length === 0;
+        const text = (e.currentTarget.innerText || "").replace(/\n/g, "");
+        // 仅在当前内容已为空时删除块，避免删除最后一个字符时直接跳块
+        const isEmpty = text.trim().length === 0;
         if (isEmpty) {
           e.preventDefault();
           deleteBlock(block.id);
@@ -689,6 +724,11 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
                 "doc-block doc-block--" +
                 block.type +
                 (isActive ? " doc-block--active" : "");
+              const renderedContent: React.ReactNode = block.text
+                ? isActive
+                  ? block.text
+                  : renderMarkdownInline(block.text)
+                : React.createElement("br");
 
               if (block.type === "ref") {
                 return (
@@ -726,7 +766,7 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
                       onPaste={(e) => handleBlockPaste(block.id, e)}
                       onKeyDown={(e) => handleKeyDown(block, e)}
                     >
-                      {renderMarkdownInline(block.text)}
+                      {renderedContent}
                     </div>
                   </div>
                 );
@@ -766,7 +806,7 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
                     onPaste={(e) => handleBlockPaste(block.id, e)}
                     onKeyDown={(e) => handleKeyDown(block, e)}
                   >
-                    {renderMarkdownInline(block.text)}
+                    {renderedContent}
                   </div>
                 </div>
               );
