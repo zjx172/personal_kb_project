@@ -13,17 +13,17 @@ import {
   getPdfUrl,
 } from "../api";
 import { PdfViewer } from "../components/PdfViewer";
-import { DocHeader } from "../components/doc-editor/DocHeader";
-import { DocTitle } from "../components/doc-editor/DocTitle";
-import { ReviewPanel } from "../components/doc-editor/ReviewPanel";
+import { DocHeader } from "../components/doc-editor-old/DocHeader";
+import { DocTitle } from "../components/doc-editor-old/DocTitle";
+import { ReviewPanel } from "../components/doc-editor-old/ReviewPanel";
 import FeishuDocEditor, {
   FeishuDocEditorHandle,
-} from "../components/feishu-like-doc-editor/DocEditor";
+} from "../components/doc-editor/DocEditor";
 import {
   DocBlock,
   blocksToMarkdown,
   markdownToBlocks,
-} from "../components/feishu-like-doc-editor/docModel";
+} from "../components/doc-editor/docModel";
 
 const DocPage: React.FC = () => {
   const { id, knowledgeBaseId } = useParams<{
@@ -363,7 +363,7 @@ const DocPage: React.FC = () => {
                     ref={editorRef}
                     initialBlocks={blocksDraft}
                     onChangeBlocks={handleBlocksChange}
-                    className="h-full"
+                    className="h-full w-full"
                     title={currentDoc.title || "文档正文"}
                     showHeader={false}
                   />

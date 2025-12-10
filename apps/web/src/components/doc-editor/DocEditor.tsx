@@ -149,6 +149,135 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
       setBlocks((prev) => prev.map((b) => (b.id === id ? { ...b, text } : b)));
     }
 
+    // 处理粘贴：尝试解析 HTML 保留块级结构
+    function handleBlockPaste(id: string, e: React.ClipboardEvent) {
+      const html = e.clipboardData.getData("text/html");
+      const plainText = e.clipboardData.getData("text/plain");
+
+      // 如果只有纯文本且只有一行，让浏览器默认行为处理（可能更快/更稳）
+      // 但为了统一体验，如果是 HTML 我们优先处理
+      if (!html && plainText && !plainText.includes("\n")) {
+        return;
+      }
+
+      e.preventDefault();
+
+      const newBlocks: DocBlock[] = [];
+
+      if (html) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, "text/html");
+
+        let currentTextBuffer = "";
+
+        const flushBuffer = () => {
+          if (currentTextBuffer.trim()) {
+            newBlocks.push(createBlock("paragraph", currentTextBuffer));
+          }
+          currentTextBuffer = "";
+        };
+
+        const traverse = (node: Node) => {
+          if (node.nodeType === Node.TEXT_NODE) {
+            currentTextBuffer += node.textContent || "";
+            return;
+          }
+
+          if (node.nodeType !== Node.ELEMENT_NODE) return;
+
+          const el = node as HTMLElement;
+          const tag = el.tagName.toLowerCase();
+          const isBlock = [
+            "p",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "li",
+            "blockquote",
+            "div",
+            "ul",
+            "ol",
+          ].includes(tag);
+
+          if (!isBlock) {
+            // inline element, append text
+            currentTextBuffer += el.innerText;
+            return;
+          }
+
+          // Container blocks -> recurse
+          if (tag === "ul" || tag === "ol" || tag === "div") {
+            flushBuffer();
+            Array.from(node.childNodes).forEach(traverse);
+            flushBuffer();
+            return;
+          }
+
+          // Leaf blocks
+          flushBuffer();
+
+          let type: BlockType = "paragraph";
+          const text = el.innerText.trim();
+
+          if (tag === "h1") type = "heading1";
+          else if (tag === "h2") type = "heading2";
+          else if (["h3", "h4", "h5", "h6"].includes(tag)) type = "heading3";
+          else if (tag === "blockquote") type = "quote";
+          else if (tag === "li") {
+            const pTag = el.parentElement?.tagName.toLowerCase();
+            type = pTag === "ol" ? "numbered" : "bulleted";
+          }
+
+          if (text) {
+            newBlocks.push(createBlock(type, text));
+          }
+        };
+
+        Array.from(doc.body.childNodes).forEach(traverse);
+        flushBuffer();
+      }
+
+      // Fallback to plain text splitting if no blocks parsed from HTML
+      if (newBlocks.length === 0 && plainText) {
+        plainText.split("\n").forEach((line) => {
+          if (line.trim())
+            newBlocks.push(createBlock("paragraph", line.trim()));
+        });
+      }
+
+      if (newBlocks.length > 0) {
+        setBlocks((prev) => {
+          const idx = prev.findIndex((b) => b.id === id);
+          if (idx === -1) return prev;
+
+          const currentBlock = prev[idx];
+          const isCurrentEmpty = !currentBlock.text.trim();
+
+          const before = prev.slice(0, idx);
+          const after = prev.slice(idx + 1);
+
+          if (isCurrentEmpty) {
+            return [...before, ...newBlocks, ...after];
+          } else {
+            return [...before, currentBlock, ...newBlocks, ...after];
+          }
+        });
+
+        // Focus last block
+        setTimeout(() => {
+          const lastId = newBlocks[newBlocks.length - 1].id;
+          scrollToBlock(lastId);
+          setActiveId(lastId);
+          const el = blockRefs.current.get(lastId);
+          const inner = el?.querySelector(".doc-block-inner") as HTMLDivElement;
+          inner?.focus();
+        }, 50);
+      }
+    }
+
     function handleBlockFocus(id: string) {
       setActiveId(id);
       const block = blocks.find((b) => b.id === id);
@@ -378,6 +507,7 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
                       suppressContentEditableWarning
                       onInput={(e) => handleBlockInput(block.id, e)}
                       onFocus={() => handleBlockFocus(block.id)}
+                      onPaste={(e) => handleBlockPaste(block.id, e)}
                     >
                       {block.text}
                     </div>
@@ -402,6 +532,7 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
                     suppressContentEditableWarning
                     onInput={(e) => handleBlockInput(block.id, e)}
                     onFocus={() => handleBlockFocus(block.id)}
+                    onPaste={(e) => handleBlockPaste(block.id, e)}
                   >
                     {block.text}
                   </div>

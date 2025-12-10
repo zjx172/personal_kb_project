@@ -30,6 +30,8 @@ const DocEditor: React.FC = () => {
   const [isEditingTitle, setIsEditingTitle] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<Date | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const isScrollingRef = useRef(false);
+  const scrollTimerRef = useRef<number | null>(null);
 
   const loadList = async () => {
     setLoadingList(true);
@@ -37,7 +39,7 @@ const DocEditor: React.FC = () => {
       const data = await listDocs();
       setDocs(data);
       if (!selectedId && data?.length > 0) {
-        await openDoc(data?.[0]?.id);
+        await openDoc(Number(data?.[0]?.id));
       }
     } catch (e: any) {
       console.error(e);
@@ -142,9 +144,10 @@ const DocEditor: React.FC = () => {
     }
   };
 
-  // 自动保存功能（仅在非编辑标题状态下）
+  // 自动保存功能（仅在非编辑标题状态下；滚动时不触发）
   useEffect(() => {
-    if (!selectedId || !currentDoc || isEditingTitle) return;
+    if (!selectedId || !currentDoc || isEditingTitle || isScrollingRef.current)
+      return;
     
     // 检查标题变化：需要考虑 titleDraft 为空但 currentDoc.title 是"未命名文档"的情况
     const currentTitle = currentDoc.title === "未命名文档" ? "" : currentDoc.title;
@@ -164,6 +167,24 @@ const DocEditor: React.FC = () => {
     loadList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (scrollTimerRef.current) {
+        window.clearTimeout(scrollTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleScroll = () => {
+    isScrollingRef.current = true;
+    if (scrollTimerRef.current) {
+      window.clearTimeout(scrollTimerRef.current);
+    }
+    scrollTimerRef.current = window.setTimeout(() => {
+      isScrollingRef.current = false;
+    }, 300);
+  };
 
   return (
     <Layout className="h-full">
@@ -345,6 +366,7 @@ const DocEditor: React.FC = () => {
                 <TextArea
                   value={contentDraft}
                   onChange={setContentDraft}
+                  onScroll={handleScroll}
                       placeholder="输入"/"快速插入内容"
                   style={{
                     height: "calc(100% - 32px)",
@@ -356,7 +378,7 @@ const DocEditor: React.FC = () => {
                 <div className="h-8 px-3 flex items-center text-xs text-gray-500 border-b bg-gray-50">
                   预览
                 </div>
-                <div className="overflow-y-auto px-4 py-3 h-full">
+                <div className="overflow-y-auto px-4 py-3 h-full" onScroll={handleScroll}>
                   <div
                     className="prose prose-sm max-w-none"
                     dangerouslySetInnerHTML={{
