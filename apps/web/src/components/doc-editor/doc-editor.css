@@ -270,6 +270,24 @@
   padding: 8px 10px;
 }
 
+.doc-block--divider {
+  padding: 8px 0;
+}
+
+.doc-divider-line {
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+  margin: 6px 0;
+  height: 1px;
+}
+
+.doc-inline-link {
+  color: #2563eb;
+  text-decoration: underline;
+  text-decoration-color: rgba(37, 99, 235, 0.6);
+  text-underline-offset: 2px;
+}
+
 .doc-ref-title {
   font-size: 13px;
   font-weight: 600;

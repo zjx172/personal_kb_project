@@ -6,7 +6,8 @@ export type BlockType =
   | "quote"
   | "bulleted"
   | "numbered"
-  | "ref";
+  | "ref"
+  | "divider";
 
 export interface DocBlock {
   id: string;
@@ -96,6 +97,9 @@ export function blocksToMarkdown(blocks: DocBlock[]): string {
       case "quote":
         lines.push("> " + b.text);
         break;
+      case "divider":
+        lines.push("---");
+        break;
       case "ref": {
         const id = b.refId || b.id;
         const title = b.refTitle || b.text.slice(0, 20);
@@ -170,6 +174,13 @@ export function markdownToBlocks(content: string): DocBlock[] {
     const line = raw.trimEnd();
 
     if (!line.trim()) {
+      i += 1;
+      continue;
+    }
+
+    // 分割线（支持 --- *** ___）
+    if (/^(-{3,}|\*{3,}|_{3,})$/.test(line)) {
+      blocks.push({ id: generateId(), type: "divider", text: "" });
       i += 1;
       continue;
     }

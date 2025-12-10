@@ -42,6 +42,51 @@ export interface FeishuDocEditorHandle {
 
 type InlineCommand = "bold" | "italic" | "code";
 
+// 按 Markdown 语法渲染行内链接：
+// - [label](https://example.com)
+// - <https://example.com>
+// - 裸露的 http/https 链接（GFM 允许的自动链接）
+function renderMarkdownInline(text: string) {
+  const nodes: React.ReactNode[] = [];
+  const regex =
+    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|<(https?:\/\/[^>\s]+)>|(\bhttps?:\/\/[^\s)]+)/g;
+  let lastIndex = 0;
+  let key = 0;
+
+  text.replace(
+    regex,
+    (match, label, urlInParen, urlInAngle, bareUrl, offset) => {
+      if (offset > lastIndex) {
+        nodes.push(
+          <span key={`t-${key++}`}>{text.slice(lastIndex, offset)}</span>
+        );
+      }
+      const href =
+        (urlInParen as string) || (urlInAngle as string) || (bareUrl as string);
+      const labelText = (label as string) || href;
+      nodes.push(
+        <a
+          key={`l-${key++}`}
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          className="doc-inline-link"
+        >
+          {labelText}
+        </a>
+      );
+      lastIndex = (offset as number) + match.length;
+      return match;
+    }
+  );
+
+  if (lastIndex < text.length) {
+    nodes.push(<span key={`t-${key++}`}>{text.slice(lastIndex)}</span>);
+  }
+
+  return nodes.length ? nodes : text;
+}
+
 const DEFAULT_DOC: DocBlock[] = [
   {
     id: generateId(),
@@ -303,6 +348,95 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
       }
     }
 
+    function focusBlock(id: string | null) {
+      if (!id) return;
+      const el = blockRefs.current.get(id);
+      const inner = el?.querySelector(".doc-block-inner") as
+        | HTMLDivElement
+        | undefined;
+      if (inner) inner.focus();
+    }
+
+    function insertDividerBelow() {
+      if (!activeId) return;
+      const divider = createBlock("divider", "");
+      setBlocks((prev) => {
+        const idx = prev.findIndex((b) => b.id === activeId);
+        if (idx === -1) return [...prev, divider];
+        const next = [...prev];
+        next.splice(idx + 1, 0, divider);
+        return next;
+      });
+      setActiveId(divider.id);
+      setCurrentType("divider");
+      setTimeout(() => {
+        scrollToBlock(divider.id);
+      }, 0);
+    }
+
+    function deleteBlock(targetId: string | null) {
+      if (!targetId) return;
+      setBlocks((prev) => {
+        if (prev.length === 1) {
+          const only = prev[0];
+          const reset: DocBlock = { ...only, type: "paragraph", text: "" };
+          setActiveId(reset.id);
+          setTimeout(() => focusBlock(reset.id), 0);
+          return [reset];
+        }
+        const idx = prev.findIndex((b) => b.id === targetId);
+        if (idx === -1) return prev;
+        const nextBlocks = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+        const fallback =
+          nextBlocks[idx] ?? nextBlocks[Math.max(0, idx - 1)] ?? null;
+        const nextId = fallback?.id ?? null;
+        setActiveId(nextId);
+        setTimeout(() => focusBlock(nextId), 0);
+        return nextBlocks;
+      });
+    }
+
+    const deleteActiveBlock = () => deleteBlock(activeId);
+
+    function insertBlockBelow(
+      currentId: string,
+      type: BlockType = "paragraph"
+    ) {
+      const newBlock = createBlock(type, "");
+      setBlocks((prev) => {
+        const idx = prev.findIndex((b) => b.id === currentId);
+        if (idx === -1) return [...prev, newBlock];
+        const next = [...prev];
+        next.splice(idx + 1, 0, newBlock);
+        return next;
+      });
+      setActiveId(newBlock.id);
+      setCurrentType(type);
+      setTimeout(() => focusBlock(newBlock.id), 0);
+    }
+
+    function handleKeyDown(
+      block: DocBlock,
+      e: React.KeyboardEvent<HTMLDivElement>
+    ) {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        insertBlockBelow(block.id, "paragraph");
+        return;
+      }
+
+      if (e.key === "Backspace" || e.key === "Delete") {
+        const text = (e.currentTarget.innerText || "")
+          .replace(/\n/g, "")
+          .trim();
+        const isEmpty = text.length === 0;
+        if (isEmpty) {
+          e.preventDefault();
+          deleteBlock(block.id);
+        }
+      }
+    }
+
     function applyInline(cmd: InlineCommand) {
       // 简化版：利用原生 execCommand，对 contentEditable 直接操作
       if (cmd === "bold") document.execCommand("bold");
@@ -410,6 +544,8 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
                 {"</>"}
               </button>
             </div>
+
+            <span className="doc-toolbar-divider" />
 
             <div className="doc-toolbar-group doc-toolbar-group--color">
               <label className="doc-color-label">
@@ -528,6 +664,20 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
               >
                 {outlineCollapsed ? "展开大纲" : "隐藏大纲"}
               </button>
+              <button
+                type="button"
+                className="doc-btn"
+                onClick={insertDividerBelow}
+              >
+                分割线
+              </button>
+              <button
+                type="button"
+                className="doc-btn"
+                onClick={deleteActiveBlock}
+              >
+                删除块
+              </button>
             </div>
           </div>
 
@@ -574,9 +724,24 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
                       onInput={(e) => handleBlockInput(block.id, e)}
                       onFocus={() => handleBlockFocus(block.id)}
                       onPaste={(e) => handleBlockPaste(block.id, e)}
+                      onKeyDown={(e) => handleKeyDown(block, e)}
                     >
-                      {block.text}
+                      {renderMarkdownInline(block.text)}
                     </div>
+                  </div>
+                );
+              }
+
+              if (block.type === "divider") {
+                return (
+                  <div
+                    key={block.id}
+                    className={blockClass + " doc-block--divider"}
+                    ref={(el) => setBlockRef(block.id, el)}
+                    data-type={block.type}
+                    onClick={() => handleBlockFocus(block.id)}
+                  >
+                    <div className="doc-divider-line" />
                   </div>
                 );
               }
@@ -599,8 +764,9 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
                     onInput={(e) => handleBlockInput(block.id, e)}
                     onFocus={() => handleBlockFocus(block.id)}
                     onPaste={(e) => handleBlockPaste(block.id, e)}
+                    onKeyDown={(e) => handleKeyDown(block, e)}
                   >
-                    {block.text}
+                    {renderMarkdownInline(block.text)}
                   </div>
                 </div>
               );
