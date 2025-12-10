@@ -2,6 +2,7 @@
 向量检索服务层
 支持按主题标签、文档类型过滤，并集成 rerank 模型
 """
+import logging
 from typing import List, Optional, Dict, Any
 from langchain_chroma import Chroma
 from langchain.schema import Document as LCDocument
@@ -16,10 +17,14 @@ class VectorRetrievalService:
         vectordb: Chroma,
         llm: Optional[ChatOpenAI] = None,
         enable_rerank: bool = False,
+        rerank_model: str = "BAAI/bge-reranker-base",
     ):
         self.vectordb = vectordb
         self.llm = llm
         self.enable_rerank = enable_rerank
+        self.rerank_model_name = rerank_model
+        self._reranker = None  # lazy load
+        self._logger = logging.getLogger(__name__)
         
     def _build_filter(self, doc_type: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """构建 Chroma 过滤条件"""
@@ -71,11 +76,12 @@ class VectorRetrievalService:
     
     def _rerank(self, query: str, docs: List[LCDocument], top_k: int) -> List[LCDocument]:
         """
-        使用 LLM 进行 rerank
-        
-        注意：这是一个简单的实现。生产环境建议使用专门的 rerank 模型
-        如 Cohere Rerank API 或 BGE Reranker
+        使用专门的 rerank 模型（优先 BGE CrossEncoder），失败时回退到 LLM 评分
         """
+        reranked = self._rerank_with_bge(query, docs, top_k)
+        if reranked is not None:
+            return reranked
+
         if not self.llm:
             # 如果没有 LLM，直接返回前 k 个
             return docs[:top_k]
@@ -108,6 +114,32 @@ class VectorRetrievalService:
         
         # 返回前 top_k 个
         return [doc for _, doc in scored_docs[:top_k]]
+
+    def _rerank_with_bge(self, query: str, docs: List[LCDocument], top_k: int) -> Optional[List[LCDocument]]:
+        """
+        使用 BGE Reranker（CrossEncoder）进行重排；若依赖缺失返回 None。
+        """
+        try:
+            from sentence_transformers import CrossEncoder  # type: ignore
+        except Exception:
+            return None
+
+        try:
+            if self._reranker is None:
+                self._reranker = CrossEncoder(self.rerank_model_name, trust_remote_code=True)
+        except Exception as e:
+            self._logger.warning(f"加载 rerank 模型失败，将回退到 LLM 评分: {e}")
+            return None
+
+        try:
+            pairs = [[query, doc.page_content] for doc in docs]
+            scores = self._reranker.predict(pairs)
+            scored_docs = list(zip(scores, docs))
+            scored_docs.sort(key=lambda x: float(x[0]), reverse=True)
+            return [doc for _, doc in scored_docs[:top_k]]
+        except Exception as e:
+            self._logger.warning(f"rerank 过程中出错，回退到 LLM 评分: {e}")
+            return None
     
     def retrieve_with_metadata(
         self,
