@@ -41,3 +41,7 @@ OSS_ACCESS_KEY_SECRET = os.getenv("OSS_ACCESS_KEY_SECRET", "")
 OSS_ENDPOINT = os.getenv("OSS_ENDPOINT", "")  # 如：oss-cn-hangzhou.aliyuncs.com
 OSS_BUCKET_NAME = os.getenv("OSS_BUCKET_NAME", "")
 OSS_BASE_URL = os.getenv("OSS_BASE_URL", "")  # 可选，用于 CDN 加速
+
+# 任务状态存储（Redis 可选）
+REDIS_URL = os.getenv("REDIS_URL", "")
+TASK_STATUS_TTL_SECONDS = int(os.getenv("TASK_STATUS_TTL_SECONDS", "86400"))  # 默认 1 天

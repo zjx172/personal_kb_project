@@ -1,7 +1,29 @@
 from schemas import Citation
 
 
+# 构建 citation 对象
+# 参数：
+# - index: 索引
+# - source: 来源
+# - title: 标题
+# - snippet: 片段
+# - doc_id: 文档 ID
+# - page: 页码
+# - chunk_index: 段落索引
+# - chunk_position: 段落位置
+# 返回：
+# - citation 对象
+# 示例：
+# {
+#     "index": 1,
+#     "source": "来源",
+#     "title": "标题",
+#     "snippet": "片段",
+#     "doc_id": "文档 ID",
 def build_citation(index, source, title="", snippet="", doc_id=None, page=None, chunk_index=None, chunk_position=None):
+    """
+    构建 citation 对象
+    """
     return {
         "index": index,
         "source": source,

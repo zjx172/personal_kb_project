@@ -27,3 +27,4 @@ datasets
 pandas
 oss2
 eval-type-backport
+redis
