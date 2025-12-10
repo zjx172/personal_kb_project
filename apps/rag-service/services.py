@@ -80,6 +80,7 @@ llm = ChatOpenAI(
     api_key=OPENAI_API_KEY,
     base_url=OPENAI_BASE_URL,
     model="gpt-4o-mini",
+    # 设置温度为 0.2，使得回答更加稳定
     temperature=0.2,
 )
 

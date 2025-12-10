@@ -77,6 +77,7 @@ class VectorRetrievalService:
         for doc, score in docs_with_scores:
             doc.metadata = dict(doc.metadata) if doc.metadata else {}
             doc.metadata["score"] = float(score) if score is not None else None
+            # 如果设置了阈值，则过滤掉分数低于阈值的文档
             if self.score_threshold is not None and score is not None:
                 if score < self.score_threshold:
                     continue
@@ -184,7 +185,15 @@ class VectorRetrievalService:
         try:
             pairs = [[query, doc.page_content] for doc in docs]
             scores = self._reranker.predict(pairs)
+            # 把模型给的分数 和 对应的文档 一一配对（绑定）起来。
+            # 例：
+            #  [
+            #   (0.9, "文档A"),
+            #   (0.3, "文档B"),
+            #   (0.7, "文档C")
+            #  ]
             scored_docs = list(zip(scores, docs))
+            # 按照每个元素的“第一个值（也就是分数）”，从大到小排序。
             scored_docs.sort(key=lambda x: float(x[0]), reverse=True)
             return [doc for _, doc in scored_docs[:top_k]]
         except Exception as e:
@@ -207,6 +216,8 @@ class VectorRetrievalService:
         docs = self.retrieve(query, k, doc_type, rerank_k)
         
         results = []
+        # numerate(docs, start=1) 会把 docs 列表中的每个元素依次取出，
+        # 并且自动给每个元素生成一个递增编号，从 1 开始。
         for i, doc in enumerate(docs, start=1):
             metadata = doc.metadata.copy()
             chunk_index = metadata.get("chunk_index")
