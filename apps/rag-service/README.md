@@ -67,7 +67,6 @@ result = rag_service.query(question="什么是 Python？")
 rag-service/
 ├── __init__.py          # 包入口
 ├── config.py            # 配置
-├── retrieval.py         # 向量检索服务
 ├── rag_pipeline.py      # RAG Pipeline
 ├── services.py          # 服务初始化
 ├── grpc_server.py       # gRPC 服务器
