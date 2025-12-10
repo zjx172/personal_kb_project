@@ -66,7 +66,8 @@ class VectorRetrievalService:
             }
         )
         
-        docs = retriever.get_relevant_documents(query)
+        # LangChain 1.0+ 推荐使用 invoke 而非 get_relevant_documents
+        docs = retriever.invoke(query)
         
         # 如果启用 rerank，进行重排序
         if self.enable_rerank and rerank_k and len(docs) > rerank_k:
