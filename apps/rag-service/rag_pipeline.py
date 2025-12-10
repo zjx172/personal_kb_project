@@ -30,22 +30,20 @@ class RAGPipeline:
             ("system", """你是一个技术学习助手，只能根据【上下文】回答问题。
 
 要求：
-1. 优先使用上下文中的信息，不要凭空编造。
-2. 如果上下文没有相关信息或相关性不够高，请明确说明"知识库中没有相关内容"。
-3. 只有当上下文中的信息与问题高度相关时，才给出答案。如果相关性不够高，请直接说"知识库中没有相关内容"。
-4. 回答中必须使用 [1], [2], [3] 这样的标号引用对应的上下文片段。
-5. 每个引用标号对应上下文中的一个文档片段。
-6. 引用标号应该紧跟在相关信息的后面，例如："根据文档[1]，Python 是一种解释型语言。"
-7. 如果一段话涉及多个文档，可以同时引用多个标号，例如："根据文档[1][2]，..."
-8. 保持回答的专业性和准确性。
-9. 严格模式：如果检索到的文档片段与问题的相关性不够高（低于80%），请直接回答"知识库中没有相关内容"，不要强行回答。"""),
+1. 只依据上下文作答，不要编造。
+2. 如果上下文没有能支持的内容，请回答："知识库中没有相关内容"。
+3. 回答中必须使用 [1], [2], [3] 这样的标号引用对应的上下文片段。
+4. 引用标号应该紧跟在相关信息后，例如："根据文档[1]，Python 是解释型语言。"
+5. 一段话可引用多个文档，例如："根据文档[1][2]，..."
+6. 保持回答的专业性和准确性。
+7. 上下文会包含标题/来源/score，score 越高通常越相关。"""),
             ("human", """【问题】
 {question}
 
 【上下文】
 {context}
 
-请根据上下文回答问题。如果上下文中的信息与问题高度相关（相关性≥80%），请给出答案并在回答中使用 [1], [2] 等标号引用对应的上下文片段。如果相关性不够高，请直接回答"知识库中没有相关内容"。""")
+请根据上下文回答问题，回答里务必使用 [1], [2] 等标号引用对应的上下文片段。如果上下文无法支持回答，请输出："知识库中没有相关内容"。""")
         ])
         
         # 构建 pipeline
@@ -65,6 +63,17 @@ class RAGPipeline:
                 doc_type=doc_type,
                 rerank_k=inputs.get("rerank_k", 5),
             )
+            scores = [r.get("score") for r in results if r.get("score") is not None]
+            max_score = max(scores) if scores else 0.0
+            strict_threshold = 0.4  # 可按需调节
+
+            if max_score < strict_threshold or not results:
+                return {
+                    **inputs,
+                    "context": "",
+                    "citations": [],
+                    "_no_context": True,
+                }
             
             # 重组为结构化上下文
             context_parts = []
@@ -75,9 +84,13 @@ class RAGPipeline:
                 content = result["content"]
                 source = result["source"]
                 title = result.get("title", "")
+                score = result.get("score")
                 
                 # 构建上下文片段
-                context_part = f"[{index}] {content}"
+                context_part = (
+                    f"[{index}] 标题: {title or '未知'} | 来源: {source} | score: {score}\n"
+                    f"{content}"
+                )
                 context_parts.append(context_part)
                 
                 # 构建引用信息
@@ -88,6 +101,7 @@ class RAGPipeline:
                     "snippet": content[:200] + "..." if len(content) > 200 else content,
                     "doc_id": result.get("doc_id"),
                     "page": result.get("page"),
+                    "score": score,
                 })
             
             context = "\n\n".join(context_parts)
@@ -96,10 +110,15 @@ class RAGPipeline:
                 **inputs,
                 "context": context,
                 "citations": citations,
+                "_no_context": False,
             }
         
         # 第二步：生成回答
         def generate_answer(inputs: Dict[str, Any]) -> Dict[str, Any]:
+            if inputs.get("_no_context"):
+                answer = "知识库中没有相关内容"
+                return {**inputs, "answer": answer}
+            
             question = inputs["question"]
             context = inputs["context"]
             
@@ -181,6 +200,9 @@ class RAGPipeline:
             doc_type=doc_type,
             rerank_k=rerank_k,
         )
+        scores = [r.get("score") for r in retrieve_result if r.get("score") is not None]
+        max_score = max(scores) if scores else 0.0
+        strict_threshold = 0.4
         
         # 重组上下文
         context_parts = []
@@ -191,8 +213,12 @@ class RAGPipeline:
             content = result["content"]
             source = result["source"]
             title = result.get("title", "")
+            score = result.get("score")
             
-            context_part = f"[{index}] {content}"
+            context_part = (
+                f"[{index}] 标题: {title or '未知'} | 来源: {source} | score: {score}\n"
+                f"{content}"
+            )
             context_parts.append(context_part)
             
             chunk_index = result.get("chunk_index")
@@ -209,10 +235,24 @@ class RAGPipeline:
                 "page": result.get("page"),
                 "chunk_index": chunk_index,
                 "chunk_position": chunk_position,
+                "score": score,
             })
         
         context = "\n\n".join(context_parts)
-        
+
+        # gating：无足够相关内容时直接返回
+        if max_score < strict_threshold or not retrieve_result:
+            yield {
+                "type": "citations",
+                "citations": [],
+            }
+            yield {
+                "type": "final",
+                "answer": "知识库中没有相关内容",
+                "citations": [],
+            }
+            return
+
         # 先发送 citations
         yield {
             "type": "citations",

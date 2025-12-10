@@ -15,16 +15,15 @@ import {
 import { PdfViewer } from "../components/PdfViewer";
 import { DocHeader } from "../components/doc-editor/DocHeader";
 import { DocTitle } from "../components/doc-editor/DocTitle";
-import { MarkdownToolbar } from "../components/doc-editor/MarkdownToolbar";
-import {
-  MarkdownEditor,
-  MarkdownEditorRef,
-} from "../components/doc-editor/MarkdownEditor";
 import { ReviewPanel } from "../components/doc-editor/ReviewPanel";
+import FeishuDocEditor, {
+  FeishuDocEditorHandle,
+} from "../components/feishu-like-doc-editor/DocEditor";
 import {
-  createFormatUtils,
-  handleFormat,
-} from "../components/doc-editor/formatUtils";
+  DocBlock,
+  blocksToMarkdown,
+  markdownToBlocks,
+} from "../components/feishu-like-doc-editor/docModel";
 
 const DocPage: React.FC = () => {
   const { id, knowledgeBaseId } = useParams<{
@@ -59,19 +58,20 @@ const DocPage: React.FC = () => {
   const [showReviewPanel, setShowReviewPanel] = useState(false);
 
   const [titleDraft, setTitleDraft] = useState("");
-  const [contentDraft, setContentDraft] = useState("");
-  const [viewMode, setViewMode] = useState<"edit" | "preview" | "both">("both");
-  const editorRef = useRef<MarkdownEditorRef>(null);
+  const [blocksDraft, setBlocksDraft] = useState<DocBlock[] | null>(null);
+  const editorRef = useRef<FeishuDocEditorHandle | null>(null);
 
   const loadDoc = async () => {
     if (!docId) return;
     setLoading(true);
     setError(null);
+    setBlocksDraft(null);
     try {
       const detail = await getDoc(docId);
+      const parsedBlocks = markdownToBlocks(detail.content || "");
       setCurrentDoc(detail);
       setTitleDraft(detail.title);
-      setContentDraft(detail.content);
+      setBlocksDraft(parsedBlocks);
     } catch (e: any) {
       console.error(e);
       setError(e?.message || "加载文档失败");
@@ -92,7 +92,7 @@ const DocPage: React.FC = () => {
   }, [docId, user, authLoading, navigate]);
 
   // 自动保存函数（防抖）
-  const triggerAutoSave = (content: string) => {
+  const triggerAutoSave = (nextBlocks: DocBlock[]) => {
     if (!docId) return;
 
     // 清除之前的定时器
@@ -100,13 +100,15 @@ const DocPage: React.FC = () => {
       clearTimeout(saveTimerRef.current);
     }
 
+    const markdown = blocksToMarkdown(nextBlocks);
+
     // 设置新的定时器，2秒后自动保存
     saveTimerRef.current = window.setTimeout(async () => {
       setSaving(true);
       try {
         const detail = await updateDoc(docId, {
           title: titleDraft,
-          content: content,
+          content: markdown,
         });
         setCurrentDoc(detail);
         setLastSaved(new Date());
@@ -120,22 +122,9 @@ const DocPage: React.FC = () => {
   };
 
   // 处理内容变化
-  const handleContentChange = (value: string) => {
-    setContentDraft(value);
+  const handleBlocksChange = (value: DocBlock[]) => {
+    setBlocksDraft(value);
     triggerAutoSave(value);
-  };
-
-  // 处理格式化
-  const handleFormatClick = (type: string) => {
-    if (!editorRef.current?.editorRef.current) return;
-
-    const formatUtils = createFormatUtils(
-      editorRef.current.editorRef,
-      contentDraft,
-      handleContentChange
-    );
-
-    handleFormat(type, formatUtils, editorRef.current.editorRef, contentDraft);
   };
 
   // 监听标题变化，也触发自动保存
@@ -146,13 +135,17 @@ const DocPage: React.FC = () => {
         clearTimeout(saveTimerRef.current);
       }
 
+      const markdown = blocksDraft
+        ? blocksToMarkdown(blocksDraft)
+        : currentDoc.content || "";
+
       // 设置新的定时器，2秒后自动保存
       saveTimerRef.current = window.setTimeout(async () => {
         setSaving(true);
         try {
           const detail = await updateDoc(docId, {
             title: titleDraft,
-            content: contentDraft,
+            content: markdown,
           });
           setCurrentDoc(detail);
           setLastSaved(new Date());
@@ -175,12 +168,17 @@ const DocPage: React.FC = () => {
       clearTimeout(saveTimerRef.current);
     }
 
+    const markdown =
+      (blocksDraft && blocksToMarkdown(blocksDraft)) ||
+      currentDoc?.content ||
+      "";
+
     setSaving(true);
     setError(null);
     try {
       const detail = await updateDoc(docId, {
         title: titleDraft,
-        content: contentDraft,
+        content: markdown,
       });
       setCurrentDoc(detail);
       setLastSaved(new Date());
@@ -202,6 +200,14 @@ const DocPage: React.FC = () => {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (!highlightText || !blocksDraft || !editorRef.current) return;
+    const target = blocksDraft.find((b) => b.text.includes(highlightText));
+    if (target) {
+      editorRef.current.scrollToBlock(target.id);
+    }
+  }, [blocksDraft, highlightText]);
 
   const handleDelete = async () => {
     if (!docId) return;
@@ -337,15 +343,6 @@ const DocPage: React.FC = () => {
             </div>
           ) : (
             <div className="flex-1 flex flex-col overflow-hidden">
-              {/* 工具栏 */}
-              {currentDoc?.doc_type !== "pdf" && (
-                <MarkdownToolbar
-                  viewMode={viewMode}
-                  onViewModeChange={setViewMode}
-                  onFormat={handleFormatClick}
-                />
-              )}
-
               {/* 编辑器区域 */}
               <div className="flex-1 flex overflow-hidden">
                 {currentDoc?.doc_type === "pdf" ? (
@@ -359,15 +356,21 @@ const DocPage: React.FC = () => {
                       focusText={highlightText ?? undefined}
                     />
                   </div>
-                ) : (
-                  // Markdown编辑模式
-                  <MarkdownEditor
+                ) : // 富文本块编辑模式
+                blocksDraft ? (
+                  <FeishuDocEditor
+                    key={currentDoc.id}
                     ref={editorRef}
-                    content={contentDraft}
-                    viewMode={viewMode}
-                    highlightText={highlightText}
-                    onContentChange={handleContentChange}
+                    initialBlocks={blocksDraft}
+                    onChangeBlocks={handleBlocksChange}
+                    className="h-full"
+                    title={currentDoc.title || "文档正文"}
+                    showHeader={false}
                   />
+                ) : (
+                  <div className="flex-1 flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+                  </div>
                 )}
               </div>
             </div>

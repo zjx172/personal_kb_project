@@ -18,11 +18,14 @@ class VectorRetrievalService:
         llm: Optional[ChatOpenAI] = None,
         enable_rerank: bool = False,
         rerank_model: str = "BAAI/bge-reranker-base",
+        score_threshold: Optional[float] = None,
     ):
         self.vectordb = vectordb
         self.llm = llm
         self.enable_rerank = enable_rerank
         self.rerank_model_name = rerank_model
+        # 过滤低相关度片段，0-1 之间；None 表示不滤
+        self.score_threshold = score_threshold
         self._reranker = None  # lazy load
         self._logger = logging.getLogger(__name__)
         
@@ -56,18 +59,30 @@ class VectorRetrievalService:
         where_filter = self._build_filter(doc_type)
         
         # 初始检索：如果启用 rerank，检索更多文档
-        initial_k = rerank_k * 2 if (self.enable_rerank and rerank_k) else k
-        
-        # 使用 retriever 检索
-        retriever = self.vectordb.as_retriever(
-            search_kwargs={
-                "k": initial_k,
-                "filter": where_filter,
-            }
+        initial_k = (
+            max(k, rerank_k * 3)
+            if (self.enable_rerank and rerank_k)
+            else k
         )
         
-        # LangChain 1.0+ 推荐使用 invoke 而非 get_relevant_documents
-        docs = retriever.invoke(query)
+        # 直接取带相关性分数的结果，便于阈值过滤
+        docs_with_scores = self.vectordb.similarity_search_with_relevance_scores(
+            query=query,
+            k=initial_k,
+            filter=where_filter,
+        )
+
+        # 过滤低分段，并把分数塞进 metadata，便于后续使用/展示
+        filtered_docs = []
+        for doc, score in docs_with_scores:
+            doc.metadata = dict(doc.metadata) if doc.metadata else {}
+            doc.metadata["score"] = float(score) if score is not None else None
+            if self.score_threshold is not None and score is not None:
+                if score < self.score_threshold:
+                    continue
+            filtered_docs.append(doc)
+
+        docs = filtered_docs
         
         # 如果启用 rerank，进行重排序
         if self.enable_rerank and rerank_k and len(docs) > rerank_k:
@@ -143,6 +158,11 @@ class VectorRetrievalService:
                         device=device,
                         trust_remote_code=True,
                     )
+                    self._logger.info(
+                        "Use BGE CrossEncoder reranker '%s' on device=%s",
+                        self.rerank_model_name,
+                        device,
+                    )
                 except Exception as e:
                     # 尝试回退到 CPU 再加载，避免 MPS/meta tensor 报错
                     self._logger.warning(
@@ -152,6 +172,10 @@ class VectorRetrievalService:
                         self.rerank_model_name,
                         device="cpu",
                         trust_remote_code=True,
+                    )
+                    self._logger.info(
+                        "Fallback to CPU for BGE CrossEncoder reranker '%s'",
+                        self.rerank_model_name,
                     )
         except Exception as e:
             self._logger.warning(f"加载 rerank 模型失败，将回退到 LLM 评分: {e}")
@@ -195,6 +219,7 @@ class VectorRetrievalService:
                 "doc_id": metadata.get("doc_id"),
                 "page": metadata.get("page"),
                 "chunk_index": chunk_index,
+                "score": metadata.get("score"),
             })
         
         return results

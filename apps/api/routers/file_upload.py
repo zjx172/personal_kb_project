@@ -14,7 +14,7 @@ from datetime import datetime
 from db import get_db, SessionLocal
 from models import User, MarkdownDoc, KnowledgeBase
 from auth import get_current_user
-from schemas import UploadPdfResponse
+from schemas import UploadPdfResponse, MarkdownDocDetail
 from tasks import update_task, TaskStatus
 from services.doc_service import upsert_markdown_doc_to_vectorstore
 from services.storage import storage
@@ -195,8 +195,13 @@ async def process_file_extraction(
                 lambda: upsert_markdown_doc_to_vectorstore(doc),
             )
 
+            # 结果转为可序列化的 dict，避免直接传递 SQLAlchemy 实例
+            result = MarkdownDocDetail.model_validate(
+                doc, from_attributes=True
+            ).model_dump()
+
             await update_task(
-                task_id, TaskStatus.COMPLETED, 100, "文件处理完成！", result=doc
+                task_id, TaskStatus.COMPLETED, 100, "文件处理完成！", result=result
             )
         finally:
             db.close()
