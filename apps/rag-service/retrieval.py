@@ -122,12 +122,37 @@ class VectorRetrievalService:
         """
         try:
             from sentence_transformers import CrossEncoder  # type: ignore
+            import torch
         except Exception:
             return None
 
+        # 优先用可用的 GPU，但在 MPS 上部分模型存在 meta tensor bug，失败时回退 CPU
+        def _pick_device() -> str:
+            if torch.cuda.is_available():
+                return "cuda"
+            if getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+                return "mps"
+            return "cpu"
+
         try:
             if self._reranker is None:
-                self._reranker = CrossEncoder(self.rerank_model_name, trust_remote_code=True)
+                device = _pick_device()
+                try:
+                    self._reranker = CrossEncoder(
+                        self.rerank_model_name,
+                        device=device,
+                        trust_remote_code=True,
+                    )
+                except Exception as e:
+                    # 尝试回退到 CPU 再加载，避免 MPS/meta tensor 报错
+                    self._logger.warning(
+                        f"加载 rerank 模型在 {device} 失败，尝试 CPU: {e}"
+                    )
+                    self._reranker = CrossEncoder(
+                        self.rerank_model_name,
+                        device="cpu",
+                        trust_remote_code=True,
+                    )
         except Exception as e:
             self._logger.warning(f"加载 rerank 模型失败，将回退到 LLM 评分: {e}")
             return None
