@@ -1,18 +1,21 @@
 import React, {
-  useState,
-  useRef,
   useEffect,
   useImperativeHandle,
+  useRef,
+  useState,
   forwardRef,
 } from "react";
 import "./doc-editor.css";
+import DocContent from "./DocContent";
+import DocOutlinePanel from "./DocOutlinePanel";
+import DocToolbar from "./DocToolbar";
 import {
-  DocBlock,
   BlockType,
+  DocBlock,
   OutlineItem,
-  createBlock,
-  buildOutline,
   blocksToMarkdown,
+  buildOutline,
+  createBlock,
   generateId,
 } from "./docModel";
 
@@ -41,51 +44,6 @@ export interface FeishuDocEditorHandle {
 }
 
 type InlineCommand = "bold" | "italic" | "code";
-
-// 按 Markdown 语法渲染行内链接：
-// - [label](https://example.com)
-// - <https://example.com>
-// - 裸露的 http/https 链接（GFM 允许的自动链接）
-function renderMarkdownInline(text: string) {
-  const nodes: React.ReactNode[] = [];
-  const regex =
-    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|<(https?:\/\/[^>\s]+)>|(\bhttps?:\/\/[^\s)]+)/g;
-  let lastIndex = 0;
-  let key = 0;
-
-  text.replace(
-    regex,
-    (match, label, urlInParen, urlInAngle, bareUrl, offset) => {
-      if (offset > lastIndex) {
-        nodes.push(
-          <span key={`t-${key++}`}>{text.slice(lastIndex, offset)}</span>
-        );
-      }
-      const href =
-        (urlInParen as string) || (urlInAngle as string) || (bareUrl as string);
-      const labelText = (label as string) || href;
-      nodes.push(
-        <a
-          key={`l-${key++}`}
-          href={href}
-          target="_blank"
-          rel="noreferrer"
-          className="doc-inline-link"
-        >
-          {labelText}
-        </a>
-      );
-      lastIndex = (offset as number) + match.length;
-      return match;
-    }
-  );
-
-  if (lastIndex < text.length) {
-    nodes.push(<span key={`t-${key++}`}>{text.slice(lastIndex)}</span>);
-  }
-
-  return nodes.length ? nodes : text;
-}
 
 const DEFAULT_DOC: DocBlock[] = [
   {
@@ -530,6 +488,16 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
       );
     }
 
+    const handleTextColorChange = (color: string) => {
+      setTextColor(color);
+      applyColor(color);
+    };
+
+    const handleHighlightChange = (color: string) => {
+      setHighlightColor(color);
+      applyHighlight(color);
+    };
+
     useImperativeHandle(
       ref,
       () => ({
@@ -554,310 +522,41 @@ const FeishuDocEditor = forwardRef<FeishuDocEditorHandle, FeishuDocEditorProps>(
             <div className="doc-title">{resolvedTitle}</div>
           )}
 
-          {/* 工具栏 */}
-          <div className="doc-toolbar">
-            <div className="doc-toolbar-group">
-              <button
-                type="button"
-                className="doc-btn doc-btn--icon"
-                onClick={() => applyInline("bold")}
-              >
-                B
-              </button>
-              <button
-                type="button"
-                className="doc-btn doc-btn--icon"
-                onClick={() => applyInline("italic")}
-              >
-                I
-              </button>
-              <button
-                type="button"
-                className="doc-btn doc-btn--icon"
-                onClick={() => applyInline("code")}
-              >
-                {"</>"}
-              </button>
-            </div>
+          <DocToolbar
+            currentType={currentType}
+            textColor={textColor}
+            highlightColor={highlightColor}
+            outlineCollapsed={outlineCollapsed}
+            onBold={() => applyInline("bold")}
+            onItalic={() => applyInline("italic")}
+            onCode={() => applyInline("code")}
+            onTextColorChange={handleTextColorChange}
+            onHighlightChange={handleHighlightChange}
+            onUpdateType={updateBlockType}
+            onToggleOutline={() => setOutlineCollapsed((v) => !v)}
+            onInsertDivider={insertDividerBelow}
+            onDeleteActive={deleteActiveBlock}
+          />
 
-            <span className="doc-toolbar-divider" />
-
-            <div className="doc-toolbar-group doc-toolbar-group--color">
-              <label className="doc-color-label">
-                文本色
-                <input
-                  type="color"
-                  value={textColor}
-                  onChange={(e) => {
-                    setTextColor(e.target.value);
-                    applyColor(e.target.value);
-                  }}
-                />
-              </label>
-              <label className="doc-color-label">
-                高亮
-                <input
-                  type="color"
-                  value={highlightColor}
-                  onChange={(e) => {
-                    setHighlightColor(e.target.value);
-                    applyHighlight(e.target.value);
-                  }}
-                />
-              </label>
-            </div>
-
-            <span className="doc-toolbar-divider" />
-
-            <div className="doc-toolbar-group">
-              <button
-                type="button"
-                className={
-                  "doc-btn" +
-                  (currentType === "paragraph" ? " doc-btn--active" : "")
-                }
-                onClick={() => updateBlockType("paragraph")}
-              >
-                文本
-              </button>
-              <button
-                type="button"
-                className={
-                  "doc-btn" +
-                  (currentType === "heading1" ? " doc-btn--active" : "")
-                }
-                onClick={() => updateBlockType("heading1")}
-              >
-                标题 1
-              </button>
-              <button
-                type="button"
-                className={
-                  "doc-btn" +
-                  (currentType === "heading2" ? " doc-btn--active" : "")
-                }
-                onClick={() => updateBlockType("heading2")}
-              >
-                标题 2
-              </button>
-              <button
-                type="button"
-                className={
-                  "doc-btn" +
-                  (currentType === "heading3" ? " doc-btn--active" : "")
-                }
-                onClick={() => updateBlockType("heading3")}
-              >
-                标题 3
-              </button>
-              <button
-                type="button"
-                className={
-                  "doc-btn" +
-                  (currentType === "quote" ? " doc-btn--active" : "")
-                }
-                onClick={() => updateBlockType("quote")}
-              >
-                引用
-              </button>
-              <button
-                type="button"
-                className={
-                  "doc-btn" +
-                  (currentType === "bulleted" ? " doc-btn--active" : "")
-                }
-                onClick={() => updateBlockType("bulleted")}
-              >
-                • 列表
-              </button>
-              <button
-                type="button"
-                className={
-                  "doc-btn" +
-                  (currentType === "numbered" ? " doc-btn--active" : "")
-                }
-                onClick={() => updateBlockType("numbered")}
-              >
-                1. 列表
-              </button>
-              <button
-                type="button"
-                className={
-                  "doc-btn" + (currentType === "ref" ? " doc-btn--active" : "")
-                }
-                onClick={() => updateBlockType("ref")}
-              >
-                引用块
-              </button>
-            </div>
-
-            <div className="doc-toolbar-group doc-toolbar-group--outline-toggle">
-              <button
-                type="button"
-                className="doc-btn"
-                onClick={() => setOutlineCollapsed((v) => !v)}
-              >
-                {outlineCollapsed ? "展开大纲" : "隐藏大纲"}
-              </button>
-              <button
-                type="button"
-                className="doc-btn"
-                onClick={insertDividerBelow}
-              >
-                分割线
-              </button>
-              <button
-                type="button"
-                className="doc-btn"
-                onClick={deleteActiveBlock}
-              >
-                删除块
-              </button>
-            </div>
-          </div>
-
-          {/* 文档内容 */}
-          <div className="doc-content">
-            {blocks.map((block, index) => {
-              const isActive = block.id === activeId;
-              const blockClass =
-                "doc-block doc-block--" +
-                block.type +
-                (isActive ? " doc-block--active" : "");
-              const renderedContent: React.ReactNode = block.text
-                ? isActive
-                  ? block.text
-                  : renderMarkdownInline(block.text)
-                : React.createElement("br");
-
-              if (block.type === "ref") {
-                return (
-                  <div
-                    key={block.id}
-                    className={blockClass}
-                    ref={(el) => setBlockRef(block.id, el)}
-                    data-type={block.type}
-                    data-md-id={block.refId || block.id}
-                  >
-                    <div className="doc-ref-title">
-                      <span className="doc-ref-tag">REF</span>
-                      <input
-                        style={{
-                          border: "none",
-                          outline: "none",
-                          fontSize: 13,
-                          background: "transparent",
-                          flex: 1,
-                        }}
-                        placeholder="引用标题"
-                        value={block.refTitle || ""}
-                        onChange={(e) =>
-                          handleRefTitleChange(block.id, e.target.value)
-                        }
-                        onFocus={() => handleBlockFocus(block.id)}
-                      />
-                    </div>
-                    <div
-                      className="doc-block-inner"
-                      contentEditable
-                      suppressContentEditableWarning
-                      onInput={(e) => handleBlockInput(block.id, e)}
-                      onFocus={() => handleBlockFocus(block.id)}
-                      onPaste={(e) => handleBlockPaste(block.id, e)}
-                      onKeyDown={(e) => handleKeyDown(block, e)}
-                    >
-                      {renderedContent}
-                    </div>
-                  </div>
-                );
-              }
-
-              if (block.type === "divider") {
-                return (
-                  <div
-                    key={block.id}
-                    className={blockClass + " doc-block--divider"}
-                    ref={(el) => setBlockRef(block.id, el)}
-                    data-type={block.type}
-                    onClick={() => handleBlockFocus(block.id)}
-                  >
-                    <div className="doc-divider-line" />
-                  </div>
-                );
-              }
-
-              const dataOrder =
-                block.type === "numbered" ? String(index + 1) : undefined;
-
-              return (
-                <div
-                  key={block.id}
-                  className={blockClass}
-                  ref={(el) => setBlockRef(block.id, el)}
-                  data-type={block.type}
-                >
-                  <div
-                    className="doc-block-inner"
-                    data-order={dataOrder}
-                    contentEditable
-                    suppressContentEditableWarning
-                    onInput={(e) => handleBlockInput(block.id, e)}
-                    onFocus={() => handleBlockFocus(block.id)}
-                    onPaste={(e) => handleBlockPaste(block.id, e)}
-                    onKeyDown={(e) => handleKeyDown(block, e)}
-                  >
-                    {renderedContent}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <DocContent
+            blocks={blocks}
+            activeId={activeId}
+            onBlockInput={handleBlockInput}
+            onBlockFocus={handleBlockFocus}
+            onBlockPaste={handleBlockPaste}
+            onKeyDown={handleKeyDown}
+            onRefTitleChange={handleRefTitleChange}
+            setBlockRef={setBlockRef}
+          />
         </div>
 
         {/* 右侧：大纲 */}
         {!outlineCollapsed && (
-          <div className="doc-outline-panel">
-            <div className="doc-outline-title">大纲 / 引用</div>
-            <div className="doc-outline-subtitle">
-              光标所在块会在这里高亮，点击可定位
-            </div>
-            <div className="doc-outline-list">
-              {outline.length === 0 ? (
-                <div style={{ fontSize: 12, color: "#9ca3af" }}>
-                  暂无标题或引用块，试试添加一个标题或引用块。
-                </div>
-              ) : (
-                outline.map((item) => {
-                  const active = item.blockId === activeId;
-                  const indent =
-                    item.type === "ref" ? 0 : Math.max(0, item.level - 1) * 12;
-                  const tagText =
-                    item.type === "ref"
-                      ? "REF"
-                      : item.level === 1
-                        ? "H1"
-                        : item.level === 2
-                          ? "H2"
-                          : "H3";
-
-                  return (
-                    <div
-                      key={item.id}
-                      className={
-                        "doc-outline-item" +
-                        (active ? " doc-outline-item--active" : "")
-                      }
-                      style={{ marginLeft: indent }}
-                      onClick={() => handleOutlineClick(item)}
-                    >
-                      <span className="doc-outline-tag">{tagText}</span>
-                      <span className="doc-outline-text">{item.text}</span>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
+          <DocOutlinePanel
+            outline={outline}
+            activeId={activeId}
+            onItemClick={handleOutlineClick}
+          />
         )}
       </div>
     );
